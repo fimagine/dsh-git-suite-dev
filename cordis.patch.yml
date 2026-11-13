@@ -1,0 +1,3 @@
+- insert:
+    - id: git-log-viewer
+      name: '@local/dsh-git-log-viewer'
