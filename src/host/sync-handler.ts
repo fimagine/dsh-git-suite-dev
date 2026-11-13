@@ -83,15 +83,27 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
       const repo = await resolveRepository(context, text(body.path), controller.signal)
 
       if (action === 'fetch') {
-        const args = [
-          'fetch',
-          ...(body.fetchAll === true ? ['--all'] : []),
+        const remote = text(body.remote)
+        const args = ['fetch']
+        if (remote !== '') {
+          const remotes = (await runGit(repo.root, ['remote'], controller.signal))
+            .split(/\r?\n/)
+            .map(item => item.trim())
+            .filter(item => item !== '')
+          if (!remotes.includes(remote)) {
+            throw new RouteError(400, 'unknown-remote', 'That remote is not configured in this repository.', { remote })
+          }
+          args.push(remote)
+        } else if (body.fetchAll === true) {
+          args.push('--all')
+        }
+        args.push(
           ...(body.prune === true ? ['--prune'] : []),
           ...(body.tags === true ? ['--tags'] : []),
           ...(body.forceTags === true ? ['--force'] : []),
-        ]
+        )
         await runGit(repo.root, args, controller.signal)
-        await send(res, json({ ok: true, action }))
+        await send(res, json({ ok: true, action, ...(remote === '' ? {} : { remote }) }))
         return
       }
 

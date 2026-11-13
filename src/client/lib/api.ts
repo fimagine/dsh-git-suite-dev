@@ -1,4 +1,6 @@
 import type {
+  BranchAction,
+  BranchActionPayload,
   BranchPayload,
   CheckoutPayload,
   ClonePayload,
@@ -6,6 +8,7 @@ import type {
   GenerateMessagePayload,
   PickDirectoryPayload,
   PushTarget,
+  RemoteRemovePayload,
   SyncAction,
   SyncPayload,
   TagPayload,
@@ -343,6 +346,28 @@ export interface SyncRequest {
 /** POST /git-suite/sync: fetch all remotes, or pull/push an explicit remote branch. */
 export async function requestSync(body: SyncRequest, signal?: AbortSignal): Promise<SyncPayload> {
   return postCommitJson<SyncPayload>('/git-suite/sync', body, signal)
+}
+
+export interface RemoveRemoteRequest {
+  path: string
+  name: string
+}
+
+/** POST /git-suite/remote: remove one configured remote. */
+export async function requestRemoveRemote(body: RemoveRemoteRequest, signal?: AbortSignal): Promise<RemoteRemovePayload> {
+  return postCommitJson<RemoteRemovePayload>('/git-suite/remote', body, signal)
+}
+
+export interface BranchActionRequest {
+  action: BranchAction
+  path: string
+  branch: string
+  newName?: string
+}
+
+/** POST /git-suite/branch-action: merge, rebase, rename, or delete a local branch. */
+export async function requestBranchAction(body: BranchActionRequest, signal?: AbortSignal): Promise<BranchActionPayload> {
+  return postCommitJson<BranchActionPayload>('/git-suite/branch-action', body, signal)
 }
 
 export function toApiError(error: unknown): ApiError {

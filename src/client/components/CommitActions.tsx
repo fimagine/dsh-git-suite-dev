@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import { requestBranch, requestCheckout, requestTag, toApiError } from '../lib/api.js'
 import type { Branch, Commit, Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
+import { Button, DialogActions } from './Button.js'
 
 export interface CommitContext {
   commit: Commit
@@ -110,12 +111,12 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
           {t('tagForce')}
         </label>
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
-        <div className="dsh-gitlog-settings-actions">
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="dsh-gitlog-btn primary" disabled={busy}>
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>
             {busy ? t('tagSaving') : t('tagSave')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
     </DialogShell>
   )
@@ -163,12 +164,12 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
           />
         </label>
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
-        <div className="dsh-gitlog-settings-actions">
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="dsh-gitlog-btn primary" disabled={busy}>
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>
             {busy ? t('branchSaving') : t('branchCreate')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
     </DialogShell>
   )
@@ -233,12 +234,12 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
             : t('checkoutWarningBranch').replace('{name}', target)}
         </p>
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
-        <div className="dsh-gitlog-settings-actions">
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="dsh-gitlog-btn primary" disabled={busy}>
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>
             {busy ? t('checkingOut') : t('checkoutConfirm')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
     </DialogShell>
   )

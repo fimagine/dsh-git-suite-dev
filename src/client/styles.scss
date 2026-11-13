@@ -6,7 +6,7 @@
 
 $prefix: dsh-gitlog;
 
-$control-height: 34px;
+$control-height: 28px;
 $control-radius: 8px;
 $panel-radius: 12px;
 
@@ -32,7 +32,7 @@ $brand: var(--dsw-alias-brand-primary);
   color: $label-primary;
   padding: 0 $padding-x;
   font: inherit;
-  font-size: $font-body;
+  font-size: $font-meta;
 }
 
 .#{$prefix} {
@@ -191,7 +191,6 @@ $brand: var(--dsw-alias-brand-primary);
     width: 100%;
     min-width: 0;
     color: $label-primary;
-    font: inherit;
     text-align: left;
     cursor: pointer;
 
@@ -278,7 +277,7 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 7px;
     height: $control-height;
     color: $label-primary;
-    font-size: $font-body;
+    font-size: $font-meta;
     white-space: nowrap;
     cursor: pointer;
 
@@ -310,6 +309,16 @@ $brand: var(--dsw-alias-brand-primary);
       border-color: $brand;
       color: $brand;
     }
+
+    &.danger {
+      border-color: var(--dsw-alias-state-error-primary);
+      color: var(--dsw-alias-state-error-primary);
+    }
+
+    &.ghost {
+      border-color: transparent;
+      background: transparent;
+    }
   }
 
   &-icon-btn {
@@ -340,11 +349,11 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-view-switch .dsh-gitlog-btn {
-    height: 24px;
+    height: 28px;
     padding: 0 8px;
     border-color: transparent;
     background: transparent;
-    font-size: $font-tiny;
+    font-size: $font-meta;
   }
 
   &-view-switch .dsh-gitlog-btn[aria-pressed="true"] {
@@ -379,7 +388,7 @@ $brand: var(--dsw-alias-brand-primary);
 
     button {
       width: 100%;
-      height: 30px;
+      height: 28px;
       padding: 0 10px;
       border: 0;
       border-radius: 6px;
@@ -439,7 +448,7 @@ $brand: var(--dsw-alias-brand-primary);
 
     button {
       width: 100%;
-      height: 30px;
+      height: 28px;
       padding: 0 10px;
       border: 0;
       border-radius: 6px;
@@ -453,7 +462,26 @@ $brand: var(--dsw-alias-brand-primary);
       &:hover {
         background: $bg-layer-2;
       }
+
+      &:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+      }
     }
+  }
+
+  &-branch-menu {
+    min-width: 220px;
+  }
+
+  &-menu-separator {
+    height: 1px;
+    margin: 4px 6px;
+    background: $border-l1;
+  }
+
+  &-remote-menu .danger {
+    color: var(--dsw-alias-state-error-primary);
   }
 
   &-dialog-target {
@@ -642,7 +670,7 @@ $brand: var(--dsw-alias-brand-primary);
 
   input.dsh-gitlog-tree-input {
     width: 100%;
-    height: 30px;
+    height: 28px;
     padding: 0 9px;
     font-size: $font-meta;
   }
@@ -832,19 +860,25 @@ $brand: var(--dsw-alias-brand-primary);
   &-history-toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
-    padding: 8px 16px;
+    padding: 6px 16px;
     border-bottom: 1px solid $border-l1;
     background: $bg-layer-1;
   }
 
   &-history-branch {
-    flex: 0 1 240px;
+    flex: 0 1 210px;
   }
 
   &-history-sort {
-    flex: 0 0 150px;
+    flex: 0 0 130px;
+  }
+
+  &-history-toolbar .dsh-gitlog-dropdown-btn {
+    height: 28px;
+    padding: 0 9px;
+    font-size: $font-meta;
   }
 
   &-history-remotes {
@@ -855,7 +889,7 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-parent-btn {
     flex: 0 0 auto;
-    font-size: $font-tiny;
+    font-size: $font-meta;
     white-space: nowrap;
   }
 
@@ -1460,8 +1494,8 @@ $brand: var(--dsw-alias-brand-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 1px solid transparent;
     border-radius: 7px;
@@ -1537,10 +1571,11 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: center;
     gap: 5px;
     min-width: 0;
+    height: 28px;
     padding: 2px 6px;
     color: $label-primary;
     font: inherit;
-    font-size: $font-tiny;
+    font-size: $font-meta;
     cursor: pointer;
 
     svg {
@@ -1650,7 +1685,7 @@ $brand: var(--dsw-alias-brand-primary);
   &-push-row-head {
     background: $bg-layer-2;
     color: $label-secondary;
-    font-size: $font-tiny;
+    font-size: $font-meta;
     font-weight: 600;
   }
 
@@ -1663,9 +1698,9 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-push-target .dsh-gitlog-dropdown-btn {
-    height: 26px;
+    height: 28px;
     padding: 0 6px;
-    font-size: $font-tiny;
+    font-size: $font-meta;
   }
 
   &-push-select-all {
@@ -1853,7 +1888,7 @@ $brand: var(--dsw-alias-brand-primary);
     overflow: hidden;
     color: $label-secondary;
     font-family: var(--gitlog-mono);
-    font-size: $font-tiny;
+    font-size: $font-meta;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1866,7 +1901,7 @@ $brand: var(--dsw-alias-brand-primary);
 
     > span {
       color: $label-secondary;
-      font-size: $font-tiny;
+      font-size: $font-meta;
     }
   }
 
@@ -1891,7 +1926,7 @@ $brand: var(--dsw-alias-brand-primary);
     background: $bg-base;
     color: $label-primary;
     font: inherit;
-    font-size: $font-body;
+    font-size: $font-meta;
     line-height: 1.5;
 
     &:focus {

@@ -1,9 +1,11 @@
 import type { HostContext, WorkspaceRegistry, WorkspaceRegistryEntry } from './dsh.js'
 import { createCloneHandler } from './clone-handler.js'
+import { createBranchActionHandler } from './branch-action-handler.js'
 import { createBranchHandler, createCheckoutHandler, createTagHandler } from './commit-actions.js'
 import { createWorkspaceHandler } from './create-workspace-handler.js'
 import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
+import { createRemoteHandler } from './remote-handler.js'
 import { createResource } from './resource.js'
 import { createSwitchHandler } from './switch-handler.js'
 import { createSyncHandler } from './sync-handler.js'
@@ -21,6 +23,8 @@ const TAG_PATH = '/git-suite/tag'
 const BRANCH_PATH = '/git-suite/branch'
 const CHECKOUT_PATH = '/git-suite/checkout'
 const SYNC_PATH = '/git-suite/sync'
+const REMOTE_PATH = '/git-suite/remote'
+const BRANCH_ACTION_PATH = '/git-suite/branch-action'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
 
@@ -97,4 +101,14 @@ export function apply(ctx: HostContext): void {
     path: SYNC_PATH,
     handler: createSyncHandler(context),
   }), 'git-suite: sync route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: REMOTE_PATH,
+    handler: createRemoteHandler(context),
+  }), 'git-suite: remote route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: BRANCH_ACTION_PATH,
+    handler: createBranchActionHandler(context),
+  }), 'git-suite: branch action route')
 }

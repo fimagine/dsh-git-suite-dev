@@ -73,6 +73,7 @@ export interface Branch {
   kind: 'local' | 'remote'
   hash: string
   current: boolean
+  upstream?: string
 }
 
 export interface Project {

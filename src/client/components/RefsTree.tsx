@@ -15,6 +15,8 @@ export interface RefsTreeProps {
   onSelect(selection: Selection): void
   onSwitch(selection: Selection): void
   onOpenSubmodule?(path: string): void
+  onRemoteMenu?(remote: string, event: React.MouseEvent): void
+  onBranchMenu?(selection: Selection, event: React.MouseEvent): void
   t: Translate
 }
 
@@ -56,7 +58,7 @@ interface EmptyRow {
 type TreeRow = SectionRow | NodeRow | EmptyRow
 
 /** Branch/tag/remote/stash navigation for the left column of the panel. */
-export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, t }: RefsTreeProps): React.ReactElement {
+export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onRemoteMenu, onBranchMenu, t }: RefsTreeProps): React.ReactElement {
   const [query, setQuery] = useState('')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ ...SECTION_DEFAULT_OPEN })
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
@@ -183,6 +185,14 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
             onSelect(nodeSelection)
           }
         }}
+        onContextMenu={(node.kind === 'remote' && onRemoteMenu !== undefined)
+          || (nodeSelection?.kind === 'branch' && !nodeSelection.remote && onBranchMenu !== undefined)
+          ? event => {
+              event.preventDefault()
+              if (node.kind === 'remote') onRemoteMenu?.(node.label, event)
+              else if (nodeSelection !== undefined) onBranchMenu?.(nodeSelection, event)
+            }
+          : undefined}
         onDoubleClick={localBranch === null ? undefined : () => onSwitch(localBranch)}
       >
         {renderGuides(depth, last, ancestors)}

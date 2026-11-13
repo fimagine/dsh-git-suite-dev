@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
+import { Button, DialogActions } from './Button.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
 
 export interface PushDialogProps {
@@ -121,11 +122,10 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
           </label>
         </div>
 
-        <div className="dsh-gitlog-dialog-actions">
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button
-            type="button"
-            className="dsh-gitlog-btn primary"
+        <DialogActions>
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button
+            variant="primary"
             disabled={!canPush}
             onClick={() => {
               const refs = locals
@@ -140,8 +140,8 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
             }}
           >
             {t('push')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </div>
     </DialogShell>
   )

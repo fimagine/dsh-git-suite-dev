@@ -2,6 +2,7 @@ import type * as React from 'react'
 import { h, useEffect } from '../runtime.js'
 import type { Translate } from '../types.js'
 import { Dropdown } from './Dropdown.js'
+import { Button, DialogActions } from './Button.js'
 
 const LIMITS = [25, 50, 100, 200, 0] as const
 
@@ -78,9 +79,9 @@ export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogPr
           </label>
           <p className="dsh-gitlog-settings-hint">{t('settingsHint')}</p>
         </div>
-        <div className="dsh-gitlog-settings-actions">
-          <button type="button" className="dsh-gitlog-btn primary" onClick={onClose}>{t('close')}</button>
-        </div>
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button variant="primary" onClick={onClose}>{t('close')}</Button>
+        </DialogActions>
       </div>
     </div>
   )

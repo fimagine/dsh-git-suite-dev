@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import { projectDropdownOptions } from '../lib/project-dropdown.js'
 import type { Translate } from '../types.js'
 import { Dropdown } from './Dropdown.js'
+import { Button } from './Button.js'
 import { RepositoryMenu } from './RepositoryMenu.js'
 
 /** Project and path controls above the commit list; page size lives in Settings. */
@@ -21,14 +22,13 @@ export function PanelControls({ view, t }: { view: GitLogView; t: Translate }): 
       />
       {view.repo !== null && view.repo.superproject !== null
         ? (
-            <button
-              type="button"
-              className="dsh-gitlog-btn dsh-gitlog-parent-btn"
+            <Button
               title={t('backToParent')}
+              className="dsh-gitlog-parent-btn"
               onClick={() => view.openPath(view.repo?.superproject ?? '')}
             >
               {t('backToParent')}
-            </button>
+            </Button>
           )
         : null}
       <label className="dsh-gitlog-field grow">

@@ -33,6 +33,7 @@ export interface Branch {
   kind: 'local' | 'remote'
   hash: string
   current: boolean
+  upstream?: string
 }
 
 export interface TagRef {
@@ -58,6 +59,21 @@ export interface FetchOptions {
   prune: boolean
   tags: boolean
   forceTags: boolean
+  remote?: string
+}
+
+export interface RemoteRemovePayload {
+  ok: true
+  name: string
+}
+
+export type BranchAction = 'merge' | 'rebase' | 'rename' | 'delete'
+
+export interface BranchActionPayload {
+  ok: true
+  action: BranchAction
+  branch: string
+  newName?: string
 }
 
 export interface PushTarget {

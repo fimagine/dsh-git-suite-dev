@@ -5,6 +5,7 @@ import { requestClone, requestCreateWorkspace, requestPickDirectory, toApiError 
 import { projectDropdownOptions } from '../lib/project-dropdown.js'
 import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
+import { Button, DialogActions } from './Button.js'
 import { Dropdown } from './Dropdown.js'
 
 interface DialogProps {
@@ -124,12 +125,12 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
           {t('addToWorkspace')}
         </label>
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
-        <div className="dsh-gitlog-settings-actions">
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="dsh-gitlog-btn primary" disabled={busy}>
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>
             {busy ? t('cloning') : t('clone')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
     </DialogShell>
   )
@@ -235,20 +236,18 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
         </label>
         {hasWorkspace ? <p className="dsh-gitlog-settings-hint">{t('alreadyWorkspace')}</p> : null}
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
-        <div className="dsh-gitlog-settings-actions">
-          <button
-            type="button"
-            className="dsh-gitlog-btn"
+        <DialogActions className="dsh-gitlog-settings-actions">
+          <Button
             onClick={view.rescanProjects}
             disabled={view.projectsStatus === 'loading'}
           >
             {t('rescan')}
-          </button>
-          <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-          <button type="submit" className="dsh-gitlog-btn primary" disabled={path.trim() === '' || busy}>
+          </Button>
+          <Button onClick={onClose}>{t('cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={path.trim() === '' || busy}>
             {busy ? t('opening') : t('open')}
-          </button>
-        </div>
+          </Button>
+        </DialogActions>
       </form>
     </DialogShell>
   )
@@ -307,17 +306,15 @@ export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }):
       onMouseEnter={show}
       onMouseLeave={hide}
     >
-      <button
-        type="button"
-        className="dsh-gitlog-btn dsh-gitlog-icon-btn dsh-gitlog-add-btn"
+      <Button
+        iconOnly
+        className="dsh-gitlog-add-btn"
         title={t('addRepository')}
-        aria-label={t('addRepository')}
-        aria-haspopup="menu"
-        aria-expanded={open}
+        ariaHasPopup="menu"
+        ariaExpanded={open}
         onClick={() => setOpen(value => !value)}
-      >
-        +
-      </button>
+        icon={<span>+</span>}
+      />
       {open
         ? (
             <div className="dsh-gitlog-add-menu" role="menu" aria-label={t('addRepository')}>

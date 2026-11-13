@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
+import { Button, DialogActions } from './Button.js'
 import { Dropdown } from './Dropdown.js'
 
 export interface SyncDialogProps {
@@ -76,11 +77,10 @@ export function SyncDialog({ action, view, ws, t, onClose }: SyncDialogProps): R
           ? `${t('pull')} ${remote}/${branch} → ${current}`
           : `${t('push')} ${current} → ${remote}/${branch}`}
       </p>
-      <div className="dsh-gitlog-dialog-actions">
-        <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-        <button
-          type="button"
-          className="dsh-gitlog-btn primary"
+      <DialogActions>
+        <Button onClick={onClose}>{t('cancel')}</Button>
+        <Button
+          variant="primary"
           disabled={!canSubmit}
           onClick={() => {
             ws.sync(action, { remote, branch })
@@ -88,8 +88,8 @@ export function SyncDialog({ action, view, ws, t, onClose }: SyncDialogProps): R
           }}
         >
           {title}
-        </button>
-      </div>
+        </Button>
+      </DialogActions>
     </DialogShell>
   )
 }

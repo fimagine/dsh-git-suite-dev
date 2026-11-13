@@ -1,10 +1,15 @@
 import type * as React from 'react'
 import { CommitActions, type CommitContext } from './components/CommitActions.js'
 import { CommitList } from './components/CommitList.js'
+import { BranchMenu, type BranchMenuState } from './components/BranchMenu.js'
+import { BranchDeleteDialog, BranchRenameDialog } from './components/BranchDialogs.js'
+import { DeleteRemoteDialog } from './components/DeleteRemoteDialog.js'
 import { DetailPane } from './components/DetailPane.js'
 import { ErrorState } from './components/ErrorState.js'
 import { PanelControls } from './components/PanelControls.js'
 import { RefsTree } from './components/RefsTree.js'
+import { RemoteMenu, type RemoteMenuState } from './components/RemoteMenu.js'
+import { Button } from './components/Button.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
 import { SettingsDialog, SettingsIcon } from './components/SettingsDialog.js'
@@ -13,9 +18,10 @@ import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
+import { requestBranchAction, toApiError } from './lib/api.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
-import type { Commit, Translate } from './types.js'
+import type { Branch, Commit, Selection, Translate } from './types.js'
 
 export interface GitLogPanelProps {
   t: Translate
@@ -53,6 +59,11 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'history' | 'workspace'>('history')
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
+  const [remoteMenu, setRemoteMenu] = useState<RemoteMenuState | null>(null)
+  const [remoteDelete, setRemoteDelete] = useState<string | null>(null)
+  const [branchMenu, setBranchMenu] = useState<BranchMenuState | null>(null)
+  const [branchDialog, setBranchDialog] = useState<{ action: 'rename' | 'delete'; branch: Branch } | null>(null)
+  const [branchActionError, setBranchActionError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const stackRef = useRef<HTMLDivElement | null>(null)
   const treeStart = useRef({ width: 240, height: 220, maxWidth: MAX_TREE_WIDTH, maxHeight: MAX_TREE_HEIGHT })
@@ -130,6 +141,89 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     view.openPath(`${root.replace(/[\\/]+$/, '')}${separator}${path}`)
   }
 
+  const fetchRemote = (remote: string): void => {
+    ws.sync('fetch', undefined, { fetchAll: false, prune: true, tags: true, forceTags: false, remote })
+  }
+
+  const pullRemote = (remote: string): void => {
+    const branch = ws.status?.branch ?? ''
+    if (branch === '') return
+    ws.sync('pull', { remote, branch })
+  }
+
+  const pushRemote = (remote: string): void => {
+    const branch = ws.status?.branch ?? ''
+    if (branch === '') return
+    ws.pushBranches({
+      remote,
+      refs: [{ local: branch, remote: branch, track: false }],
+      tags: false,
+      force: false,
+    })
+  }
+
+  const openBranchMenu = (selection: Selection, event: React.MouseEvent): void => {
+    if (selection.kind !== 'branch' || selection.remote) return
+    const branch = view.tree?.branches.find(item => item.ref === selection.ref)
+    if (branch !== undefined) setBranchMenu({ branch, x: event.clientX, y: event.clientY })
+  }
+
+  const branchUpstream = (branch: Branch): { remote: string; branch: string } | null => {
+    const upstream = branch.upstream ?? ''
+    const slash = upstream.indexOf('/')
+    return slash > 0 ? { remote: upstream.slice(0, slash), branch: upstream.slice(slash + 1) } : null
+  }
+
+  const checkoutBranch = (branch: Branch): void => {
+    void view.switchBranch({ kind: 'branch', ref: branch.ref, name: branch.name, remote: false })
+  }
+
+  const mergeBranch = (branch: Branch): void => {
+    void runBranchAction('merge', branch)
+  }
+
+  const rebaseBranch = (branch: Branch): void => {
+    void runBranchAction('rebase', branch)
+  }
+
+  const runBranchAction = async (action: 'merge' | 'rebase', branch: Branch): Promise<void> => {
+    setBranchActionError(null)
+    try {
+      await requestBranchAction({
+        action,
+        path: view.repo?.repoRoot ?? view.pathInput.trim(),
+        branch: branch.name,
+      })
+      ws.refresh()
+      view.refresh()
+    } catch (error) {
+      setBranchActionError(toApiError(error).message)
+    }
+  }
+
+  const fetchBranch = (branch: Branch): void => {
+    const upstream = branchUpstream(branch)
+    if (upstream === null) return
+    ws.sync('fetch', undefined, { fetchAll: false, prune: true, tags: true, forceTags: false, remote: upstream.remote })
+  }
+
+  const pullBranch = (branch: Branch): void => {
+    const upstream = branchUpstream(branch)
+    if (upstream === null) return
+    ws.sync('pull', upstream)
+  }
+
+  const pushBranch = (branch: Branch): void => {
+    const upstream = branchUpstream(branch)
+    if (upstream === null) return
+    ws.pushBranches({
+      remote: upstream.remote,
+      refs: [{ local: branch.name, remote: upstream.branch, track: false }],
+      tags: false,
+      force: false,
+    })
+  }
+
   const body = (
     <div ref={bodyRef} className="dsh-gitlog-body has-tree" style={bodyStyle}>
       <RefsTree
@@ -141,6 +235,8 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onSelect={view.selectRef}
         onSwitch={view.switchBranch}
         onOpenSubmodule={openSubmodule}
+        onRemoteMenu={(remote, event) => setRemoteMenu({ remote, x: event.clientX, y: event.clientY })}
+        onBranchMenu={openBranchMenu}
         t={t}
       />
       <Splitter
@@ -187,38 +283,32 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       <div className="dsh-gitlog-topbar">
         <PanelControls view={view} t={t} />
         <div className="dsh-gitlog-header-actions">
-          <button
-            type="button"
-            className="dsh-gitlog-btn dsh-gitlog-icon-btn"
+          <Button
+            iconOnly
             title={t('refresh')}
-            aria-label={t('refresh')}
             onClick={view.refresh}
             disabled={status === 'loading'}
-          >
-            <RefreshIcon />
-          </button>
-          <button
-            type="button"
-            className="dsh-gitlog-btn dsh-gitlog-icon-btn"
+            icon={<RefreshIcon />}
+          />
+          <Button
+            iconOnly
             title={t('settings')}
-            aria-label={t('settings')}
-            aria-haspopup="dialog"
-            aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen(true)}
-          >
-            <SettingsIcon />
-          </button>
+            ariaHasPopup="dialog"
+            ariaExpanded={settingsOpen}
+            icon={<SettingsIcon />}
+          />
         </div>
       </div>
       <RepoActions
         view={view}
         ws={ws}
         mode={viewMode}
-        onShowWorkspace={() => setViewMode('workspace')}
         onModeChange={setViewMode}
         t={t}
       />
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}
+      {branchActionError !== null ? <p className="dsh-gitlog-note" role="alert">{branchActionError}</p> : null}
       {view.switching ? <p className="dsh-gitlog-note" role="status">{t('switching')}</p> : null}
       {view.switchError !== null ? <p className="dsh-gitlog-note" role="alert">{view.switchError}</p> : null}
       {error !== null && commits.length > 0
@@ -241,6 +331,57 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         t={t}
         onClose={() => setCommitMenu(null)}
       />
+      <RemoteMenu
+        context={remoteMenu}
+        t={t}
+        onFetch={fetchRemote}
+        onPull={pullRemote}
+        onPush={pushRemote}
+        onDelete={setRemoteDelete}
+        onClose={() => setRemoteMenu(null)}
+      />
+      {remoteDelete === null
+        ? null
+        : (
+            <DeleteRemoteDialog
+              view={view}
+              remote={remoteDelete}
+              t={t}
+              onClose={() => setRemoteDelete(null)}
+            />
+          )}
+      <BranchMenu
+        context={branchMenu}
+        t={t}
+        onCheckout={checkoutBranch}
+        onMerge={mergeBranch}
+        onRebase={rebaseBranch}
+        onFetch={fetchBranch}
+        onPull={pullBranch}
+        onPush={pushBranch}
+        onRename={branch => setBranchDialog({ action: 'rename', branch })}
+        onDelete={branch => setBranchDialog({ action: 'delete', branch })}
+        onClose={() => setBranchMenu(null)}
+      />
+      {branchDialog === null
+        ? null
+        : branchDialog.action === 'rename'
+          ? (
+              <BranchRenameDialog
+                view={view}
+                branch={branchDialog.branch}
+                t={t}
+                onClose={() => setBranchDialog(null)}
+              />
+            )
+          : (
+              <BranchDeleteDialog
+                view={view}
+                branch={branchDialog.branch}
+                t={t}
+                onClose={() => setBranchDialog(null)}
+              />
+            )}
     </div>
   )
 }

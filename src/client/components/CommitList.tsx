@@ -293,6 +293,13 @@ export function CommitList({ view, t, onContextMenu }: {
             ariaLabel={t('branchFilter')}
             placeholder={view.branchLabel}
           />
+          <Dropdown
+            className="dsh-gitlog-history-sort"
+            value={view.sort}
+            options={sortOptions}
+            onChange={value => view.setSort(value === 'topo' ? 'topo' : 'date')}
+            ariaLabel={t('sortOrder')}
+          />
           <label className="dsh-gitlog-check dsh-gitlog-history-remotes">
             <input
               type="checkbox"
@@ -301,17 +308,6 @@ export function CommitList({ view, t, onContextMenu }: {
             />
             {t('showRemoteBranches')}
           </label>
-          <Dropdown
-            className="dsh-gitlog-history-sort"
-            value={view.sort}
-            options={sortOptions}
-            onChange={value => view.setSort(value === 'topo' ? 'topo' : 'date')}
-            ariaLabel={t('sortOrder')}
-          />
-        </div>
-        <div className="dsh-gitlog-list-head">
-          <span>{`${commits.length} ${t('commits')}`}</span>
-          {view.repo ? <span className="dsh-gitlog-branch" title={view.branchLabel}>{view.branchLabel}</span> : null}
         </div>
         <div className="dsh-gitlog-commit-header">
           <span className="dsh-gitlog-col dsh-gitlog-col-graph">{t('columnGraph')}</span>

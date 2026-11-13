@@ -3,6 +3,7 @@ import { h, useState } from '../runtime.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
+import { Button, DialogActions } from './Button.js'
 
 export interface FetchDialogProps {
   ws: WorkspaceView
@@ -38,11 +39,10 @@ export function FetchDialog({ ws, t, onClose }: FetchDialogProps): React.ReactEl
           {option(forceTags, setForceTags, t('forceTags'))}
         </div>
       </div>
-      <div className="dsh-gitlog-dialog-actions">
-        <button type="button" className="dsh-gitlog-btn" onClick={onClose}>{t('cancel')}</button>
-        <button
-          type="button"
-          className="dsh-gitlog-btn primary"
+      <DialogActions>
+        <Button onClick={onClose}>{t('cancel')}</Button>
+        <Button
+          variant="primary"
           disabled={ws.syncState === 'loading'}
           onClick={() => {
             ws.sync('fetch', undefined, { fetchAll, prune, tags, forceTags })
@@ -50,8 +50,8 @@ export function FetchDialog({ ws, t, onClose }: FetchDialogProps): React.ReactEl
           }}
         >
           {t('ok')}
-        </button>
-      </div>
+        </Button>
+      </DialogActions>
     </DialogShell>
   )
 }

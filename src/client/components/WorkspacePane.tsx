@@ -3,6 +3,7 @@ import { h, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { RefreshIcon, SparkleIcon } from './GitLogIcon.js'
+import { Button } from './Button.js'
 import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
@@ -89,22 +90,18 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
         <div className="dsh-gitlog-workspace-section-head">
           <h3>{`${isStaged ? t('stagedFiles') : t('unstagedFiles')} (${files.length})`}</h3>
           <span className="dsh-gitlog-workspace-section-actions">
-            <button
-              type="button"
-              className="dsh-gitlog-btn"
+            <Button
               disabled={!hasChecked || ws.actionState === 'loading'}
               onClick={selectedAction}
             >
               {isStaged ? t('unstageSelected') : t('stageSelected')}
-            </button>
-            <button
-              type="button"
-              className="dsh-gitlog-btn"
+            </Button>
+            <Button
               disabled={files.length === 0 || ws.actionState === 'loading'}
               onClick={allAction}
             >
               {isStaged ? t('unstageAll') : t('stageAll')}
-            </button>
+            </Button>
           </span>
         </div>
         <div className="dsh-gitlog-workspace-list">
@@ -159,27 +156,24 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
       {ws.note !== null ? <p className="dsh-gitlog-note" role="status">{ws.note}</p> : null}
       {ws.actionError !== null ? <p className="dsh-gitlog-note" role="alert">{ws.actionError.message}</p> : null}
       <div className="dsh-gitlog-workspace-commit-actions">
-        <button
-          type="button"
-          className="dsh-gitlog-btn dsh-gitlog-icon-btn dsh-gitlog-generate-btn"
+        <Button
+          iconOnly
+          className="dsh-gitlog-generate-btn"
           title={ws.generateState === 'loading' ? t('generatingMessage') : t('generateMessage')}
-          aria-label={ws.generateState === 'loading' ? t('generatingMessage') : t('generateMessage')}
           onClick={ws.generate}
           disabled={ws.generateState === 'loading'
             || ws.actionState === 'loading'
             || path === ''
             || (staged.length === 0 && unstaged.length === 0)}
-        >
-          <SparkleIcon />
-        </button>
-        <button
-          type="button"
-          className="dsh-gitlog-btn primary"
+          icon={<SparkleIcon />}
+        />
+        <Button
+          variant="primary"
           disabled={ws.actionState === 'loading' || ws.message.trim() === '' || (staged.length === 0 && !ws.amend)}
           onClick={ws.commit}
         >
           {ws.actionState === 'loading' ? t('committing') : t('commit')}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -234,16 +228,13 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
         </div>
         <span className="dsh-gitlog-workspace-spacer" />
         {ws.statusState === 'loading' ? <span className="dsh-gitlog-spinner" aria-hidden={true} /> : null}
-        <button
-          type="button"
-          className="dsh-gitlog-btn dsh-gitlog-icon-btn"
+        <Button
+          iconOnly
           title={t('refresh')}
-          aria-label={t('refresh')}
           onClick={ws.refresh}
           disabled={ws.statusState === 'loading' || path === ''}
-        >
-          <RefreshIcon />
-        </button>
+          icon={<RefreshIcon />}
+        />
       </div>
       {path === ''
         ? <p className="dsh-gitlog-workspace-empty">{t('workspaceNoRepo')}</p>
@@ -251,7 +242,7 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
           ? (
               <div className="dsh-gitlog-workspace-empty">
                 <p>{ws.statusError?.message ?? t('unknownError')}</p>
-                <button type="button" className="dsh-gitlog-btn" onClick={ws.refresh}>{t('tryAgain')}</button>
+                <Button onClick={ws.refresh}>{t('tryAgain')}</Button>
               </div>
             )
           : (
