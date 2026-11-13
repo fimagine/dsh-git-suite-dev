@@ -4,12 +4,16 @@ import {
   requestAction,
   requestGenerateMessage,
   requestJson,
+  requestSync,
   toApiError,
   type ApiError,
   type WorkspaceActionRequest,
 } from '../lib/api.js'
 import type {
+  FetchOptions,
   LoadStatus,
+  PushOptions,
+  SyncAction,
   Translate,
   WorkspaceActionPayload,
   WorkspaceDiff,
@@ -42,8 +46,14 @@ export interface WorkspaceView {
   note: string | null
   generateState: 'idle' | 'loading'
   generateError: ApiError | null
+  syncState: 'idle' | 'loading'
+  syncAction: SyncAction | null
+  syncError: ApiError | null
+  syncNote: string | null
   generate(): void
   refresh(): void
+  sync(action: SyncAction, target?: { remote: string; branch: string }, fetchOptions?: FetchOptions): void
+  pushBranches(options: PushOptions): void
   selectFile(path: string, scope: WorkspaceScope): void
   setMessage(value: string): void
   setAmend(value: boolean): void
@@ -72,8 +82,13 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
   const [note, setNote] = useState<string | null>(null)
   const [generateState, setGenerateState] = useState<'idle' | 'loading'>('idle')
   const [generateError, setGenerateError] = useState<ApiError | null>(null)
+  const [syncState, setSyncState] = useState<'idle' | 'loading'>('idle')
+  const [syncAction, setSyncAction] = useState<SyncAction | null>(null)
+  const [syncError, setSyncError] = useState<ApiError | null>(null)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
   const actionAbort = useRef<AbortController | null>(null)
   const generateAbort = useRef<AbortController | null>(null)
+  const syncAbort = useRef<AbortController | null>(null)
   const committedRef = useRef(onCommitted)
   committedRef.current = onCommitted
 
@@ -199,7 +214,78 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
   useEffect(() => () => {
     actionAbort.current?.abort()
     generateAbort.current?.abort()
+    syncAbort.current?.abort()
   }, [])
+
+  const sync = useCallback((action: SyncAction, target?: { remote: string; branch: string }, fetchOptions?: FetchOptions): void => {
+    if (path.trim() === '') return
+    syncAbort.current?.abort()
+    const controller = new AbortController()
+    syncAbort.current = controller
+    setSyncState('loading')
+    setSyncAction(action)
+    setSyncError(null)
+    setSyncNote(null)
+    requestSync({ action, path, ...(target ?? {}), ...(fetchOptions ?? {}) }, controller.signal)
+      .then(payload => {
+        if (controller.signal.aborted) return
+        const label = action === 'fetch'
+          ? t('fetchSucceeded')
+          : action === 'pull'
+            ? t('pullSucceeded')
+            : t('pushSucceeded')
+        setSyncNote(target === undefined ? label : `${label} ${target.remote}/${target.branch}`)
+        setSelected(null)
+        committedRef.current?.()
+        return loadStatus(controller.signal)
+      })
+      .catch(error => {
+        if (!isAbortError(error)) setSyncError(toApiError(error))
+      })
+      .finally(() => {
+        if (syncAbort.current === controller) {
+          syncAbort.current = null
+          setSyncAction(null)
+          setSyncState('idle')
+        }
+      })
+  }, [path, loadStatus, t])
+
+  const pushBranches = useCallback((options: PushOptions): void => {
+    if (path.trim() === '') return
+    syncAbort.current?.abort()
+    const controller = new AbortController()
+    syncAbort.current = controller
+    setSyncState('loading')
+    setSyncAction('push')
+    setSyncError(null)
+    setSyncNote(null)
+    requestSync({
+      action: 'push',
+      path,
+      remote: options.remote,
+      refs: options.refs,
+      tags: options.tags,
+      force: options.force,
+    }, controller.signal)
+      .then(() => {
+        if (controller.signal.aborted) return
+        setSyncNote(`${t('pushSucceeded')} ${options.remote}`)
+        setSelected(null)
+        committedRef.current?.()
+        return loadStatus(controller.signal)
+      })
+      .catch(error => {
+        if (!isAbortError(error)) setSyncError(toApiError(error))
+      })
+      .finally(() => {
+        if (syncAbort.current === controller) {
+          syncAbort.current = null
+          setSyncAction(null)
+          setSyncState('idle')
+        }
+      })
+  }, [path, loadStatus, t])
 
   const stage = useCallback((paths: readonly string[]): void => {
     void runAction({ action: 'stage', paths: [...paths] })
@@ -237,8 +323,14 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
     note,
     generateState,
     generateError,
+    syncState,
+    syncAction,
+    syncError,
+    syncNote,
     generate,
     refresh,
+    sync,
+    pushBranches,
     selectFile,
     setMessage,
     setAmend,

@@ -20,6 +20,7 @@ export interface StashRef {
 
 export interface RemoteGroup {
   name: string
+  url: string
   branches: Branch[]
 }
 
@@ -72,7 +73,7 @@ export function parseBranches(output: string, current: string): { branches: Bran
 
   branches.sort((left, right) => left.name.localeCompare(right.name))
   const remotes = [...remoteMap.entries()]
-    .map(([name, list]) => ({ name, branches: list.sort((left, right) => left.name.localeCompare(right.name)) }))
+    .map(([name, list]) => ({ name, url: '', branches: list.sort((left, right) => left.name.localeCompare(right.name)) }))
     .sort((left, right) => left.name.localeCompare(right.name))
   return { branches, remotes }
 }
@@ -113,11 +114,24 @@ export function parseSubmodules(output: string): SubmoduleRef[] {
   return submodules
 }
 
+/** Parse `git remote -v` into one fetch URL per remote name. */
+function parseRemoteUrls(output: string): Map<string, string> {
+  const urls = new Map<string, string>()
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^(\S+)\s+(.+?)\s+\((fetch|push)\)$/.exec(line.trim())
+    if (match === null) continue
+    const name = match[1] ?? ''
+    const remoteUrl = match[2] ?? ''
+    if (name !== '' && remoteUrl !== '' && !urls.has(name)) urls.set(name, remoteUrl)
+  }
+  return urls
+}
+
 /** Read the branch/tag/remote/stash/submodule tree for one repository. */
 export async function readRefs(context: RouteContext, url: URL, signal: AbortSignal): Promise<RefsPayload> {
   const repo = await resolveRepository(context, url.searchParams.get('path'), signal)
   try {
-    const [currentOutput, branchesOutput, tagsOutput, stashesOutput, submodulesOutput] = await Promise.all([
+    const [currentOutput, branchesOutput, tagsOutput, stashesOutput, submodulesOutput, remoteUrlsOutput] = await Promise.all([
       runGit(repo.root, ['branch', '--show-current'], signal),
       runGit(repo.root, [
         'for-each-ref',
@@ -136,10 +150,19 @@ export async function readRefs(context: RouteContext, url: URL, signal: AbortSig
         '--format=%gd%x1f%H%x1f%cI%x1f%gs',
       ], signal),
       runGit(repo.root, ['submodule', 'status'], signal),
+      runGit(repo.root, ['remote', '-v'], signal),
     ])
 
     const current = currentOutput.trim()
-    const { branches, remotes } = parseBranches(branchesOutput, current)
+    const { branches, remotes: parsedRemotes } = parseBranches(branchesOutput, current)
+    const remoteUrls = parseRemoteUrls(remoteUrlsOutput)
+    const remoteNames = [...new Set([...remoteUrls.keys(), ...parsedRemotes.map(group => group.name)])]
+      .sort((left, right) => left.localeCompare(right))
+    const remotes = remoteNames.map(name => ({
+      name,
+      url: remoteUrls.get(name) ?? '',
+      branches: parsedRemotes.find(group => group.name === name)?.branches ?? [],
+    }))
     return {
       ok: true,
       repoRoot: repo.root,

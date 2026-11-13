@@ -67,3 +67,57 @@ export function SparkleIcon({ size = 16 }: { size?: number }): React.ReactElemen
     </svg>
   )
 }
+
+function CircleArrow({ direction, dashed = false }: { direction: 'down' | 'up'; dashed?: boolean }): React.ReactElement {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <circle cx="10" cy="10" r="7.4" strokeDasharray={dashed ? '2.6 2.2' : undefined} />
+      {direction === 'down'
+        ? <path d="M10 6.2v7.4M7.3 10.9 10 13.6l2.7-2.7" />
+        : <path d="M10 13.8V6.4M7.3 9.1 10 6.4l2.7 2.7" />}
+    </svg>
+  )
+}
+
+export function CommitIcon(): React.ReactElement {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <circle cx="10" cy="10" r="7.4" />
+      <path d="M10 6.5v7M6.5 10h7" />
+    </svg>
+  )
+}
+
+export function PullIcon(): React.ReactElement {
+  return <CircleArrow direction="down" />
+}
+
+export function PushIcon(): React.ReactElement {
+  return <CircleArrow direction="up" />
+}
+
+export function FetchIcon(): React.ReactElement {
+  return <CircleArrow direction="down" dashed />
+}

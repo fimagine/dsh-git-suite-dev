@@ -6,11 +6,13 @@ import { ErrorState } from './components/ErrorState.js'
 import { PanelControls } from './components/PanelControls.js'
 import { RefsTree } from './components/RefsTree.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
+import { RepoActions } from './components/RepoActions.js'
 import { SettingsDialog, SettingsIcon } from './components/SettingsDialog.js'
 import { Splitter } from './components/Splitter.js'
 import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
+import { useWorkspace } from './hooks/useWorkspace.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
 import type { Commit, Translate } from './types.js'
@@ -41,6 +43,9 @@ function isNarrowViewport(): boolean {
 export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.ReactElement {
   const view = useGitLogView(t)
   const { status, commits, error, detail, detailStatus, detailError } = view
+  const workspacePath = view.repo?.repoRoot ?? view.pathInput.trim()
+  const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
+  const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
   const [narrow, setNarrow] = useState(isNarrowViewport)
   const [treeWidth, setTreeWidth] = useState(240)
   const [treeHeight, setTreeHeight] = useState(220)
@@ -146,7 +151,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       />
       <div ref={stackRef} className="dsh-gitlog-stack">
         {viewMode === 'workspace'
-          ? <WorkspacePane view={view} t={t} />
+          ? <WorkspacePane view={view} ws={ws} t={t} />
           : hasCommits
             ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} />
             : <div className="dsh-gitlog-state-pane">{state}</div>}
@@ -182,24 +187,6 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       <div className="dsh-gitlog-topbar">
         <PanelControls view={view} t={t} />
         <div className="dsh-gitlog-header-actions">
-          <div className="dsh-gitlog-view-switch" role="group" aria-label={t('viewMode')}>
-            <button
-              type="button"
-              className="dsh-gitlog-btn"
-              aria-pressed={viewMode === 'history'}
-              onClick={() => setViewMode('history')}
-            >
-              {t('history')}
-            </button>
-            <button
-              type="button"
-              className="dsh-gitlog-btn"
-              aria-pressed={viewMode === 'workspace'}
-              onClick={() => setViewMode('workspace')}
-            >
-              {t('fileStatus')}
-            </button>
-          </div>
           <button
             type="button"
             className="dsh-gitlog-btn dsh-gitlog-icon-btn"
@@ -223,6 +210,14 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
           </button>
         </div>
       </div>
+      <RepoActions
+        view={view}
+        ws={ws}
+        mode={viewMode}
+        onShowWorkspace={() => setViewMode('workspace')}
+        onModeChange={setViewMode}
+        t={t}
+      />
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}
       {view.switching ? <p className="dsh-gitlog-note" role="status">{t('switching')}</p> : null}
       {view.switchError !== null ? <p className="dsh-gitlog-note" role="alert">{view.switchError}</p> : null}

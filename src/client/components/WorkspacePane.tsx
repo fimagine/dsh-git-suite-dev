@@ -1,8 +1,8 @@
 import type * as React from 'react'
 import { h, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
+import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { RefreshIcon, SparkleIcon } from './GitLogIcon.js'
-import { useWorkspace } from '../hooks/useWorkspace.js'
 import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
@@ -11,10 +11,8 @@ function scopeOf(file: WorkspaceFile): WorkspaceScope {
 }
 
 /** Working-tree panel: staged/unstaged files, per-file diff, and the commit form. */
-export function WorkspacePane({ view, t }: { view: GitLogView; t: Translate }): React.ReactElement {
+export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: WorkspaceView; t: Translate }): React.ReactElement {
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
-  const revision = `${path}:${view.repo?.branch ?? ''}`
-  const ws = useWorkspace(path, revision, t, view.refresh)
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
   const status = ws.status
   const staged = status?.staged ?? []

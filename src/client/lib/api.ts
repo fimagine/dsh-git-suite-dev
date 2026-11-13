@@ -5,6 +5,9 @@ import type {
   CreateWorkspacePayload,
   GenerateMessagePayload,
   PickDirectoryPayload,
+  PushTarget,
+  SyncAction,
+  SyncPayload,
   TagPayload,
 } from '../types.js'
 
@@ -322,6 +325,24 @@ export interface CheckoutRequest {
 /** POST /git-suite/checkout: switch to a local branch or detach HEAD at a commit. */
 export async function requestCheckout(body: CheckoutRequest, signal?: AbortSignal): Promise<CheckoutPayload> {
   return postCommitJson<CheckoutPayload>('/git-suite/checkout', body, signal)
+}
+
+export interface SyncRequest {
+  action: SyncAction
+  path: string
+  remote?: string
+  branch?: string
+  refs?: PushTarget[]
+  tags?: boolean
+  force?: boolean
+  fetchAll?: boolean
+  prune?: boolean
+  forceTags?: boolean
+}
+
+/** POST /git-suite/sync: fetch all remotes, or pull/push an explicit remote branch. */
+export async function requestSync(body: SyncRequest, signal?: AbortSignal): Promise<SyncPayload> {
+  return postCommitJson<SyncPayload>('/git-suite/sync', body, signal)
 }
 
 export function toApiError(error: unknown): ApiError {

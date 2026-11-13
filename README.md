@@ -10,6 +10,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - 分支选择：当前分支、本地分支和远端分支列表
 - 提交路线图：显示分叉、汇合和合并提交，支持分支和 Tag 装饰
 - 分页加载：每页 25 / 50 / 100 / 200 条，或加载完整历史；滚动到接近底部时自动加载下一页
+- 操作栏（第二行）：左侧是提交 / 拉取 / 推送 / 获取，右侧是「历史 / 文件状态」切换；两个视图都显示；拉取会先选择远端和分支（默认跟随当前分支的上游）；推送弹出分支列表，可勾选要推送的本地分支、设置各自的远程分支与跟踪、推送所有标签、强制推送；获取可勾选从全部远端获取、删除已不存在的跟踪分支（prune）、获取所有标签、覆盖本地标签（--force）
 - 设置弹窗：点击标题栏的齿轮按钮，设置每页提交数（25 / 50 / 100 / 200 / 全部）
 - 提交历史工具栏：下拉选择分支（所有分支 / 当前分支 / 本地分支；可选显示远端分支）、「显示远端分支」勾选框，以及「按日期排序 / 按层级排序」
 - 文件状态与提交：标题栏的「历史 / 文件状态」切换同一页内的提交历史与工作区，含已暂存/未暂存文件、全部或所选暂存/取消暂存、逐文件 diff、提交信息、修改最后一次提交、提交后推送到上游（文件级暂存；暂不支持区块级暂存）
@@ -31,6 +32,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - Branch selection for the current branch, and individual local or remote branches
 - Commit graph with merges, forks, joins, branch decorations, and tags
 - Paged loading (25 / 50 / 100 / 200 per page) or the complete history; the next page loads automatically near the bottom
+- Action row (second line): commit / pull / push / fetch on the left and the history / file-status switch on the right, shown in both views; pull first asks for a remote and branch (defaulting to the current branch's upstream); push opens a branch list where you tick local branches, set each remote branch and tracking, push all tags, or force push; fetch offers fetch-all, prune tracking branches, fetch all tags, and force local tags
 - Settings dialog (gear button) for the number of commits per page (25 / 50 / 100 / 200 / all)
 - History toolbar: a branch dropdown (all branches / current branch / local branches, plus remote branches when shown), a **Show remote branches** checkbox, and **Sort by date / Sort topologically**
 - Working tree and commits: switch between history and the working tree with **History / File status** in the title bar; staged/unstaged files, stage/unstage all or selected, per-file diffs, commit messages, amend, and push after committing (file-level staging; hunk-level staging is not available yet)

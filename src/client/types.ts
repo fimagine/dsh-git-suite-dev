@@ -51,6 +51,35 @@ export interface StashRef {
   message: string
 }
 
+export type SyncAction = 'fetch' | 'pull' | 'push'
+
+export interface FetchOptions {
+  fetchAll: boolean
+  prune: boolean
+  tags: boolean
+  forceTags: boolean
+}
+
+export interface PushTarget {
+  local: string
+  remote: string
+  track: boolean
+}
+
+export interface PushOptions {
+  remote: string
+  refs: PushTarget[]
+  tags: boolean
+  force: boolean
+}
+
+export interface SyncPayload {
+  ok: true
+  action: SyncAction
+  remote?: string
+  branch?: string
+}
+
 export interface SubmoduleRef {
   /** Repository-relative submodule path. */
   path: string
@@ -60,6 +89,7 @@ export interface SubmoduleRef {
 
 export interface RemoteGroup {
   name: string
+  url: string
   branches: Branch[]
 }
 

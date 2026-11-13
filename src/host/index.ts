@@ -6,6 +6,7 @@ import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
 import { createResource } from './resource.js'
 import { createSwitchHandler } from './switch-handler.js'
+import { createSyncHandler } from './sync-handler.js'
 import { createWorkspaceActionHandler } from './workspace-action.js'
 import type { RouteContext, WorkspaceRef } from './types.js'
 
@@ -19,6 +20,7 @@ const CREATE_WORKSPACE_PATH = '/git-suite/create-workspace'
 const TAG_PATH = '/git-suite/tag'
 const BRANCH_PATH = '/git-suite/branch'
 const CHECKOUT_PATH = '/git-suite/checkout'
+const SYNC_PATH = '/git-suite/sync'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
 
@@ -90,4 +92,9 @@ export function apply(ctx: HostContext): void {
     path: CHECKOUT_PATH,
     handler: createCheckoutHandler(context),
   }), 'git-suite: checkout route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: SYNC_PATH,
+    handler: createSyncHandler(context),
+  }), 'git-suite: sync route')
 }
