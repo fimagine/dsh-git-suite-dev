@@ -1,0 +1,639 @@
+// Git log panel styles.
+//
+// Authored in SCSS and compiled by `scripts/build-client.mjs`; the resulting
+// CSS is inlined into the client bundle and mounted with the panel.
+// Host design tokens stay as CSS custom properties so themes keep working.
+
+$prefix: dsh-gitlog;
+
+$control-height: 34px;
+$control-radius: 8px;
+$panel-radius: 12px;
+
+$font-body: 13px;
+$font-meta: 12px;
+$font-tiny: 11.5px;
+
+$label-primary: var(--dsw-alias-label-primary);
+$label-secondary: var(--dsw-alias-label-secondary);
+$border-l1: var(--dsw-alias-border-l1);
+$border-l2: var(--dsw-alias-border-l2);
+$bg-base: var(--dsw-alias-bg-base);
+$bg-layer-1: var(--dsw-alias-bg-layer-1);
+$bg-layer-2: var(--dsw-alias-bg-layer-2);
+$brand: var(--dsw-alias-brand-primary);
+
+// Inputs, selects, and buttons share one control surface.
+@mixin control-surface($padding-x: 10px) {
+  height: $control-height;
+  border: 1px solid $border-l2;
+  border-radius: $control-radius;
+  background: $bg-layer-1;
+  color: $label-primary;
+  padding: 0 $padding-x;
+  font: inherit;
+  font-size: $font-body;
+}
+
+.#{$prefix} {
+  --gitlog-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 24px 28px 0;
+  gap: 16px;
+  background: $bg-base;
+  color: $label-primary;
+
+  * {
+    box-sizing: border-box;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  &-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  &-heading {
+    min-width: 0;
+
+    h1 {
+      font-size: 20px;
+      line-height: 1.3;
+      font-weight: 600;
+    }
+  }
+
+  &-subtitle {
+    margin-top: 4px;
+    color: $label-secondary;
+    font-size: $font-body;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-controls {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+
+    &.grow {
+      flex: 1 1 340px;
+    }
+
+    > span {
+      color: $label-secondary;
+      font-size: $font-meta;
+      line-height: 1.2;
+    }
+
+    &.project {
+      flex: 0 1 230px;
+
+      select {
+        width: 100%;
+      }
+    }
+
+    &.branch {
+      flex: 0 1 220px;
+
+      select {
+        width: 100%;
+      }
+    }
+  }
+
+  input[type="text"],
+  select {
+    @include control-surface(10px);
+    min-width: 0;
+    outline: none;
+  }
+
+  input[type="text"]:focus,
+  select:focus {
+    border-color: $brand;
+  }
+
+  select {
+    min-width: 84px;
+    cursor: pointer;
+  }
+
+  &-check {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: $control-height;
+    color: $label-primary;
+    font-size: $font-body;
+    white-space: nowrap;
+    cursor: pointer;
+
+    input {
+      accent-color: $brand;
+    }
+  }
+
+  &-btn {
+    @include control-surface(13px);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    &.primary {
+      border-color: $brand;
+      color: $brand;
+    }
+  }
+
+  &-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: 24px;
+    border: 1px solid $border-l1;
+    border-radius: $panel-radius;
+    overflow: hidden;
+    background: $bg-layer-1;
+  }
+
+  &-list {
+    min-height: 0;
+    overflow: auto;
+    border-right: 1px solid $border-l1;
+  }
+
+  &-list-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+    color: $label-secondary;
+    font-size: $font-meta;
+  }
+
+  &-branch {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--gitlog-mono);
+  }
+
+  &-commit {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 48px;
+    gap: 8px;
+    padding: 0 16px 0 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    overflow: hidden;
+    content-visibility: auto;
+    contain-intrinsic-size: 48px;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 3px 0 0 $brand;
+    }
+  }
+
+  &-graph {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    align-self: stretch;
+    overflow: visible;
+
+    svg {
+      display: block;
+      overflow: visible;
+    }
+  }
+
+  &-commit-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-self: stretch;
+    border-bottom: 1px solid $border-l1;
+  }
+
+  &-commit:last-child &-commit-main {
+    border-bottom: 0;
+  }
+
+  &-subject {
+    font-size: $font-body;
+    line-height: 1.4;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 4px 7px;
+    min-width: 0;
+    overflow: hidden;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  &-hash {
+    flex: 0 0 auto;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    color: $label-secondary;
+  }
+
+  &-meta > span {
+    flex: 0 0 auto;
+  }
+
+  &-meta > span:last-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &-refs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &-merge {
+    border: 1px solid $border-l2;
+    border-radius: 999px;
+    padding: 0 6px;
+    color: $brand;
+    font-size: 10px;
+    line-height: 16px;
+  }
+
+  &-ref {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid $border-l2;
+    border-radius: 999px;
+    padding: 0 7px;
+    color: $label-secondary;
+    font-size: 10.5px;
+    line-height: 17px;
+
+    &.is-head {
+      border-color: $brand;
+      color: $brand;
+    }
+  }
+
+  &-detail {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  &-detail-inner {
+    padding: 18px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  &-detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &-detail-title {
+    min-width: 0;
+
+    h2 {
+      margin-top: 5px;
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &-detail-sub {
+    margin-top: 5px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  &-detail-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  &-small {
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid $border-l2;
+    border-radius: 7px;
+    background: $bg-layer-1;
+    color: $label-secondary;
+    font: inherit;
+    font-size: $font-tiny;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+  }
+
+  &-detail h3 {
+    font-size: $font-meta;
+    line-height: 1.3;
+    font-weight: 600;
+    color: $label-secondary;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  &-meta-grid {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 12px;
+    font-size: $font-meta;
+    line-height: 1.45;
+
+    dt {
+      color: $label-secondary;
+    }
+
+    dd {
+      margin: 0;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &-files {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &-file {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    gap: 10px;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid $border-l1;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    line-height: 1.45;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  &-file-path {
+    overflow-wrap: anywhere;
+  }
+
+  &-add {
+    color: var(--dsw-alias-state-success-primary);
+  }
+
+  &-del {
+    color: var(--dsw-alias-state-error-primary);
+  }
+
+  &-binary {
+    color: $label-secondary;
+    font-family: inherit;
+  }
+
+  &-body-text {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+    color: $label-primary;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: $font-meta;
+    line-height: 1.55;
+  }
+
+  &-patch {
+    margin: 0;
+    padding: 12px;
+    max-height: 360px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+    color: $label-primary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+  }
+
+  &-note {
+    color: $label-secondary;
+    font-size: $font-meta;
+    line-height: 1.5;
+  }
+
+  &-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-height: 220px;
+    padding: 32px;
+    text-align: center;
+
+    h2 {
+      font-size: 16px;
+      line-height: 1.4;
+      font-weight: 600;
+    }
+
+    p {
+      max-width: 560px;
+      color: $label-secondary;
+      font-size: $font-body;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid $border-l2;
+    border-top-color: $brand;
+    border-radius: 50%;
+    animation: dsh-gitlog-spin .8s linear infinite;
+  }
+
+  &-more {
+    display: flex;
+    justify-content: center;
+    padding: 14px;
+  }
+
+  &-error-code {
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    color: $label-secondary;
+  }
+
+  &-loading-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    padding: 14px 20px;
+  }
+}
+
+// Right-sidebar tab: a narrow column shared with the guide and the other tools.
+.dsh-gitlog-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+
+  > .dsh-gitlog {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    padding: 14px 14px 0;
+    gap: 12px;
+  }
+
+  .dsh-gitlog-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(180px, .8fr);
+    margin-bottom: 12px;
+  }
+
+  .dsh-gitlog-list {
+    border-right: 0;
+    border-bottom: 1px solid $border-l1;
+  }
+
+  .dsh-gitlog-field.project,
+  .dsh-gitlog-field.branch {
+    flex: 1 1 140px;
+  }
+
+  .dsh-gitlog-field.grow {
+    flex-basis: 100%;
+  }
+}
+
+@keyframes dsh-gitlog-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .#{$prefix} {
+    padding: 18px 16px 0;
+  }
+
+  .#{$prefix}-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(220px, .8fr);
+  }
+
+  .#{$prefix}-list {
+    border-right: 0;
+    border-bottom: 1px solid $border-l1;
+  }
+}

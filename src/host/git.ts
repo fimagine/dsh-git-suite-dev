@@ -1,0 +1,77 @@
+import { execFile } from 'node:child_process'
+import { RouteError } from './errors.js'
+
+const GIT_TIMEOUT_MS = 60_000
+const GIT_MAX_BUFFER = 64 * 1024 * 1024
+
+/** The Node `execFile` error, which carries the captured streams we report on failure. */
+export interface GitExecError extends Error {
+  code?: string | number
+  stdout?: string | Buffer
+  stderr?: string | Buffer
+}
+
+function gitEnvironment(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: '0',
+    GIT_OPTIONAL_LOCKS: '0',
+    GIT_PAGER: 'cat',
+  }
+}
+
+/** Run one read-only git command in `cwd` and resolve with its UTF-8 stdout. */
+export function runGit(cwd: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'git',
+      ['--no-pager', '-c', 'core.quotepath=false', '-C', cwd, ...args],
+      {
+        cwd,
+        env: gitEnvironment(),
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: GIT_TIMEOUT_MS,
+        maxBuffer: GIT_MAX_BUFFER,
+        signal,
+      },
+      (error, stdout, stderr) => {
+        if (error === null) {
+          resolve(stdout)
+          return
+        }
+        const failure = error as GitExecError
+        failure.stdout = stdout
+        failure.stderr = stderr
+        reject(failure)
+      },
+    )
+  })
+}
+
+/** Map a raw git failure onto the route's user-facing error vocabulary. */
+export function gitFailure(error: unknown): RouteError {
+  const failed = (error ?? {}) as GitExecError
+  const stderr = String(failed.stderr ?? '').trim()
+  const detail = stderr.slice(0, 1200) || String(failed.message ?? 'Git failed')
+
+  if (failed.code === 'ENOENT') {
+    return new RouteError(500, 'git-missing', 'Git is not installed or is not available on PATH.', { detail })
+  }
+  if (/not a git repository/i.test(stderr)) {
+    return new RouteError(400, 'not-a-repo', 'This directory is not inside a Git repository.', { detail })
+  }
+  if (/does not have any commits yet|has no commits yet/i.test(stderr)) {
+    return new RouteError(400, 'empty-repo', 'This repository does not have any commits yet.', { detail })
+  }
+  if (/bad revision|unknown revision|ambiguous argument/i.test(stderr)) {
+    return new RouteError(400, 'bad-commit', 'That commit could not be resolved in this repository.', { detail })
+  }
+  if (failed.code === 'ABORT_ERR') {
+    return new RouteError(499, 'cancelled', 'The request was cancelled.', { detail })
+  }
+  if (failed.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+    return new RouteError(500, 'git-output-too-large', 'Git produced more output than the viewer can read.', { detail })
+  }
+  return new RouteError(500, 'git-failed', detail, { detail })
+}
