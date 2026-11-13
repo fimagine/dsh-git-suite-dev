@@ -14,7 +14,7 @@ export function bindReact(react: typeof React): void {
 
 export function useReact(): typeof React {
   if (current === undefined) {
-    throw new Error('git-log-viewer: React was not bound by the DSH client module loader')
+    throw new Error('git-suite: React was not bound by the DSH client module loader')
   }
   return current
 }

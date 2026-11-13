@@ -97,14 +97,17 @@ export function layoutGraph(commits: readonly Commit[]): GraphLayout {
   return { rows, maxLanes }
 }
 
-/** Lane spacing that keeps a wide graph inside the row's fixed graph column. */
+/**
+ * Fixed lane spacing: the graph keeps its natural width and the graph column
+ * clips the overflow when it is narrower. Nothing is scaled to fit.
+ */
 export function graphGeometry(maxLanes: number): GraphGeometry {
-  const spacing = maxLanes <= 1 ? 0 : Math.min(16, 288 / (maxLanes - 1))
+  const spacing = 16
   const width = maxLanes <= 1 ? 24 : 16 + spacing * (maxLanes - 1)
   return {
     width,
-    nodeRadius: Math.min(4.5, Math.max(2.2, spacing * 0.34)),
-    mergeRadius: Math.min(6, Math.max(3, spacing * 0.45)),
+    nodeRadius: 4.5,
+    mergeRadius: 6,
     x(index: number): number {
       return maxLanes <= 1 ? width / 2 : 8 + index * spacing
     },

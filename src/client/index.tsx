@@ -2,7 +2,7 @@ import { createPlugin } from './plugin.js'
 import { bindReact } from './runtime.js'
 import { moduleLoader } from './dsh.js'
 
-const MODULE_ID = '@local/dsh-git-log-viewer'
+const MODULE_ID = 'dsh-git-suite'
 
 /**
  * DSH loads this bundle lazily: running it registers a factory, and the module

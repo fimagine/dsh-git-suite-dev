@@ -32,12 +32,13 @@ export function failure(error: unknown): Response {
 /**
  * Accept only same-origin page requests that carry the plugin's private header,
  * so a cross-site page cannot read repository paths and diffs through the route.
+ * The reader returns lowercase header names.
  */
-export function admit(request: Request): boolean {
-  if (request.headers.get('x-dsh-git-log') !== '1') return false
+export function admitHeaders(read: (name: string) => string | null): boolean {
+  if (read('x-dsh-git-suite') !== '1') return false
 
-  const origin = request.headers.get('origin')
-  const host = request.headers.get('host')
+  const origin = read('origin')
+  const host = read('host')
   if (origin !== null && host !== null) {
     try {
       if (new URL(origin).host !== host) return false
@@ -46,7 +47,11 @@ export function admit(request: Request): boolean {
     }
   }
 
-  const site = request.headers.get('sec-fetch-site')
+  const site = read('sec-fetch-site')
   if (site !== null && site !== 'same-origin' && site !== 'none') return false
   return true
+}
+
+export function admit(request: Request): boolean {
+  return admitHeaders(name => request.headers.get(name))
 }

@@ -37,6 +37,10 @@ export async function readCommit(context: RouteContext, url: URL, signal: AbortS
         '--format=',
         '--numstat',
         '--find-renames',
+        // A merge commit has no default patch; `--first-parent` diffs it
+        // against the branch it was merged into, which is also what the file
+        // list shows.
+        '--first-parent',
         hash,
       ], signal),
       runGit(repo.root, [
@@ -47,6 +51,7 @@ export async function readCommit(context: RouteContext, url: URL, signal: AbortS
         '--patch',
         '--find-renames',
         '--unified=3',
+        '--first-parent',
         hash,
       ], signal),
     ])

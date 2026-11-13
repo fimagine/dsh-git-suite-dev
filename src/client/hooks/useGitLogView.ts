@@ -1,20 +1,11 @@
-import type { ChangeEvent, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from '../runtime.js'
 import { isAbortError, requestJson, toApiError, type ApiError } from '../lib/api.js'
-import { graphGeometry, layoutGraph, type GraphGeometry, type GraphLayout } from '../lib/graph.js'
+import { layoutGraph, type GraphLayout } from '../lib/graph.js'
+import { buildProjectGroups, findCurrentProject, type ProjectGroups } from '../lib/projects.js'
 import { addRecentProject, readRecentProjects, writeRecentProjects } from '../lib/recent-projects.js'
-import {
-  branchLabelFor,
-  buildProjectGroups,
-  currentBranchLabel,
-  customBranchOf,
-  findCurrentProject,
-  type BranchOption,
-  type ProjectGroups,
-} from '../lib/projects.js'
+import { selectionLabel, selectionParams } from '../lib/selection.js'
 import type {
-  Branch,
-  BranchesPayload,
   Commit,
   CommitDetail,
   CommitPayload,
@@ -23,18 +14,24 @@ import type {
   LogPayload,
   Project,
   ProjectsPayload,
+  RefsPayload,
   Repo,
+  Selection,
+  SwitchPayload,
   Translate,
 } from '../types.js'
 
 const DEFAULT_LIMIT = 50
+const HEAD: Selection = { kind: 'head' }
 
 interface LoadLogOptions {
   path?: string
   limit: number
   offset?: number
-  selection?: string
+  selection?: Selection
   append?: boolean
+  sort?: 'date' | 'topo'
+  showRemotes?: boolean
 }
 
 /** Everything the panel and its subcomponents render, plus the actions they trigger. */
@@ -54,35 +51,35 @@ export interface GitLogView {
   detail: CommitDetail | null
   detailStatus: DetailStatus
   detailError: ApiError | null
-  copied: boolean
-  branchesStatus: LoadStatus
-  branches: Branch[]
-  localBranches: Branch[]
-  remoteBranches: Branch[]
-  branchSelection: string
-  customBranch: BranchOption | null
-  currentBranchLabel: string
+  switching: boolean
+  switchError: string | null
+  tree: RefsPayload | null
+  treeStatus: LoadStatus
+  treeError: ApiError | null
+  selection: Selection
   branchLabel: string
-  branchesNote: string | null
   scanNote: string | null
   graph: GraphLayout
-  geometry: GraphGeometry
+  sort: 'date' | 'topo'
+  showRemotes: boolean
   changePathText(value: string): void
   setLimit(value: number): void
-  selectProject(event: ChangeEvent<HTMLSelectElement>): void
-  selectBranch(event: ChangeEvent<HTMLSelectElement>): void
+  setSort(value: 'date' | 'topo'): void
+  setShowRemotes(value: boolean): void
+  selectProjectPath(path: string): void
   submitPath(event: FormEvent<HTMLFormElement>): void
+  openPath(path: string): void
   refresh(): void
   loadMore(): void
   rescanProjects(): void
+  selectRef(selection: Selection): void
+  switchBranch(selection: Selection): void
   selectCommit(commit: Commit): void
-  closeDetail(): void
-  copyHash(): void
 }
 
 /**
- * Owns the viewer's state: project scan and recents, branch list, paged commit
- * log, and the selected commit's detail. Rendering lives in the components.
+ * Owns the viewer's state: project scan and recents, the refs tree, paged
+ * commit log, the current selection, and the selected commit's detail.
  */
 export function useGitLogView(t: Translate): GitLogView {
   const [pathInput, setPathInput] = useState('')
@@ -90,17 +87,21 @@ export function useGitLogView(t: Translate): GitLogView {
   const [commits, setCommits] = useState<Commit[]>([])
   const [status, setStatus] = useState<LoadStatus>('loading')
   const [error, setError] = useState<ApiError | null>(null)
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [branchesStatus, setBranchesStatus] = useState<LoadStatus>('loading')
-  const [branchSelection, setBranchSelection] = useState('HEAD')
+  const [tree, setTree] = useState<RefsPayload | null>(null)
+  const [treeStatus, setTreeStatus] = useState<LoadStatus>('loading')
+  const [treeError, setTreeError] = useState<ApiError | null>(null)
+  const [selection, setSelection] = useState<Selection>(HEAD)
   const [limit, setLimitState] = useState(DEFAULT_LIMIT)
+  const [sort, setSortState] = useState<'date' | 'topo'>('date')
+  const [showRemotes, setShowRemotesState] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [nextOffset, setNextOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<CommitDetail | null>(null)
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle')
   const [detailError, setDetailError] = useState<ApiError | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsStatus, setProjectsStatus] = useState<LoadStatus>('loading')
   const [projectsTruncated, setProjectsTruncated] = useState(false)
@@ -110,8 +111,14 @@ export function useGitLogView(t: Translate): GitLogView {
   const logAbort = useRef<AbortController | null>(null)
   const detailAbort = useRef<AbortController | null>(null)
   const projectAbort = useRef<AbortController | null>(null)
-  const branchAbort = useRef<AbortController | null>(null)
+  const treeAbort = useRef<AbortController | null>(null)
   const recentLoaded = useRef(false)
+  /** Set after a fresh log load so the first commit can be opened automatically. */
+  const autoSelectCommit = useRef(false)
+  const sortRef = useRef(sort)
+  const showRemotesRef = useRef(showRemotes)
+  sortRef.current = sort
+  showRemotesRef.current = showRemotes
 
   const scanWorkspaceProjects = useCallback(async (signal: AbortSignal): Promise<Project[]> => {
     const payload = await requestJson<ProjectsPayload>({ mode: 'projects' }, signal)
@@ -129,38 +136,46 @@ export function useGitLogView(t: Translate): GitLogView {
     setRecentProjects(current => addRecentProject(current, path))
   }, [])
 
-  const loadBranches = useCallback(async (path: string | undefined): Promise<void> => {
-    branchAbort.current?.abort()
+  const loadTree = useCallback(async (path: string | undefined): Promise<void> => {
+    treeAbort.current?.abort()
     const controller = new AbortController()
-    branchAbort.current = controller
-    setBranchesStatus('loading')
+    treeAbort.current = controller
+    setTreeStatus('loading')
+    setTreeError(null)
     try {
-      const payload = await requestJson<BranchesPayload>({ mode: 'branches', path }, controller.signal)
+      const payload = await requestJson<RefsPayload>({ mode: 'tree', path }, controller.signal)
       if (controller.signal.aborted) return
-      setBranches(Array.isArray(payload.branches) ? payload.branches : [])
-      setBranchesStatus('ready')
-    } catch {
-      if (!controller.signal.aborted) setBranchesStatus('error')
+      setTree(payload)
+      setTreeStatus('ready')
+    } catch (loadError) {
+      if (controller.signal.aborted || isAbortError(loadError)) return
+      setTreeError(toApiError(loadError))
+      setTreeStatus('error')
     }
   }, [])
 
   const loadLog = useCallback(async (options: LoadLogOptions): Promise<void> => {
     const append = options.append === true
     const offset = options.offset ?? 0
-    const selection = options.selection ?? 'HEAD'
+    const activeSelection = options.selection ?? HEAD
+    const sortValue = options.sort ?? sortRef.current
+    const showRemotesValue = options.showRemotes ?? showRemotesRef.current
     logAbort.current?.abort()
     detailAbort.current?.abort()
     const controller = new AbortController()
     logAbort.current = controller
     setStatus('loading')
     setError(null)
+    setSwitchError(null)
     try {
       const payload = await requestJson<LogPayload>({
         mode: 'log',
         path: options.path,
         limit: String(options.limit),
         offset: String(offset),
-        ...(selection === '__all__' ? { scope: 'all' as const } : selection === '__remotes__' ? { scope: 'remotes' as const } : selection !== 'HEAD' ? { ref: selection } : {}),
+        ...selectionParams(activeSelection),
+        sort: sortValue,
+        ...(activeSelection.kind === 'all' && showRemotesValue ? { remotes: '1' as const } : {}),
       }, controller.signal)
       if (controller.signal.aborted) return
       const incoming = Array.isArray(payload.commits) ? payload.commits : []
@@ -173,17 +188,18 @@ export function useGitLogView(t: Translate): GitLogView {
           repoName: payload.repoName,
           branch: payload.branch,
           defaultPath: payload.defaultPath,
+          superproject: payload.superproject ?? null,
         })
         setPathInput(payload.repoRoot)
         setSelectedProjectPath(payload.repoRoot)
-        setBranchSelection(selection)
+        setSelection(activeSelection)
         rememberProject(payload.repoRoot)
         setSelected(null)
         setDetail(null)
         setDetailStatus('idle')
         setDetailError(null)
-        void loadBranches(payload.repoRoot)
       }
+      autoSelectCommit.current = !append && incoming.length > 0
       setStatus('ready')
     } catch (loadError) {
       if (controller.signal.aborted || isAbortError(loadError)) return
@@ -192,7 +208,7 @@ export function useGitLogView(t: Translate): GitLogView {
       if (apiError.details?.path && !append) setPathInput(apiError.details.path)
       setStatus('error')
     }
-  }, [loadBranches, rememberProject])
+  }, [rememberProject])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -212,8 +228,9 @@ export function useGitLogView(t: Translate): GitLogView {
       recentLoaded.current = true
       const initialPath = remembered[0] || scanned[0]?.path || ''
       setSelectedProjectPath(initialPath)
-      setBranchSelection('HEAD')
-      void loadLog({ path: initialPath, limit: DEFAULT_LIMIT, offset: 0, selection: 'HEAD' })
+      setSelection(HEAD)
+      void loadLog({ path: initialPath, limit: DEFAULT_LIMIT, offset: 0, selection: HEAD })
+      void loadTree(initialPath)
     }
 
     void start()
@@ -222,15 +239,9 @@ export function useGitLogView(t: Translate): GitLogView {
       controller.abort()
       logAbort.current?.abort()
       detailAbort.current?.abort()
-      branchAbort.current?.abort()
+      treeAbort.current?.abort()
     }
-  }, [loadLog, scanWorkspaceProjects])
-
-  useEffect(() => {
-    if (!copied) return undefined
-    const timer = setTimeout(() => setCopied(false), 1400)
-    return () => clearTimeout(timer)
-  }, [copied])
+  }, [loadLog, loadTree, scanWorkspaceProjects])
 
   useEffect(() => {
     if (!recentLoaded.current) return
@@ -253,33 +264,71 @@ export function useGitLogView(t: Translate): GitLogView {
     setLimitState(value)
   }, [])
 
+  const setSort = useCallback((value: 'date' | 'topo'): void => {
+    if (value === sort) return
+    setSortState(value)
+    void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, sort: value })
+  }, [sort, loadLog, repo, pathInput, limit, selection])
+
+  const setShowRemotes = useCallback((value: boolean): void => {
+    if (value === showRemotes) return
+    setShowRemotesState(value)
+    if (selection.kind === 'all') {
+      void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, showRemotes: value })
+    }
+  }, [showRemotes, loadLog, repo, pathInput, limit, selection])
+
   const changePathText = useCallback((value: string) => {
     setPathInput(value)
     setSelectedProjectPath('')
   }, [])
 
-  const selectProject = (event: ChangeEvent<HTMLSelectElement>): void => {
-    const path = event.target.value
+  const selectProjectPath = (path: string): void => {
     if (path === '') {
       setSelectedProjectPath('')
       return
     }
     setSelectedProjectPath(path)
     setPathInput(path)
-    setBranches([])
-    setBranchesStatus('loading')
-    setBranchSelection('HEAD')
-    void loadLog({ path, limit, offset: 0, selection: 'HEAD' })
+    setSelection(HEAD)
+    setTree(null)
+    setTreeStatus('loading')
+    setCommits([])
+    setSelected(null)
+    setDetail(null)
+    setDetailStatus('idle')
+    void loadLog({ path, limit, offset: 0, selection: HEAD })
+    void loadTree(path)
   }
 
-  const selectBranch = (event: ChangeEvent<HTMLSelectElement>): void => {
-    const selection = event.target.value
-    setBranchSelection(selection)
+  const openPath = useCallback((rawPath: string): void => {
+    const path = rawPath.trim()
+    if (path === '') return
+    setPathInput(path)
+    setSelectedProjectPath('')
+    setSelection(HEAD)
+    setTree(null)
+    setTreeStatus('loading')
+    setCommits([])
+    setSelected(null)
+    setDetail(null)
+    setDetailStatus('idle')
+    void loadLog({ path, limit, offset: 0, selection: HEAD })
+    void loadTree(path)
+  }, [loadLog, loadTree, limit])
+
+  const submitPath = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault()
+    openPath(pathInput)
+  }
+
+  const selectRef = (next: Selection): void => {
+    setSelection(next)
     void loadLog({
       path: repo?.repoRoot ?? pathInput.trim(),
       limit,
       offset: 0,
-      selection,
+      selection: next,
     })
   }
 
@@ -307,29 +356,21 @@ export function useGitLogView(t: Translate): GitLogView {
     }
   }
 
-  const closeDetail = (): void => {
-    detailAbort.current?.abort()
-    setSelected(null)
-    setDetail(null)
-    setDetailStatus('idle')
-    setDetailError(null)
-  }
-
-  const copyHash = (): void => {
-    if (detail === null || !navigator.clipboard?.writeText) return
-    navigator.clipboard.writeText(detail.hash).then(() => setCopied(true)).catch(() => {})
-  }
-
-  const submitPath = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault()
-    setBranches([])
-    setBranchesStatus('loading')
-    setBranchSelection('HEAD')
-    void loadLog({ path: pathInput.trim(), limit, offset: 0, selection: 'HEAD' })
-  }
+  // Open the newest commit after every fresh log load (initial load, ref change,
+  // refresh, project switch). Closing the detail afterwards does not re-open it.
+  useEffect(() => {
+    if (!autoSelectCommit.current) return
+    if (status !== 'ready') return
+    const first = commits[0]
+    if (first === undefined) return
+    autoSelectCommit.current = false
+    void selectCommit(first)
+  }, [commits, selectCommit, status])
 
   const refresh = (): void => {
-    void loadLog({ path: pathInput.trim(), limit, offset: 0, selection: branchSelection })
+    const path = pathInput.trim()
+    void loadLog({ path, limit, offset: 0, selection })
+    void loadTree(path)
   }
 
   const loadMore = (): void => {
@@ -339,18 +380,42 @@ export function useGitLogView(t: Translate): GitLogView {
       limit,
       offset: nextOffset,
       append: true,
-      selection: branchSelection,
+      selection,
     })
   }
 
+  /** Double-clicking a local branch switches the working tree, then reloads HEAD and the refs. */
+  const switchBranch = useCallback(async (next: Selection): Promise<void> => {
+    if (next.kind !== 'branch' || next.remote || switching) return
+    setSwitching(true)
+    setSwitchError(null)
+    try {
+      const payload = await requestJson<SwitchPayload>({
+        mode: 'switch',
+        path: repo?.repoRoot ?? pathInput.trim(),
+        ref: next.ref,
+      }, undefined, 'POST')
+      rememberProject(payload.repoRoot)
+      setSelection(HEAD)
+      setSelected(null)
+      setDetail(null)
+      setDetailStatus('idle')
+      setDetailError(null)
+      await Promise.all([
+        loadLog({ path: payload.repoRoot, limit, offset: 0, selection: HEAD }),
+        loadTree(payload.repoRoot),
+      ])
+    } catch (error) {
+      if (!isAbortError(error)) setSwitchError(toApiError(error).message)
+    } finally {
+      setSwitching(false)
+    }
+  }, [limit, loadLog, loadTree, pathInput, rememberProject, repo, switching])
+
   const graph = useMemo(() => layoutGraph(commits), [commits])
-  const geometry = useMemo(() => graphGeometry(graph.maxLanes), [graph.maxLanes])
   const projectGroups = useMemo(() => buildProjectGroups(projects, recentProjects), [projects, recentProjects])
   const currentProject = findCurrentProject(projectGroups, selectedProjectPath)
-  const localBranches = useMemo(() => branches.filter(branch => branch.kind === 'local'), [branches])
-  const remoteBranches = useMemo(() => branches.filter(branch => branch.kind === 'remote'), [branches])
-  const customBranch = customBranchOf(branches, branchSelection)
-  const branchLabel = branchLabelFor({ selection: branchSelection, branches, repo, customBranch }, t)
+  const branchLabel = selectionLabel(selection, repo, t)
 
   const scanNote = projectsStatus === 'error'
     ? t('scanFailed')
@@ -359,7 +424,6 @@ export function useGitLogView(t: Translate): GitLogView {
       : projectsTruncated
         ? t('scanTruncated')
         : null
-  const branchesNote = branchesStatus === 'error' ? t('branchesFailed') : null
 
   return {
     repo,
@@ -377,29 +441,29 @@ export function useGitLogView(t: Translate): GitLogView {
     detail,
     detailStatus,
     detailError,
-    copied,
-    branchesStatus,
-    branches,
-    localBranches,
-    remoteBranches,
-    branchSelection,
-    customBranch,
-    currentBranchLabel: currentBranchLabel(repo, t),
+    switching,
+    switchError,
+    tree,
+    treeStatus,
+    treeError,
+    selection,
     branchLabel,
-    branchesNote,
     scanNote,
     graph,
-    geometry,
+    sort,
+    showRemotes,
     changePathText,
     setLimit,
-    selectProject,
-    selectBranch,
+    setSort,
+    setShowRemotes,
+    selectProjectPath,
     submitPath,
+    openPath,
     refresh,
     loadMore,
     rescanProjects: () => { void rescanProjects() },
+    selectRef,
+    switchBranch: (selection: Selection) => { void switchBranch(selection) },
     selectCommit,
-    closeDetail,
-    copyHash,
   }
 }

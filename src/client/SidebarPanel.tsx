@@ -10,7 +10,7 @@ import type { Translate } from './types.js'
 export function SidebarGitLogPanel({ t }: { t: Translate }): React.ReactElement {
   return (
     <div className="dsh-gitlog-sidebar">
-      <GitLogPanel t={t} />
+      <GitLogPanel t={t} compact />
     </div>
   )
 }

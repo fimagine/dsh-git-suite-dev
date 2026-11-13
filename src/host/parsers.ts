@@ -77,8 +77,81 @@ export function parseNumstat(output: string): CommitFile[] {
   return files
 }
 
-/** `all` means the whole history; a missing or invalid value falls back to the page default. */
-export function parseLimit(raw: string | null, fallback: number): number {
+export interface WorkspaceStatusEntry {
+  path: string
+  origPath: string | null
+  /** Index (staged) status letter, `.` when unchanged. */
+  index: string
+  /** Worktree (unstaged) status letter, `.` when unchanged. */
+  worktree: string
+  untracked: boolean
+  unmerged: boolean
+}
+
+export interface ParsedWorkspaceStatus {
+  branch: string
+  upstream: string | null
+  ahead: number
+  behind: number
+  entries: WorkspaceStatusEntry[]
+}
+
+/** Parse `git status --porcelain=v2 -z --branch` into branch info and changed paths. */
+export function parseWorkspaceStatus(output: string): ParsedWorkspaceStatus {
+  let branch = ''
+  let upstream: string | null = null
+  let ahead = 0
+  let behind = 0
+  const entries: WorkspaceStatusEntry[] = []
+  const tokens = output.split('\0')
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]
+    if (token === undefined || token === '') continue
+    if (token.startsWith('# ')) {
+      const line = token.slice(2)
+      if (line.startsWith('branch.head ')) branch = line.slice('branch.head '.length)
+      else if (line.startsWith('branch.upstream ')) upstream = line.slice('branch.upstream '.length)
+      else if (line.startsWith('branch.ab ')) {
+        const match = /^\+(\d+) -(\d+)$/.exec(line.slice('branch.ab '.length))
+        if (match !== null) {
+          ahead = Number(match[1])
+          behind = Number(match[2])
+        }
+      }
+      continue
+    }
+    if (token.startsWith('1 ')) {
+      const parts = token.split(' ', 9)
+      const path = parts[8] ?? ''
+      if (path === '') continue
+      const xy = parts[1] ?? '..'
+      entries.push({ path, origPath: null, index: xy[0] ?? '.', worktree: xy[1] ?? '.', untracked: false, unmerged: false })
+    } else if (token.startsWith('2 ')) {
+      const parts = token.split(' ', 10)
+      const path = parts[9] ?? ''
+      const origPath = tokens[index + 1] ?? null
+      index += 1
+      if (path === '') continue
+      const xy = parts[1] ?? '..'
+      entries.push({ path, origPath, index: xy[0] ?? '.', worktree: xy[1] ?? '.', untracked: false, unmerged: false })
+    } else if (token.startsWith('u ')) {
+      const parts = token.split(' ', 11)
+      const path = parts[10] ?? ''
+      if (path === '') continue
+      const xy = parts[1] ?? 'UU'
+      entries.push({ path, origPath: null, index: xy[0] ?? 'U', worktree: xy[1] ?? 'U', untracked: false, unmerged: true })
+    } else if (token.startsWith('? ')) {
+      const path = token.slice(2)
+      if (path === '') continue
+      entries.push({ path, origPath: null, index: '?', worktree: '?', untracked: true, unmerged: false })
+    }
+  }
+
+  return { branch, upstream, ahead, behind, entries }
+}
+
+/** `all` means the whole history; a missing or invalid value falls back to the page default. */export function parseLimit(raw: string | null, fallback: number): number {
   const value = (raw ?? '').trim().toLowerCase()
   if (value === 'all') return 0
   const parsed = Number.parseInt(value, 10)
@@ -91,10 +164,10 @@ export function parseOffset(raw: string | null): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
-/** Accept only plain branch refs, so a query parameter cannot smuggle git options or rev expressions. */
-export function isBranchRef(value: unknown): value is string {
+/** Accept only plain refs under the given prefixes, so a query parameter cannot smuggle options or rev expressions. */
+function isSafeRef(value: unknown, prefixes: readonly string[]): boolean {
   if (typeof value !== 'string') return false
-  if (!value.startsWith('refs/heads/') && !value.startsWith('refs/remotes/')) return false
+  if (!prefixes.some(prefix => value.startsWith(prefix))) return false
   if (value.length > 1024 || value.includes('..') || value.includes('@{')) return false
   const forbidden = new Set(['~', '^', ':', '?', '*', '[', '\\'])
   for (const character of value) {
@@ -102,4 +175,25 @@ export function isBranchRef(value: unknown): value is string {
     if (code === undefined || code < 0x20 || code === 0x7f || character.trim() === '' || forbidden.has(character)) return false
   }
   return true
+}
+
+export function isBranchRef(value: unknown): value is string {
+  return isSafeRef(value, ['refs/heads/', 'refs/remotes/'])
+}
+
+export function isLocalBranchRef(value: unknown): value is string {
+  return isSafeRef(value, ['refs/heads/'])
+}
+
+export function isTagRef(value: unknown): value is string {
+  return isSafeRef(value, ['refs/tags/'])
+}
+
+export function isCommitHash(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{4,64}$/i.test(value)
+}
+
+/** Refs a log request may name: branches, tags, or a bare commit hash. */
+export function isLogRef(value: unknown): value is string {
+  return isBranchRef(value) || isTagRef(value) || isCommitHash(value)
 }

@@ -1,8 +1,24 @@
 {
-  "name": "@local/dsh-git-log-viewer",
+  "name": "dsh-git-suite",
   "version": "1.1.0",
   "private": true,
-  "description": "Browse Git history, branches, and diffs for projects in your workspaces.",
+  "description": "A Git suite for the DSH Web UI: browse and operate Git repositories (history, branches, diffs, and more).",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "git",
+    "git-gui",
+    "source-control"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gimhol/dsh-git-suite.git"
+  },
+  "homepage": "https://github.com/gimhol/dsh-git-suite#readme",
+  "bugs": {
+    "url": "https://github.com/gimhol/dsh-git-suite/issues"
+  },
   "type": "module",
   "exports": {
     ".": "./dist/index.js",

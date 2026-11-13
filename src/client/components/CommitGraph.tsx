@@ -9,10 +9,18 @@ const LINE_PROPS = {
   vectorEffect: 'non-scaling-stroke',
 } as const
 
+export interface CommitGraphProps {
+  row: GraphRow
+  geometry: GraphGeometry
+  /** Height of one log row; the graph is drawn edge to edge so lanes connect. */
+  height: number
+}
+
 /** The lane drawing for one row: incoming edges, pass-through lines, and outgoing parent edges. */
-export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphGeometry }): React.ReactElement {
+export function CommitGraph({ row, geometry, height }: CommitGraphProps): React.ReactElement {
   const { commit, before, after, nodeLane, parentLanes } = row
   const x = geometry.x
+  const mid = height / 2
   const elements: React.ReactNode[] = []
   const laneCount = Math.max(before.length, after.length)
 
@@ -25,7 +33,7 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
         elements.push(
           <path
             key={`incoming-${index}`}
-            d={`M ${x(index)} 0 C ${x(index)} 14, ${x(nodeLane)} 10, ${x(nodeLane)} 24`}
+            d={`M ${x(index)} 0 C ${x(index)} ${height * 0.29}, ${x(nodeLane)} ${height * 0.21}, ${x(nodeLane)} ${mid}`}
             stroke={laneColor(index)}
             {...LINE_PROPS}
           />,
@@ -38,7 +46,7 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
           x1={x(index)}
           y1={0}
           x2={x(index)}
-          y2={48}
+          y2={height}
           stroke={laneColor(index)}
           {...LINE_PROPS}
         />,
@@ -53,7 +61,7 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
         x1={x(nodeLane)}
         y1={0}
         x2={x(nodeLane)}
-        y2={24}
+        y2={mid}
         stroke={laneColor(nodeLane)}
         {...LINE_PROPS}
       />,
@@ -66,9 +74,9 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
         <line
           key={`outgoing-${parentIndex}`}
           x1={x(nodeLane)}
-          y1={24}
+          y1={mid}
           x2={x(nodeLane)}
-          y2={48}
+          y2={height}
           stroke={laneColor(lane)}
           {...LINE_PROPS}
         />,
@@ -77,7 +85,7 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
       elements.push(
         <path
           key={`outgoing-${parentIndex}`}
-          d={`M ${x(nodeLane)} 24 C ${x(nodeLane)} 34, ${x(lane)} 38, ${x(lane)} 48`}
+          d={`M ${x(nodeLane)} ${mid} C ${x(nodeLane)} ${height * 0.71}, ${x(lane)} ${height * 0.79}, ${x(lane)} ${height}`}
           stroke={laneColor(lane)}
           {...LINE_PROPS}
         />,
@@ -91,7 +99,7 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
       <circle
         key="node"
         cx={x(nodeLane)}
-        cy={24}
+        cy={mid}
         r={geometry.mergeRadius}
         fill="var(--dsw-alias-bg-layer-1)"
         stroke={nodeColor}
@@ -100,14 +108,14 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
       />,
     )
     elements.push(
-      <circle key="node-core" cx={x(nodeLane)} cy={24} r={geometry.mergeRadius * 0.4} fill={nodeColor} />,
+      <circle key="node-core" cx={x(nodeLane)} cy={mid} r={geometry.mergeRadius * 0.4} fill={nodeColor} />,
     )
   } else {
     elements.push(
       <circle
         key="node"
         cx={x(nodeLane)}
-        cy={24}
+        cy={mid}
         r={geometry.nodeRadius}
         fill={nodeColor}
         stroke="var(--dsw-alias-bg-layer-1)"
@@ -120,8 +128,8 @@ export function CommitGraph({ row, geometry }: { row: GraphRow; geometry: GraphG
   return (
     <svg
       width={geometry.width}
-      height={48}
-      viewBox={`0 0 ${geometry.width} 48`}
+      height={height}
+      viewBox={`0 0 ${geometry.width} ${height}`}
       aria-hidden={true}
       focusable={false}
     >

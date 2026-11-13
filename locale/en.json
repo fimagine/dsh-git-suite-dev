@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Git log viewer",
-    "description": "Browse commit history, branches, and diffs for Git projects in your workspaces, and reopen recent projects."
+    "title": "Git Suite",
+    "description": "Browse and operate Git repositories in DSH Web: commit history, branches, diffs, and more Git actions over time."
   }
 }

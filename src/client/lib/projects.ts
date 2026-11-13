@@ -1,13 +1,8 @@
-import type { Branch, Project, Repo, Translate } from '../types.js'
+import type { Project } from '../types.js'
 
 export interface ProjectGroups {
   recent: Project[]
   workspace: Project[]
-}
-
-export interface BranchOption {
-  ref: string
-  name: string
 }
 
 /** Last path segment, tolerating both Windows and POSIX separators. */
@@ -41,33 +36,4 @@ export function findCurrentProject(groups: ProjectGroups, selectedPath: string):
   if (selectedPath === '') return null
   const known = new Set([...groups.recent, ...groups.workspace].map(project => project.path.toLowerCase()))
   return known.has(selectedPath.toLowerCase()) ? null : { path: selectedPath, name: pathName(selectedPath) }
-}
-
-export function shortRefName(ref: string): string {
-  return ref.replace(/^refs\/(?:heads|remotes)\//, '')
-}
-
-/** The selected ref when it is not one of the pseudo entries or a known branch. */
-export function customBranchOf(branches: readonly Branch[], selection: string): BranchOption | null {
-  if (selection === 'HEAD' || selection === '__all__' || selection === '__remotes__') return null
-  if (branches.some(branch => branch.ref === selection)) return null
-  return { ref: selection, name: shortRefName(selection) }
-}
-
-export function currentBranchLabel(repo: Repo | null, t: Translate): string {
-  return repo && repo.branch && repo.branch !== 'detached'
-    ? `${t('currentBranch')}: ${repo.branch}`
-    : t('currentBranch')
-}
-
-export function branchLabelFor(
-  input: { selection: string; branches: readonly Branch[]; repo: Repo | null; customBranch: BranchOption | null },
-  t: Translate,
-): string {
-  const { selection } = input
-  if (selection === '__all__') return t('allBranches')
-  if (selection === '__remotes__') return t('allRemoteBranches')
-  if (selection === 'HEAD') return currentBranchLabel(input.repo, t)
-  const selected = input.branches.find(branch => branch.ref === selection)
-  return selected?.name ?? input.customBranch?.name ?? shortRefName(selection)
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Git 日志查看器",
-    "description": "查看工作区中 Git 项目的提交历史、分支和差异，并快速重新打开最近项目。"
+    "title": "Git 套件",
+    "description": "在 DSH Web 中浏览和操作 Git 仓库：提交历史、分支、差异，并逐步支持更多 Git 操作。"
   }
 }

@@ -1,4 +1,4 @@
-// Git log panel styles.
+// Git suite panel styles.
 //
 // Authored in SCSS and compiled by `scripts/build-client.mjs`; the resulting
 // CSS is inlined into the client bundle and mounted with the panel.
@@ -63,6 +63,25 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
+  }
+
+  &-topbar {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  &-topbar .dsh-gitlog-controls {
+    flex: 1 1 auto;
+  }
+
+  &-header-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
   }
 
   &-heading {
@@ -142,6 +161,101 @@ $brand: var(--dsw-alias-brand-primary);
     cursor: pointer;
   }
 
+  &-dropdown {
+    position: relative;
+    min-width: 0;
+  }
+
+  &-dropdown-btn {
+    @include control-surface(10px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    color: $label-primary;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+  }
+
+  &-dropdown-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-dropdown-chevron {
+    flex: 0 0 auto;
+    color: $label-secondary;
+  }
+
+  &-dropdown-menu {
+    position: fixed;
+    z-index: 30;
+    min-width: 160px;
+    max-width: min(420px, calc(100vw - 16px));
+    max-height: min(280px, 60vh);
+    overflow: auto;
+    padding: 4px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 35%);
+  }
+
+  &-dropdown-group + &-dropdown-group {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid $border-l1;
+  }
+
+  &-dropdown-group-label {
+    padding: 4px 8px 2px;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  &-dropdown-item {
+    width: 100%;
+    height: 28px;
+    overflow: hidden;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-primary;
+    font: inherit;
+    font-size: $font-meta;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background: $bg-layer-2;
+    }
+
+    &.is-selected {
+      color: $brand;
+    }
+  }
+
   &-check {
     display: flex;
     align-items: center;
@@ -182,9 +296,230 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
+  &-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: $control-height;
+    min-width: $control-height;
+    padding: 0;
+    color: $label-secondary;
+
+    svg {
+      display: block;
+    }
+
+    &:hover {
+      color: $label-primary;
+    }
+  }
+
+  &-view-switch {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+  }
+
+  &-view-switch .dsh-gitlog-btn {
+    height: 26px;
+    padding: 0 10px;
+    border-color: transparent;
+    background: transparent;
+    font-size: $font-tiny;
+  }
+
+  &-view-switch .dsh-gitlog-btn[aria-pressed="true"] {
+    background: $bg-layer-2;
+    color: $label-primary;
+  }
+
+  &-add {
+    position: relative;
+    display: flex;
+  }
+
+  &-add-btn {
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  &-add-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    padding: 4px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 35%);
+
+    button {
+      width: 100%;
+      height: 30px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: $label-primary;
+      font: inherit;
+      font-size: $font-meta;
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        background: $bg-layer-2;
+      }
+    }
+  }
+
+  &-repo-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  &-repo-path {
+    display: block;
+    padding: 8px 10px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    overflow-wrap: anywhere;
+  }
+
+  &-commit-menu {
+    position: fixed;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    padding: 4px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 35%);
+
+    button {
+      width: 100%;
+      height: 30px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: $label-primary;
+      font: inherit;
+      font-size: $font-meta;
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        background: $bg-layer-2;
+      }
+    }
+  }
+
+  &-dialog-target {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+
+    code {
+      flex: 0 0 auto;
+      color: $label-secondary;
+      font-family: var(--gitlog-mono);
+      font-size: $font-tiny;
+    }
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      color: $label-primary;
+      font-size: $font-meta;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &-checkout-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+
+    legend {
+      margin-bottom: 2px;
+      color: $label-secondary;
+      font-size: $font-tiny;
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: $font-meta;
+      cursor: pointer;
+
+      code {
+        color: $label-secondary;
+        font-family: var(--gitlog-mono);
+        font-size: $font-tiny;
+      }
+    }
+
+    input[type="radio"] {
+      margin: 0;
+      accent-color: $brand;
+    }
+  }
+
+  &-warning {
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--dsw-alias-state-warn-primary);
+    border-radius: 8px;
+    color: var(--dsw-alias-state-warn-primary);
+    font-size: $font-tiny;
+    line-height: 1.5;
+  }
+
+  &-settings.dsh-gitlog-repo-dialog {
+    width: min(520px, 100%);
+  }
+
   &-body {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     flex: 1 1 auto;
     min-height: 0;
     margin-bottom: 24px;
@@ -194,16 +529,279 @@ $brand: var(--dsw-alias-brand-primary);
     background: $bg-layer-1;
   }
 
-  &-list {
+  // The tree splitter is its own 6px track so either side can be resized.
+  &-body.has-tree {
+    grid-template-columns: var(--gitlog-tree-w, 240px) 6px minmax(0, 1fr);
+  }
+
+  // The log sits on top; the selected commit's detail fills the space under it.
+  &-stack {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  // Draggable dividers. Pointer capture keeps the drag alive while the cursor
+  // moves over the panels themselves; the owner applies the deltas.
+  &-split {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    background: transparent;
+    touch-action: none;
+    user-select: none;
+
+    &::before {
+      content: "";
+      position: absolute;
+      background: $border-l1;
+      transition: background .12s ease;
+    }
+
+    &:hover,
+    &.is-dragging {
+      background: $bg-layer-2;
+
+      &::before {
+        background: $brand;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+
+    &.is-vertical {
+      width: 6px;
+      cursor: col-resize;
+
+      &::before {
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        transform: translateX(-50%);
+      }
+    }
+
+    &.is-horizontal {
+      height: 6px;
+      cursor: row-resize;
+
+      &::before {
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 1px;
+        transform: translateY(-50%);
+      }
+    }
+  }
+
+  &-tree {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // The search stays above the scrolling list instead of scrolling with it.
+  &-tree-header {
+    flex: 0 0 auto;
+    padding: 10px 8px 8px;
+    background: $bg-layer-1;
+  }
+
+  &-tree-scroll {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
     min-height: 0;
     overflow: auto;
-    border-right: 1px solid $border-l1;
+    padding: 0 8px 16px;
+  }
+
+  input.dsh-gitlog-tree-input {
+    width: 100%;
+    height: 30px;
+    padding: 0 9px;
+    font-size: $font-meta;
+  }
+
+  &-tree-list {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+  }
+
+  // Rows are one flat list; hierarchy comes from the guide columns each row
+  // draws for its ancestors, so every row shares the same height and geometry.
+  &-tree-section-head,
+  &-tree-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 26px;
+    padding: 0 6px 0 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-primary;
+    font: inherit;
+    font-size: $font-meta;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+  }
+
+  &-tree-section-head {
+    margin-top: 6px;
+  }
+
+  &-tree-row.is-selected {
+    background: $bg-layer-2;
+    box-shadow: inset 2px 0 0 $brand;
+  }
+
+  &-tree-section-title {
+    margin-left: 6px;
+    font-weight: 600;
+  }
+
+  // 14px icon box plus 1px margins keeps section titles aligned with the
+  // labels of their first child level (16px guide + 16px twist + 6px gap).
+  &-tree-glyph {
+    display: flex;
+    flex: 0 0 14px;
+    align-items: center;
+    justify-content: center;
+    margin: 0 1px;
+    color: $label-secondary;
+  }
+
+  // Fixed-width slot for the disclosure chevron; leaves keep it empty so all
+  // labels in one level line up.
+  &-tree-twist {
+    display: flex;
+    flex: 0 0 16px;
+    align-self: stretch;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-tree-chevron {
+    color: $label-secondary;
+    transition: transform .12s ease;
+  }
+
+  &-tree-chevron.is-open {
+    transform: rotate(90deg);
+  }
+
+  &-tree-label {
+    margin-left: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &-tree-label.is-current {
+    font-weight: 700;
+    color: $brand;
+  }
+
+  &-tree-current {
+    color: $brand;
+  }
+
+  // One 16px column per hierarchy level. `is-line` continues an ancestor,
+  // `is-tee` marks a row with siblings below, `is-elbow` closes a group.
+  &-tree-indent {
+    position: relative;
+    flex: 0 0 16px;
+    align-self: stretch;
+    pointer-events: none;
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      background: $border-l2;
+    }
+
+    &::before {
+      top: 0;
+      bottom: 0;
+      left: 8px;
+      width: 1px;
+    }
+
+    &::after {
+      top: 50%;
+      left: 8px;
+      width: 8px;
+      height: 1px;
+      transform: translateY(-50%);
+    }
+
+    &.is-blank::before,
+    &.is-blank::after {
+      display: none;
+    }
+
+    &.is-line::after {
+      display: none;
+    }
+
+    &.is-elbow::before {
+      bottom: 50%;
+    }
+  }
+
+  &-tree-empty {
+    padding: 2px 8px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    line-height: 1.45;
+  }
+
+  &-state-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &-state-pane > .dsh-gitlog-state {
+    flex: 1 1 auto;
+  }
+
+  &-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  &-list-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: $bg-layer-1;
   }
 
   &-list-head {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -215,6 +813,96 @@ $brand: var(--dsw-alias-brand-primary);
     font-size: $font-meta;
   }
 
+  &-history-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+  }
+
+  &-history-branch {
+    flex: 0 1 240px;
+  }
+
+  &-history-sort {
+    flex: 0 0 150px;
+  }
+
+  &-history-remotes {
+    height: auto;
+    color: $label-secondary;
+    font-size: $font-meta;
+  }
+
+  &-parent-btn {
+    flex: 0 0 auto;
+    font-size: $font-tiny;
+    white-space: nowrap;
+  }
+
+  &-commit-header {
+    position: relative;
+    display: grid;
+    grid-template-columns:
+      var(--gitlog-graph-w, auto)
+      minmax(120px, 1fr)
+      var(--gitlog-date-w, 88px)
+      var(--gitlog-author-w, 110px)
+      var(--gitlog-hash-w, 64px);
+    align-items: center;
+    gap: 8px;
+    min-width: var(--gitlog-table-min, 0);
+    height: 26px;
+    padding: 0 16px 0 10px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    user-select: none;
+  }
+
+  &-col {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  &-col-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    z-index: 2;
+    cursor: col-resize;
+    touch-action: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 7px;
+      bottom: 7px;
+      left: 50%;
+      width: 1px;
+      background: $border-l1;
+    }
+
+    &:hover::after,
+    &.is-dragging::after {
+      width: 2px;
+      background: $brand;
+    }
+
+    &:focus-visible {
+      outline: 1px solid $brand;
+      outline-offset: -1px;
+    }
+  }
+
   &-branch {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -222,12 +910,30 @@ $brand: var(--dsw-alias-brand-primary);
     font-family: var(--gitlog-mono);
   }
 
+  &-list-body {
+    position: relative;
+  }
+
+  &-commit-slot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 26px;
+  }
+
   &-commit {
     position: relative;
-    display: flex;
+    display: grid;
+    grid-template-columns:
+      var(--gitlog-graph-w, auto)
+      minmax(120px, 1fr)
+      var(--gitlog-date-w, 88px)
+      var(--gitlog-author-w, 110px)
+      var(--gitlog-hash-w, 64px);
     align-items: center;
     width: 100%;
-    min-height: 48px;
+    min-width: var(--gitlog-table-min, 0);
+    height: 26px;
     gap: 8px;
     padding: 0 16px 0 10px;
     border: 0;
@@ -237,8 +943,11 @@ $brand: var(--dsw-alias-brand-primary);
     font: inherit;
     cursor: pointer;
     overflow: hidden;
+    // A separator drawn inside keeps the row exactly as tall as the graph, so
+    // lane lines touch between rows. Keep 26px in sync with COMMIT_ROW_HEIGHT.
+    box-shadow: inset 0 -1px 0 $border-l1;
     content-visibility: auto;
-    contain-intrinsic-size: 48px;
+    contain-intrinsic-size: 26px;
 
     &:hover {
       background: $bg-layer-2;
@@ -251,7 +960,7 @@ $brand: var(--dsw-alias-brand-primary);
 
     &.is-selected {
       background: $bg-layer-2;
-      box-shadow: inset 3px 0 0 $brand;
+      box-shadow: inset 3px 0 0 $brand, inset 0 -1px 0 $border-l1;
     }
   }
 
@@ -260,7 +969,8 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     align-self: stretch;
-    overflow: visible;
+    min-width: 0;
+    overflow: hidden;
 
     svg {
       display: block;
@@ -268,22 +978,17 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
-  &-commit-main {
+  &-desc {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
-    flex: 1 1 auto;
-    align-self: stretch;
-    border-bottom: 1px solid $border-l1;
-  }
-
-  &-commit:last-child &-commit-main {
-    border-bottom: 0;
+    overflow: hidden;
   }
 
   &-subject {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: $font-body;
     line-height: 1.4;
     font-weight: 500;
@@ -292,17 +997,28 @@ $brand: var(--dsw-alias-brand-primary);
     white-space: nowrap;
   }
 
-  &-meta {
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    gap: 4px 7px;
-    min-width: 0;
+  &-commit-date,
+  &-commit-author {
     overflow: hidden;
     color: $label-secondary;
     font-size: $font-tiny;
-    line-height: 1.4;
     white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  &-commit-date {
+    font-variant-numeric: tabular-nums;
+  }
+
+  &-commit-author {
+    min-width: 0;
+  }
+
+  &-commit-hash {
+    flex: 0 0 auto;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    color: $label-secondary;
   }
 
   &-hash {
@@ -312,14 +1028,9 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
   }
 
-  &-meta > span {
+  &-desc > &-refs {
     flex: 0 0 auto;
-  }
-
-  &-meta > span:last-child {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
+    max-width: 40%;
   }
 
   &-refs {
@@ -331,6 +1042,7 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-merge {
+    flex: 0 0 auto;
     border: 1px solid $border-l2;
     border-radius: 999px;
     padding: 0 6px;
@@ -340,6 +1052,8 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-ref {
+    flex: 0 0 auto;
+    min-width: 0;
     max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -358,15 +1072,127 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-detail {
-    min-height: 0;
-    overflow: auto;
-  }
-
-  &-detail-inner {
-    padding: 18px 20px 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    flex: 0 0 45%;
+    min-height: 180px;
+    max-height: 65%;
+    min-width: 0;
+    overflow: hidden;
+    // Stacked columns are chosen by the detail's own width, so a wide refs
+    // tree or the narrow sidebar both get the single-column layout.
+    container: gitlog-detail / inline-size;
+  }
+
+  &-detail > .dsh-gitlog-state {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 24px;
+  }
+
+  // Two resizable columns in the main panel: metadata and files left, patch
+  // right. The sidebar and narrow layouts stack them instead.
+  &-detail-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 40%) 6px minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    // No padding here: the splitter has to reach the detail's top and bottom
+    // edges. Each column carries its own padding instead.
+    padding: 0;
+    gap: 0;
+  }
+
+  &-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 14px 0 0;
+  }
+
+  // The summary keeps the column's horizontal inset; the file list is flush so
+  // its rows and scrollbar line up with the panel edge and the splitter.
+  &-detail-summary {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 80px;
+    overflow: auto;
+    padding: 0 8px 0 20px;
+  }
+
+  // The list takes whatever the summary leaves; it scrolls on its own. Each
+  // row (and the sticky heading) owns its horizontal padding so hover and
+  // selection cover the full row.
+  &-detail-files {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 48px;
+    overflow: auto;
+    padding: 0;
+  }
+
+  &-detail-files > h3 {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0 8px 2px 20px;
+    background: $bg-layer-1;
+    line-height: 1.4;
+  }
+
+  &-detail-summary-split {
+    margin: 8px 0;
+  }
+
+  &-detail-patch {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 14px 20px 18px 12px;
+  }
+
+  &-detail-patch-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+
+    h3 {
+      flex: 0 0 auto;
+    }
+  }
+
+  &-patch-file {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    color: $label-secondary;
+  }
+
+  &-detail-patch .dsh-gitlog-patch {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  &-detail .dsh-gitlog-refs {
+    flex-wrap: wrap;
+    overflow: visible;
   }
 
   &-detail-head {
@@ -385,37 +1211,6 @@ $brand: var(--dsw-alias-brand-primary);
       line-height: 1.45;
       font-weight: 600;
       overflow-wrap: anywhere;
-    }
-  }
-
-  &-detail-sub {
-    margin-top: 5px;
-    color: $label-secondary;
-    font-size: $font-meta;
-    line-height: 1.45;
-    overflow-wrap: anywhere;
-  }
-
-  &-detail-actions {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 6px;
-  }
-
-  &-small {
-    height: 26px;
-    padding: 0 8px;
-    border: 1px solid $border-l2;
-    border-radius: 7px;
-    background: $bg-layer-1;
-    color: $label-secondary;
-    font: inherit;
-    font-size: $font-tiny;
-    cursor: pointer;
-
-    &:hover {
-      background: $bg-layer-2;
-      color: $label-primary;
     }
   }
 
@@ -446,29 +1241,77 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
+  &-detail-commit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &-detail-subject {
+    color: $label-primary;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &-detail-body {
+    margin: 6px 0 0;
+    max-height: 160px;
+    overflow: auto;
+    color: $label-secondary;
+    font: inherit;
+    font-size: $font-meta;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   &-files {
     display: flex;
     flex-direction: column;
-    gap: 1px;
     margin: 0;
     padding: 0;
     list-style: none;
+
+    > li {
+      display: block;
+    }
   }
 
+  // Each file row is a button: clicking it swaps the patch column to that file.
   &-file {
     display: grid;
     grid-template-columns: minmax(0, 1fr) max-content max-content;
     gap: 10px;
     align-items: baseline;
-    padding: 4px 0;
+    width: 100%;
+    padding: 3px 8px 3px 20px;
+    border: 0;
     border-bottom: 1px solid $border-l1;
+    background: transparent;
+    color: inherit;
+    text-align: left;
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
     line-height: 1.45;
+    cursor: pointer;
 
-    &:last-child {
-      border-bottom: 0;
+    &:hover {
+      background: $bg-layer-2;
     }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 2px 0 0 $brand;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+  }
+
+  &-files > li:last-child &-file {
+    border-bottom: 0;
   }
 
   &-file-path {
@@ -486,19 +1329,6 @@ $brand: var(--dsw-alias-brand-primary);
   &-binary {
     color: $label-secondary;
     font-family: inherit;
-  }
-
-  &-body-text {
-    margin: 0;
-    padding: 10px 12px;
-    border: 1px solid $border-l1;
-    border-radius: 8px;
-    background: $bg-base;
-    color: $label-primary;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: $font-meta;
-    line-height: 1.55;
   }
 
   &-patch {
@@ -558,12 +1388,6 @@ $brand: var(--dsw-alias-brand-primary);
     animation: dsh-gitlog-spin .8s linear infinite;
   }
 
-  &-more {
-    display: flex;
-    justify-content: center;
-    padding: 14px;
-  }
-
   &-error-code {
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
@@ -577,6 +1401,437 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
     font-size: $font-meta;
     padding: 14px 20px;
+  }
+
+  &-settings-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, .48);
+  }
+
+  &-settings {
+    width: min(380px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    border: 1px solid $border-l2;
+    border-radius: 12px;
+    background: $bg-layer-1;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .45);
+  }
+
+  &-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 15px 18px;
+    border-bottom: 1px solid $border-l1;
+
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: $label-primary;
+    }
+  }
+
+  &-settings-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: $label-secondary;
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+  }
+
+  &-settings-body {
+    display: grid;
+    gap: 10px;
+    padding: 18px;
+  }
+
+  &-settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 18px 16px;
+  }
+
+  &-settings-hint {
+    color: $label-secondary;
+    font-size: $font-tiny;
+    line-height: 1.5;
+  }
+
+  &-workspace {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &-workspace-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+  }
+
+  &-workspace-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+
+    h2 {
+      font-size: $font-body;
+      font-weight: 600;
+    }
+  }
+
+  &-workspace-branch {
+    overflow: hidden;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-workspace-spacer {
+    flex: 1 1 auto;
+  }
+
+  &-workspace-body {
+    display: grid;
+    grid-template-columns: minmax(320px, 42%) minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &-workspace-files {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-right: 1px solid $border-l1;
+  }
+
+  &-workspace-section {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 120px;
+    border-bottom: 1px solid $border-l1;
+  }
+
+  &-workspace-stats {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  &-workspace-diff-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  &-workspace-section-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+
+    h3 {
+      margin: 0;
+      color: $label-secondary;
+      font-size: $font-meta;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+  }
+
+  &-workspace-section-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+
+    .dsh-gitlog-btn {
+      height: 26px;
+      padding: 0 9px;
+      font-size: $font-tiny;
+    }
+  }
+
+  &-workspace-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 8px 8px;
+  }
+
+  &-workspace-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 6px;
+    color: $label-primary;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 2px 0 0 $brand;
+    }
+
+    input[type="checkbox"] {
+      flex: 0 0 auto;
+      margin: 0;
+      accent-color: $brand;
+      cursor: pointer;
+    }
+  }
+
+  &-workspace-status {
+    display: flex;
+    flex: 0 0 14px;
+    align-items: center;
+    justify-content: center;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+  }
+
+  &-workspace-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: $font-meta;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-workspace-commit {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid $border-l1;
+    background: $bg-layer-1;
+  }
+
+  &-workspace-author {
+    overflow: hidden;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-workspace-message-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    > span {
+      color: $label-secondary;
+      font-size: $font-tiny;
+    }
+  }
+
+  &-generate-btn {
+    border-color: $brand;
+    color: $brand;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+  }
+
+  &-workspace-message {
+    width: 100%;
+    min-height: 62px;
+    max-height: 160px;
+    resize: vertical;
+    padding: 8px 10px;
+    border: 1px solid $border-l2;
+    border-radius: 8px;
+    outline: none;
+    background: $bg-base;
+    color: $label-primary;
+    font: inherit;
+    font-size: $font-body;
+    line-height: 1.5;
+
+    &:focus {
+      border-color: $brand;
+    }
+  }
+
+  &-workspace-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+
+    .dsh-gitlog-check {
+      height: auto;
+      font-size: $font-meta;
+    }
+  }
+
+  &-workspace-commit-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  &-workspace-diff {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    background: $bg-base;
+  }
+
+  &-workspace-diff-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
+
+    h3 {
+      margin: 0;
+      color: $label-secondary;
+      font-size: $font-meta;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+  }
+
+  &-workspace-diff .dsh-gitlog-patch {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    overflow: auto;
+  }
+
+  &-workspace-empty {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    text-align: center;
+  }
+}
+
+// Stack the detail's two columns when the detail itself is narrow. A container
+// query (instead of a viewport media query) also covers a widened refs tree and
+// the right sidebar.
+@container gitlog-detail (max-width: 640px) {
+  .dsh-gitlog-detail-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 16px;
+    padding: 14px;
+    overflow: auto;
+  }
+
+  .dsh-gitlog-detail-inner > .dsh-gitlog-split {
+    display: none;
+  }
+
+  .dsh-gitlog-detail-info {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .dsh-gitlog-detail-summary {
+    // A height set by the summary splitter is meaningless once the columns are
+    // stacked, where the summary grows with its content.
+    flex: 0 0 auto !important;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .dsh-gitlog-detail-files {
+    flex: 0 0 auto;
+    min-height: 0;
+    max-height: 260px;
+    overflow: auto;
+    padding: 0;
+    margin-top: 14px;
+  }
+
+  .dsh-gitlog-detail-summary-split {
+    display: none;
+  }
+
+  .dsh-gitlog-detail-patch {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .dsh-gitlog-detail-patch .dsh-gitlog-patch {
+    flex: none;
+    max-height: 280px;
   }
 }
 
@@ -597,13 +1852,29 @@ $brand: var(--dsw-alias-brand-primary);
 
   .dsh-gitlog-body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(180px, .8fr);
+    grid-template-rows: minmax(0, 1fr);
     margin-bottom: 12px;
   }
 
-  .dsh-gitlog-list {
-    border-right: 0;
-    border-bottom: 1px solid $border-l1;
+  .dsh-gitlog-body.has-tree {
+    grid-template-rows: var(--gitlog-tree-h, 220px) 6px minmax(0, 1fr);
+  }
+
+  .dsh-gitlog-commit-author,
+  .dsh-gitlog-commit-hash,
+  .dsh-gitlog-col-author,
+  .dsh-gitlog-col-hash,
+  .dsh-gitlog-col-resizer,
+  .dsh-gitlog-desc > .dsh-gitlog-refs {
+    display: none;
+  }
+
+  .dsh-gitlog-commit,
+  .dsh-gitlog-commit-header {
+    grid-template-columns: var(--gitlog-graph-w, auto) minmax(120px, 1fr) 64px;
+    min-width: calc(var(--gitlog-graph-w, 48px) + 64px + 12px + 26px + 120px);
+    gap: 6px;
+    padding-right: 10px;
   }
 
   .dsh-gitlog-field.project,
@@ -613,6 +1884,27 @@ $brand: var(--dsw-alias-brand-primary);
 
   .dsh-gitlog-field.grow {
     flex-basis: 100%;
+  }
+
+  .dsh-gitlog-workspace {
+    overflow: auto;
+  }
+
+  .dsh-gitlog-workspace-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dsh-gitlog-workspace-files {
+    border-right: 0;
+    border-bottom: 1px solid $border-l1;
+  }
+
+  .dsh-gitlog-workspace-section {
+    min-height: 140px;
+  }
+
+  .dsh-gitlog-workspace-diff {
+    min-height: 240px;
   }
 }
 
@@ -627,13 +1919,56 @@ $brand: var(--dsw-alias-brand-primary);
     padding: 18px 16px 0;
   }
 
-  .#{$prefix}-body {
+  .#{$prefix}-body,
+  .#{$prefix}-body.has-tree {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(220px, .8fr);
   }
 
-  .#{$prefix}-list {
+  .#{$prefix}-body {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .#{$prefix}-body.has-tree {
+    grid-template-rows: var(--gitlog-tree-h, 220px) 6px minmax(0, 1fr);
+  }
+
+  .#{$prefix}-workspace {
+    overflow: auto;
+  }
+
+  .#{$prefix}-workspace-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .#{$prefix}-workspace-files {
     border-right: 0;
     border-bottom: 1px solid $border-l1;
+  }
+
+  .#{$prefix}-workspace-section {
+    min-height: 150px;
+  }
+
+  .#{$prefix}-workspace-diff {
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 640px) {
+  .#{$prefix}-commit-author,
+  .#{$prefix}-commit-hash,
+  .#{$prefix}-col-author,
+  .#{$prefix}-col-hash,
+  .#{$prefix}-col-resizer,
+  .#{$prefix}-desc > .#{$prefix}-refs {
+    display: none;
+  }
+
+  .#{$prefix}-commit,
+  .#{$prefix}-commit-header {
+    grid-template-columns: var(--gitlog-graph-w, auto) minmax(120px, 1fr) 70px;
+    min-width: calc(var(--gitlog-graph-w, 48px) + 70px + 12px + 26px + 120px);
+    gap: 6px;
+    padding-right: 10px;
   }
 }

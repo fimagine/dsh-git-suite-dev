@@ -1,5 +1,8 @@
-const RECENT_PROJECTS_KEY = 'dsh.git-log-viewer.recent-projects.v1'
-const RECENT_PROJECTS_COOKIE = 'dsh_git_log_recent_projects'
+const RECENT_PROJECTS_KEY = 'dsh.git-suite.recent-projects.v1'
+const RECENT_PROJECTS_COOKIE = 'dsh_git_suite_recent_projects'
+// Keys used before the plugin was renamed; read once so existing recents survive.
+const LEGACY_PROJECTS_KEY = 'dsh.git-log-viewer.recent-projects.v1'
+const LEGACY_PROJECTS_COOKIE = 'dsh_git_log_recent_projects'
 
 export const RECENT_PROJECTS_LIMIT = 8
 
@@ -19,11 +22,11 @@ function readCookie(name: string): string | null {
 export function readRecentProjects(): string[] {
   let raw: string | null = null
   try {
-    raw = window.localStorage.getItem(RECENT_PROJECTS_KEY)
+    raw = window.localStorage.getItem(RECENT_PROJECTS_KEY) ?? window.localStorage.getItem(LEGACY_PROJECTS_KEY)
   } catch {
     raw = null
   }
-  if (raw === null || raw === '') raw = readCookie(RECENT_PROJECTS_COOKIE)
+  if (raw === null || raw === '') raw = readCookie(RECENT_PROJECTS_COOKIE) ?? readCookie(LEGACY_PROJECTS_COOKIE)
   if (raw === null || raw === '') return []
   try {
     const value: unknown = JSON.parse(raw)
