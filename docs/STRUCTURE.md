@@ -117,7 +117,7 @@ icon.svg
 | `client/plugin.ts` | 注册 `gitSuite` 字典、`main` 面板、`sidebar.panellist` 入口，以及右侧栏 `git` 标签页类型 / Registers the `gitSuite` dictionaries, the `main` panel, the `sidebar.panellist` entry, and the right-sidebar `git` tab type |
 | `client/runtime.ts` | 绑定 DSH 提供的 React，提供 `h` 与 hooks 包装 / Binds the React instance from DSH and exposes `h` plus hook wrappers |
 | `client/dsh.ts` | 本插件使用的 DSH client API 声明 / Local declarations for the DSH client API used here |
-| `client/GitLogPanel.tsx` | 面板骨架：头部、控件、提示、历史/文件状态视图切换与主体 / Panel shell: header, controls, notes, history/workspace view switch, and body |
+| `client/GitLogPanel.tsx` | 面板骨架：头部、控件、提示、历史/提交视图切换与主体 / Panel shell: header, controls, notes, history/commit view switch, and body |
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 / Right-sidebar tab wrapper with the narrow single-column layout |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 / Project scan, refs tree, paged log, detail selection, and actions |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 / Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
@@ -173,25 +173,25 @@ Double-clicking a **local branch** in the tree POSTs to `/git-suite/switch`:
 
 ## 文件状态与提交 / Working tree and commits
 
-标题栏的「历史 / 文件状态」在同一页内切换提交历史与工作区（`WorkspacePane` + `useWorkspace`），共用项目/路径、引用树和分支切换：
+第二行的「历史 / 提交」在同一页内切换提交历史与提交/文件状态（`WorkspacePane` + `useWorkspace`），共用仓库/路径、引用树和分支切换：
 
 - `GET /git-suite?mode=status` 读取 `git status --porcelain=v2 -z --branch -uall`，加上 staged/unstaged numstat 和未跟踪文件行数，返回已暂存/未暂存列表、当前分支、上游、ahead/behind 与 Git 用户。
 - `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` 返回单个文件的 diff；未跟踪文件由宿主合成 `/dev/null → file` 补丁，单文件补丁上限 400k 字符。
 - `POST /git-suite/action`（Node handler，因为 DSH resource 路由只接受 GET/HEAD）接受 JSON：
   - `stage` / `unstage`，带 `paths` 或 `all`，分别执行 `git add -A` / `git reset -q HEAD`。
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
-- 暂存以文件为单位（暂不提供 hunk/区块级暂存）；推送不 force；提交成功后刷新状态并重新加载 HEAD/引用树。
+- 暂存以文件为单位（暂不提供 hunk/区块级暂存）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
-- 项目/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名；勾选「加入到 DSH 工作区」时克隆成功后调用 `POST /git-suite/create-workspace` 并打开。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描项目和手动路径，以及「加入到 DSH 工作区」勾选项（已有工作区时禁用并提示）；点「打开」时若勾选且尚无工作区则调用 `create-workspace`，否则只打开。目录选择器不是 native 时提示手动输入路径。
+- 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名；勾选「加入到 DSH 工作区」时克隆成功后调用 `POST /git-suite/create-workspace` 并打开。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径，以及「加入到 DSH 工作区」勾选项（已有工作区时禁用并提示）；点「打开」时若勾选且尚无工作区则调用 `create-workspace`，否则只打开。目录选择器不是 native 时提示手动输入路径。
 - 所有写入仍是 POST + 同源 + 私有请求头；错误以 JSON 返回并在工作区显示。
 
-The title bar's **History / File status** switch changes between history and the working tree in the same page (`WorkspacePane` + `useWorkspace`), sharing the project/path controls, refs tree, and branch switching:
+The second row's **History / Commit** switch changes between history and the commit/file-status view in the same page (`WorkspacePane` + `useWorkspace`), sharing the repository/path controls, refs tree, and branch switching:
 
 - `GET /git-suite?mode=status` reads `git status --porcelain=v2 -z --branch -uall`, plus staged/unstaged numstat and untracked line counts, returning staged/unstaged files, the branch, upstream, ahead/behind, and the Git author.- `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` returns one file's diff; untracked files get a synthesized `/dev/null → file` patch, capped at 400k characters per file.
 - `POST /git-suite/action` (a Node handler, because DSH resource routes are GET/HEAD only) accepts JSON:
   - `stage` / `unstage` with `paths` or `all`, running `git add -A` / `git reset -q HEAD`.
   - `commit` with `message`, `amend`, and `push`, running `git commit -m` (optionally `--amend`) and optionally `git push` to the configured upstream.
-- Staging is file-level (hunk-level staging is not available yet); pushes never force; a successful commit refreshes the status and reloads HEAD/the refs tree.
+- Staging is file-level (hunk-level staging is not available yet); a successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
 - **Generate with AI** beside the commit message POSTs to `/git-suite/generate-message`, which reads the staged (otherwise unstaged) diff and calls `ctx.llm.stream()` with the provider/model from `ctx.agentDefaultModel.currentSelection()`; the file list and diff are sent to the configured model provider, and the generated text only fills the input. Missing default model, no changes, and model failures return explicit errors.
 - The **+** menu beside the project/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name; with **Add to DSH workspace** checked, a successful clone calls `POST /git-suite/create-workspace` and opens the result. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned projects, a manual path, and the **Add to DSH workspace** checkbox (disabled with a hint when it already is one); **Open** calls `create-workspace` when checked and not already a workspace, otherwise opens only. A non-native picker asks for a typed path.
 - Every write remains POST + same-origin + private request header; errors return as JSON and render in the workspace.

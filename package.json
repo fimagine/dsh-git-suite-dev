@@ -2,6 +2,8 @@
   "name": "dsh-git-suite",
   "version": "1.1.0",
   "private": true,
+  "license": "MIT",
+  "author": "Gim",
   "description": "A Git suite for the DSH Web UI: browse and operate Git repositories (history, branches, diffs, and more).",
   "keywords": [
     "deepseek-harness",

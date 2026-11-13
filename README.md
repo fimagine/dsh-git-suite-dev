@@ -11,7 +11,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - 提交路线图：显示分叉、汇合和合并提交，支持分支和 Tag 装饰
 - 分页加载：每页 25 / 50 / 100 / 200 条，或加载完整历史；滚动到接近底部时自动加载下一页
 - 操作栏（第二行）：最左侧是「历史 / 提交」切换，接着是拉取 / 推送 / 获取；提交在「提交」视图的提交表单里完成；拉取会先选择远端和分支（默认跟随当前分支的上游）；推送弹出分支列表，可勾选要推送的本地分支、设置各自的远程分支与跟踪、推送所有标签、强制推送；获取可勾选从全部远端获取、删除已不存在的跟踪分支（prune）、获取所有标签、覆盖本地标签（--force）
-- 设置弹窗：点击标题栏的齿轮按钮，设置每页提交数（25 / 50 / 100 / 200 / 全部）
+- 设置弹窗：点击顶栏的齿轮按钮，设置每页提交数（25 / 50 / 100 / 200 / 全部）
 - 提交历史工具栏：下拉选择分支（所有分支 / 当前分支 / 本地分支；可选显示远端）、「显示远端」勾选框，以及「按日期排序 / 按层级排序」；表头不再显示提交数和当前分支
 - 控件统一：按钮封装为 `Button` 组件，弹窗底部由 `DialogActions` 统一「取消 → 确认」；输入框/按钮 28px 高、12px 字号
 - 文件状态与提交：第二行的「历史 / 提交」切换同一页内的提交历史与提交/文件状态，含已暂存/未暂存文件、全部或所选暂存/取消暂存、逐文件 diff、提交信息、修改最后一次提交、提交后推送到上游（文件级暂存；暂不支持区块级暂存）
@@ -97,35 +97,35 @@ See [docs/STRUCTURE.md](docs/STRUCTURE.md) for how `tsc`, esbuild, and Sass fit 
 
 ## 使用 / Usage
 
-Open the **Git** icon in the sidebar. Pick a scanned project, or enter any local Git repository path. Choose a branch and load commits; scrolling near the bottom loads the next page automatically. Set the page size from the **Settings** gear in the title bar.
+Open the **Git** icon in the sidebar. Pick a scanned repository, or enter any local Git repository path. Choose a branch and load commits; scrolling near the bottom loads the next page automatically. Set the page size from the **Settings** gear in the header.
 
-左侧引用树可以在分支、标签、远端、贮藏和子模块之间切换；搜索框可过滤引用。没有标签、贮藏或子模块时对应分组隐藏；子模块位于最下方，点击打开子模块仓库，项目选择显示 `[submodule]名称`，并出现「← 父仓库」按钮可返回父仓库。
+左侧引用树可以在分支、标签、远端、贮藏和子模块之间切换；搜索框可过滤引用。没有标签、贮藏或子模块时对应分组隐藏；子模块位于最下方，点击打开子模块仓库，仓库选择显示 `[submodule]名称`，并出现「← 父仓库」按钮可返回父仓库。
 
-The left refs tree switches between branches, tags, remotes, stashes, and submodules; the search box filters refs. Groups with no tags, stashes, or submodules are hidden; submodules sit at the bottom and open their repository on click, with the project selector showing `[submodule]name` and a **← Parent** button to return to the superproject.
+The left refs tree switches between branches, tags, remotes, stashes, and submodules; the search box filters refs. Groups with no tags, stashes, or submodules are hidden; submodules sit at the bottom and open their repository on click, with the repository selector showing `[submodule]name` and a **← Parent** button to return to the superproject.
 
 双击引用树中的本地分支可将工作区切换到该分支；工作区有会被覆盖的改动时操作会被拒绝。
 
 Double-click a local branch in the tree to switch the working tree to it; a switch that would overwrite local changes is rejected.
 
-点击标题栏的 **文件状态** 切换到工作区，点 **历史** 返回提交历史：勾选文件后暂存所选或暂存所有，已暂存文件可取消暂存；点击文件在右侧查看 diff；填写提交信息后点 **提交**，可勾选「修改最后一次提交」或「立即推送变更到上游」。
+点击第二行的 **提交** 切换到提交/文件状态，点 **历史** 返回提交历史：勾选文件后暂存所选或暂存所有，已暂存文件可取消暂存；点击文件在右侧查看 diff；填写提交信息后点 **提交**，可勾选「修改最后一次提交」或「立即推送变更到上游」。
 
-Click **File status** in the title bar to switch to the working tree, and **History** to return: check files to stage selected or stage all, unstage staged files, view a file's diff on the right, write a commit message, and commit; amend last commit and push to the upstream are optional.
+Click **Commit** in the second row to switch to the commit/file-status view, and **History** to return: check files to stage selected or stage all, unstage staged files, view a file's diff on the right, write a commit message, and commit; amend last commit and push to the upstream are optional.
 
-点击项目/路径旁的 **+**，选择「克隆远端仓库」填写远端地址和本地目录（目录必须不存在，也可点「选择」用系统目录选择器选父目录并自动追加仓库名），勾选「加入到 DSH 工作区」时克隆完成后会同时注册工作区并打开；选择「选择本地仓库」会打开弹窗，可点「选择目录」用系统选择器选 Git 仓库，也可从已扫描项目选择或手输路径，勾选「加入到 DSH 工作区」后点「打开」会同时注册工作区；已存在工作区时勾选框禁用并提示。
+点击仓库/路径旁的 **+**，选择「克隆远端仓库」填写远端地址和本地目录（目录必须不存在，也可点「选择」用系统目录选择器选父目录并自动追加仓库名），勾选「加入到 DSH 工作区」时克隆完成后会同时注册工作区并打开；选择「选择本地仓库」会打开弹窗，可点「选择目录」用系统选择器选 Git 仓库，也可从已扫描仓库选择或直接输入路径，勾选「加入到 DSH 工作区」后点「打开」会同时注册工作区；已存在工作区时勾选框禁用并提示。
 
 提交按钮左侧的 AI 图标（悬停提示「AI 生成」）会用默认模型根据改动自动填写提交信息；没有配置默认模型、或工作区没有改动时按钮会报错提示。
 
 在提交列表右键任意提交，可打开「标签 / 分支 / 检出」菜单：标签弹窗填写标签名和可选说明（勾选覆盖同名标签）；分支弹窗填写新分支名；检出弹窗选择本地分支或分离 HEAD，分离 HEAD 会明确警告，确认后才执行。
 
-Click **+** beside the project/path controls, choose **Clone remote repository** and enter the remote URL and a local destination (which must not exist; **Choose** opens the OS folder chooser for a parent folder and appends the repository name); with **Add to DSH workspace** checked, the clone also registers the workspace and opens it. **Select local repository** opens a dialog where **Choose folder** uses the OS picker (or pick a scanned project / enter a path); with **Add to DSH workspace** checked, **Open** registers the workspace too, and the checkbox is disabled when it already is one.
+Click **+** beside the repository/path controls, choose **Clone remote repository** and enter the remote URL and a local destination (which must not exist; **Choose** opens the OS folder chooser for a parent folder and appends the repository name); with **Add to DSH workspace** checked, the clone also registers the workspace and opens it. **Select local repository** opens a dialog where **Choose folder** uses the OS picker (or pick a scanned repository / enter a path); with **Add to DSH workspace** checked, **Open** registers the workspace too, and the checkbox is disabled when it already is one.
 
 The sparkle icon button left of Submit (with a tooltip) fills the message from the changes with the default model; it reports an error when no default model is configured or the working tree has no changes.
 
 Right-click any commit in the log for **Tag / Branch / Checkout**: the tag dialog takes a name and optional message (with a force checkbox); the branch dialog takes a new branch name; the checkout dialog picks a local branch or a detached HEAD, with an explicit warning before confirming.
 
-也可以在右侧栏的「开始」页选择 **Git**，将它作为右侧标签页打开。每页条数在标题栏的 **设置**（齿轮）弹窗中调整。
+也可以在右侧栏的「开始」页选择 **Git**，将它作为右侧标签页打开。每页条数在顶栏的 **设置**（齿轮）弹窗中调整。
 
-You can also pick **Git** on the right sidebar's Start page to open the suite as a right-sidebar tab. Set the page size from the **Settings** gear in the title bar.
+You can also pick **Git** on the right sidebar's Start page to open the suite as a right-sidebar tab. Set the page size from the **Settings** gear in the header.
 
 ## 文档 / Docs
 
@@ -133,6 +133,10 @@ You can also pick **Git** on the right sidebar's Start page to open the suite as
 
 ## 安全 / Security
 
-读取路由（日志、详情、文件状态、diff）只执行 `git log` / `git show` / `git status` / `git diff`；其余 POST 路由（切换分支、暂存、取消暂存、提交、推送、克隆、AI 生成、选择目录、新建工作区、标签、分支、检出）都要求同源并携带插件的私有请求头。切换分支只接受本地分支、不 force；暂存使用 `git add`，取消暂存使用 `git reset`；提交使用 `git commit`，可 `--amend`；推送只推送到已配置的上游，不 force。克隆只接受 https / ssh / git / file / 绝对本地路径（拒绝 `ext::` / `fd::` 等执行本地命令的传输），目标必须是绝对路径、父目录存在且目标不存在；克隆目标可用系统目录选择器选择父目录。AI 生成只执行 `git diff` / `git status` 读取改动，将文件列表与 diff 发送给 DSH 配置的默认模型提供方，不写入仓库。选择本地仓库通过 DSH 的原生目录选择器（`ctx.directoryPicker`）打开系统对话框；克隆或选择弹窗勾选「加入到 DSH 工作区」后，才会调用 `ctx.workspaceRegistry.create` 注册该目录为 DSH 工作区。标签/分支名都经 `git check-ref-format` 校验；标签只有勾选「覆盖同名标签」时才加 `-f`；检出支持本地分支或提交哈希 `git switch --detach`，不 force，工作区有会被覆盖的改动时返回 409。
+读取路由（日志、详情、文件状态、diff）只执行 `git log` / `git show` / `git status` / `git diff`；其余 POST 路由（切换分支、暂存、取消暂存、提交、拉取/推送/获取、删除远端、分支合并/变基/重命名/删除、克隆、AI 生成、选择目录、新建工作区、标签、分支、检出）都要求同源并携带插件的私有请求头。切换分支只接受本地分支、不 force；暂存使用 `git add`，取消暂存使用 `git reset`；提交使用 `git commit`，可 `--amend`；拉取/推送可指定远端与分支；推送的强制模式只在明确勾选「强制推送」时使用；提交后的推送仍只推送到已配置的上游。克隆只接受 https / ssh / git / file / 绝对本地路径（拒绝 `ext::` / `fd::` 等执行本地命令的传输），目标必须是绝对路径、父目录存在且目标不存在；克隆目标可用系统目录选择器选择父目录。AI 生成只执行 `git diff` / `git status` 读取改动，将文件列表与 diff 发送给 DSH 配置的默认模型提供方，不写入仓库。选择本地仓库通过 DSH 的原生目录选择器（`ctx.directoryPicker`）打开系统对话框；克隆或选择弹窗勾选「加入到 DSH 工作区」后，才会调用 `ctx.workspaceRegistry.create` 注册该目录为 DSH 工作区。标签/分支名都经 `git check-ref-format` 校验；标签只有勾选「覆盖同名标签」时才加 `-f`；分支合并/变基在当前工作区执行，冲突时返回 Git 错误；重命名使用 `git branch -m`，删除使用 `git branch -d`；删除远端使用 `git remote remove`；检出支持本地分支或提交哈希 `git switch --detach`，不 force，工作区有会被覆盖的改动时返回 409。
 
-Read routes (log, commit detail, working-tree status, diff) only run `git log` / `git show` / `git status` / `git diff`; all other POST routes (branch switch, stage, unstage, commit, push, clone, AI generation, directory picking, workspace creation, tag, branch, checkout) require the same-origin check and the plugin's private request header. A switch accepts local branches only and is never forced; staging uses `git add`, unstaging uses `git reset`, committing uses `git commit` (optionally `--amend`), and pushing targets the configured upstream without force. Cloning accepts https / ssh / git / file / absolute local paths only (rejecting `ext::` / `fd::` and other transports that execute local commands); the destination must be absolute, its parent must exist, and it must not already exist; the clone destination can pick its parent with the OS chooser. AI generation only reads `git diff` / `git status` and sends the file list and diff to DSH's configured default model provider; it never writes to the repository. Selecting a local repository opens the OS chooser through DSH's native directory picker (`ctx.directoryPicker`); only when **Add to DSH workspace** is checked in the clone or select dialog does the plugin call `ctx.workspaceRegistry.create` to register the directory as a DSH workspace. Tag and branch names pass `git check-ref-format`; tags add `-f` only when **Force an existing tag** is checked; checkout switches to a local branch or detaches HEAD at a commit, never forces, and returns 409 when the working tree has changes it would overwrite.
+Read routes (log, commit detail, working-tree status, diff) only run `git log` / `git show` / `git status` / `git diff`; all other POST routes (branch switch, stage, unstage, commit, pull/push/fetch, remote removal, branch merge/rebase/rename/delete, clone, AI generation, directory picking, workspace creation, tag, branch, checkout) require the same-origin check and the plugin's private request header. A switch accepts local branches only and is never forced; staging uses `git add`, unstaging uses `git reset`, committing uses `git commit` (optionally `--amend`), pull/push take an explicit remote and branch, and push's force mode is used only when **Force push** is checked; the push after committing still targets the configured upstream only. Cloning accepts https / ssh / git / file / absolute local paths only (rejecting `ext::` / `fd::` and other transports that execute local commands); the destination must be absolute, its parent must exist, and it must not already exist; the clone destination can pick its parent with the OS chooser. AI generation only reads `git diff` / `git status` and sends the file list and diff to DSH's configured default model provider; it never writes to the repository. Selecting a local repository opens the OS chooser through DSH's native directory picker (`ctx.directoryPicker`); only when **Add to DSH workspace** is checked in the clone or select dialog does the plugin call `ctx.workspaceRegistry.create` to register the directory as a DSH workspace. Tag and branch names pass `git check-ref-format`; tags add `-f` only when **Force an existing tag** is checked; merge/rebase run in the current working tree and return Git errors on conflicts; rename uses `git branch -m` and delete uses `git branch -d`; removing a remote uses `git remote remove`; checkout switches to a local branch or detaches HEAD at a commit, never forces, and returns 409 when the working tree has changes it would overwrite.
+
+## 许可证 / License
+
+MIT © 2026 Gim. 详见 [LICENSE](LICENSE) / See [LICENSE](LICENSE).

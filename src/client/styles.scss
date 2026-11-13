@@ -81,7 +81,7 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     gap: 2px;
-    padding: 2px 0;
+    padding: 1px 0;
 
     .dsh-gitlog-note {
       margin: 0 0 0 10px;
@@ -342,7 +342,7 @@ $brand: var(--dsw-alias-brand-primary);
   &-view-switch {
     display: flex;
     gap: 2px;
-    padding: 2px;
+    padding: 1px;
     border: 1px solid $border-l1;
     border-radius: 8px;
     background: $bg-base;
@@ -1566,6 +1566,7 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-workspace-action {
     all: unset;
+    box-sizing: border-box;
     display: inline-flex;
     flex-direction: row;
     align-items: center;
