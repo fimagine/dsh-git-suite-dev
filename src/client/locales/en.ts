@@ -57,6 +57,7 @@ export const en = {
   pickFailed: 'Could not pick a directory.',
   pickUnavailable: 'The OS folder chooser is unavailable here; enter the path manually.',
   addToWorkspace: 'Add to DSH workspace',
+  workspaceReloadHint: 'Registering a DSH workspace may reload DSH; uncheck to only open the repository in this panel.',
   alreadyWorkspace: 'This repository is already a DSH workspace.',
   opening: 'Opening…',
   viewMode: 'View',

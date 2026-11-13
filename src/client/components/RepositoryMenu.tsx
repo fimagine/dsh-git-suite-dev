@@ -7,6 +7,7 @@ import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
 import { Button, DialogActions } from './Button.js'
 import { Dropdown } from './Dropdown.js'
+import { PlusIcon } from './GitLogIcon.js'
 
 interface DialogProps {
   view: GitLogView
@@ -33,7 +34,7 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
   const [destination, setDestination] = useState('')
   const [busy, setBusy] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [addToWorkspace, setAddToWorkspace] = useState(true)
+  const [addToWorkspace, setAddToWorkspace] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const suggested = suggestedDestination(view.repo?.repoRoot, url)
 
@@ -124,6 +125,9 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
           />
           {t('addToWorkspace')}
         </label>
+        {addToWorkspace
+          ? <p className="dsh-gitlog-settings-hint">{t('workspaceReloadHint')}</p>
+          : null}
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
@@ -140,7 +144,7 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
   const [path, setPath] = useState(view.pathInput)
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [addToWorkspace, setAddToWorkspace] = useState(true)
+  const [addToWorkspace, setAddToWorkspace] = useState(false)
   const [hasWorkspace, setHasWorkspace] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -234,6 +238,9 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
           />
           {t('addToWorkspace')}
         </label>
+        {addToWorkspace
+          ? <p className="dsh-gitlog-settings-hint">{t('workspaceReloadHint')}</p>
+          : null}
         {hasWorkspace ? <p className="dsh-gitlog-settings-hint">{t('alreadyWorkspace')}</p> : null}
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
@@ -313,7 +320,7 @@ export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }):
         ariaHasPopup="menu"
         ariaExpanded={open}
         onClick={() => setOpen(value => !value)}
-        icon={<span>+</span>}
+        icon={<PlusIcon />}
       />
       {open
         ? (

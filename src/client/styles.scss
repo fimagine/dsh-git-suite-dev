@@ -7,6 +7,7 @@
 $prefix: dsh-gitlog;
 
 $control-height: 28px;
+$section-head-height: 40px;
 $control-radius: 8px;
 $panel-radius: 12px;
 
@@ -653,8 +654,11 @@ $brand: var(--dsw-alias-brand-primary);
 
   // The search stays above the scrolling list instead of scrolling with it.
   &-tree-header {
+    display: flex;
     flex: 0 0 auto;
-    padding: 10px 8px 8px;
+    align-items: center;
+    height: $section-head-height;
+    padding: 0 8px;
     background: $bg-layer-1;
   }
 
@@ -862,8 +866,10 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
-    padding: 6px 16px;
+    height: $section-head-height;
+    padding: 0 16px;
     border-bottom: 1px solid $border-l1;
+    box-sizing: border-box;
     background: $bg-layer-1;
   }
 
@@ -1549,8 +1555,10 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    height: $section-head-height;
+    padding: 0 14px;
     border-bottom: 1px solid $border-l1;
+    box-sizing: border-box;
     background: $bg-layer-1;
   }
 

@@ -182,7 +182,7 @@ Double-clicking a **local branch** in the tree POSTs to `/git-suite/switch`:
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
 - 暂存以文件为单位（暂不提供 hunk/区块级暂存）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
-- 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名；勾选「加入到 DSH 工作区」时克隆成功后调用 `POST /git-suite/create-workspace` 并打开。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径，以及「加入到 DSH 工作区」勾选项（已有工作区时禁用并提示）；点「打开」时若勾选且尚无工作区则调用 `create-workspace`，否则只打开。目录选择器不是 native 时提示手动输入路径。
+- 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名；勾选「加入到 DSH 工作区」时克隆成功后调用 `POST /git-suite/create-workspace` 并打开（DSH 可能重新加载）。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径，以及「加入到 DSH 工作区」勾选项（默认不勾选；已有工作区时禁用并提示）；点「打开」时若勾选且尚无工作区则调用 `create-workspace`，否则只打开。目录选择器不是 native 时提示手动输入路径。
 - 所有写入仍是 POST + 同源 + 私有请求头；错误以 JSON 返回并在工作区显示。
 
 The second row's **History / Commit** switch changes between history and the commit/file-status view in the same page (`WorkspacePane` + `useWorkspace`), sharing the repository/path controls, refs tree, and branch switching:

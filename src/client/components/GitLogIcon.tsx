@@ -47,6 +47,25 @@ export function RefreshIcon({ size = 16 }: { size?: number }): React.ReactElemen
   )
 }
 
+/** Plus glyph for the add-repository button. */
+export function PlusIcon({ size = 16 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M8 3.2v9.6M3.2 8h9.6" />
+    </svg>
+  )
+}
+
 /** Sparkle icon for the AI commit-message button. */
 export function SparkleIcon({ size = 16 }: { size?: number }): React.ReactElement {
   return (

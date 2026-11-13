@@ -59,6 +59,7 @@ export const zh: Record<LocaleKey, string> = {
   pickFailed: '无法选择目录。',
   pickUnavailable: '当前环境不支持系统目录选择器，请手动输入路径。',
   addToWorkspace: '加入到 DSH 工作区',
+  workspaceReloadHint: '注册为 DSH 工作区后 DSH 可能会重新加载；取消勾选则只在当前面板打开仓库。',
   alreadyWorkspace: '该仓库已是 DSH 工作区。',
   opening: '打开中…',
   viewMode: '视图',

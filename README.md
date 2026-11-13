@@ -3,6 +3,16 @@
 DSH Web 的 Git 套件插件：提供提交历史、分支、引用树、提交详情、文件状态/暂存/提交与分支切换，支持提交后可选的修改/推送，后续继续扩展更多 Git 操作。
 A Git suite plugin for DSH Web: history, branches, the refs tree, commit details, working-tree staging and commits, and branch switching — with amend/push options and more Git operations planned.
 
+## 截图 / Screenshots
+
+**提交历史 / History**
+
+![提交历史 / History](assets/readme-screenshot-0.png)
+
+**提交与文件状态 / Commit and file status**
+
+![提交与文件状态 / Commit and file status](assets/readme-screenshot-1.png)
+
 ## 功能 / Features
 
 - 自动扫描已注册工作区中的 Git 仓库，包括工作区子目录中的嵌套仓库
@@ -15,7 +25,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - 提交历史工具栏：下拉选择分支（所有分支 / 当前分支 / 本地分支；可选显示远端）、「显示远端」勾选框，以及「按日期排序 / 按层级排序」；表头不再显示提交数和当前分支
 - 控件统一：按钮封装为 `Button` 组件，弹窗底部由 `DialogActions` 统一「取消 → 确认」；输入框/按钮 28px 高、12px 字号
 - 文件状态与提交：第二行的「历史 / 提交」切换同一页内的提交历史与提交/文件状态，含已暂存/未暂存文件、全部或所选暂存/取消暂存、逐文件 diff、提交信息、修改最后一次提交、提交后推送到上游（文件级暂存；暂不支持区块级暂存）
-- 仓库操作：仓库/路径旁的 **+** 菜单（点击或悬停）可克隆远端仓库（https / ssh / git / file / 本地路径；目标目录必须不存在，克隆对话框的「克隆到」可用「选择」系统目录并自动追加仓库名）或选择本地仓库（系统目录选择器）；两个弹窗都可勾选「加入到 DSH 工作区」
+- 仓库操作：仓库/路径旁的 **+** 菜单（点击或悬停）可克隆远端仓库（https / ssh / git / file / 本地路径；目标目录必须不存在，克隆对话框的「克隆到」可用「选择」系统目录并自动追加仓库名）或选择本地仓库（系统目录选择器）；两个弹窗都可勾选「加入到 DSH 工作区」（默认不勾选；勾选后会把目录注册为 DSH 工作区，DSH 可能会重新加载）
 - AI 生成提交信息：提交按钮左侧的 AI 图标按钮（悬停显示「AI 生成」提示）使用 DSH 配置的默认模型总结已暂存改动（没有暂存时使用未暂存改动），自动填入提交信息，填写后仍可手动编辑
 - 提交右键菜单：**标签**（创建/移动标签，可覆盖同名标签）、**分支**（在提交处新建分支）、**检出**（检出本地分支或分离 HEAD；检出前会警告确认，工作区有会被覆盖的改动时 Git 拒绝）
 - 提交列表为单行表格（路线图、引用、标题、日期、作者、哈希），提交详情在列表下方分左右两栏：左侧作者/时间/父提交与改动文件，右侧补丁；点击改动文件切换右侧补丁，加载后默认选中最新提交和第一个文件
@@ -37,7 +47,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - Settings dialog (gear button) for the number of commits per page (25 / 50 / 100 / 200 / all)
 - History toolbar: branch dropdown (all / current / local branches, with an optional remote display), a **Show remotes** checkbox, and **Sort by date / Sort topologically**; the table header no longer shows the commit count or current branch
 - Unified controls: buttons use a `Button` component and dialogs use `DialogActions` for the cancel → confirm order; inputs and buttons are 28px tall with 12px text- Working tree and commits: switch between history and the commit/file-status view with **History / Commit** in the second row; staged/unstaged files, stage/unstage all or selected, per-file diffs, commit messages, amend, and push after committing (file-level staging; hunk-level staging is not available yet)
-- Repositories: the **+** menu beside the repository/path controls (click or hover) clones a remote repository (https / ssh / git / file / local path; the destination must not exist, and the clone dialog's destination field can pick a parent folder with the OS chooser and append the repository name) or selects a local repository with the OS directory chooser; both dialogs have an **Add to DSH workspace** checkbox
+- Repositories: the **+** menu beside the repository/path controls (click or hover) clones a remote repository (https / ssh / git / file / local path; the destination must not exist, and the clone dialog's destination field can pick a parent folder with the OS chooser and append the repository name) or selects a local repository with the OS directory chooser; both dialogs have an **Add to DSH workspace** checkbox (off by default; checking it registers the directory as a DSH workspace, which may reload DSH)
 - AI commit messages: the sparkle icon button left of Submit (with an **AI 生成** tooltip) summarizes the staged changes (or unstaged changes when nothing is staged) with DSH's configured default model and fills the message, which remains editable
 - Commit context menu: **Tag** (create or move a tag, optionally forcing an existing one), **Branch** (create a local branch at the commit), and **Checkout** (a local branch or a detached HEAD, with a confirmation warning; Git refuses when the working tree has changes it would overwrite)
 - Single-line log rows (graph, refs, subject, date, author, hash) with the commit detail below the list: metadata and changed files on the left, patch on the right; click a changed file to show its patch, with the newest commit and first file selected after loading
@@ -111,13 +121,13 @@ Double-click a local branch in the tree to switch the working tree to it; a swit
 
 Click **Commit** in the second row to switch to the commit/file-status view, and **History** to return: check files to stage selected or stage all, unstage staged files, view a file's diff on the right, write a commit message, and commit; amend last commit and push to the upstream are optional.
 
-点击仓库/路径旁的 **+**，选择「克隆远端仓库」填写远端地址和本地目录（目录必须不存在，也可点「选择」用系统目录选择器选父目录并自动追加仓库名），勾选「加入到 DSH 工作区」时克隆完成后会同时注册工作区并打开；选择「选择本地仓库」会打开弹窗，可点「选择目录」用系统选择器选 Git 仓库，也可从已扫描仓库选择或直接输入路径，勾选「加入到 DSH 工作区」后点「打开」会同时注册工作区；已存在工作区时勾选框禁用并提示。
+点击仓库/路径旁的 **+**，选择「克隆远端仓库」填写远端地址和本地目录（目录必须不存在，也可点「选择」用系统目录选择器选父目录并自动追加仓库名）；勾选「加入到 DSH 工作区」时克隆完成后会同时注册工作区并打开，DSH 可能会重新加载。选择「选择本地仓库」会打开弹窗，可点「选择目录」用系统选择器选 Git 仓库，也可从已扫描仓库选择或直接输入路径；默认只在当前面板打开仓库，勾选「加入到 DSH 工作区」后点「打开」才会同时注册工作区（DSH 可能会重新加载）；已存在工作区时勾选框禁用并提示。
 
 提交按钮左侧的 AI 图标（悬停提示「AI 生成」）会用默认模型根据改动自动填写提交信息；没有配置默认模型、或工作区没有改动时按钮会报错提示。
 
 在提交列表右键任意提交，可打开「标签 / 分支 / 检出」菜单：标签弹窗填写标签名和可选说明（勾选覆盖同名标签）；分支弹窗填写新分支名；检出弹窗选择本地分支或分离 HEAD，分离 HEAD 会明确警告，确认后才执行。
 
-Click **+** beside the repository/path controls, choose **Clone remote repository** and enter the remote URL and a local destination (which must not exist; **Choose** opens the OS folder chooser for a parent folder and appends the repository name); with **Add to DSH workspace** checked, the clone also registers the workspace and opens it. **Select local repository** opens a dialog where **Choose folder** uses the OS picker (or pick a scanned repository / enter a path); with **Add to DSH workspace** checked, **Open** registers the workspace too, and the checkbox is disabled when it already is one.
+Click **+** beside the repository/path controls, choose **Clone remote repository** and enter the remote URL and a local destination (which must not exist; **Choose** opens the OS folder chooser for a parent folder and appends the repository name); with **Add to DSH workspace** checked, the clone also registers the workspace and opens it (DSH may reload). **Select local repository** opens a dialog where **Choose folder** uses the OS picker (or pick a scanned repository / enter a path); by default it only opens the repository in this panel — checking **Add to DSH workspace** and pressing **Open** registers the workspace too (DSH may reload), and the checkbox is disabled when it already is one.
 
 The sparkle icon button left of Submit (with a tooltip) fills the message from the changes with the default model; it reports an error when no default model is configured or the working tree has no changes.
 
