@@ -45,6 +45,8 @@ export const en = {
   conflictAborted: 'Aborted',
   conflictStillBlocked: 'Conflicts are still unresolved',
   conflictResolvedFile: 'Marked {file} resolved',
+  conflictBadge: 'Conflict',
+  markResolved: 'Mark as resolved',
   conflictBody: '{operation} stopped at a conflict. Resolve it and continue manually, or abort here to return to the state before the operation.',
   conflictAbort: 'Abort and restore',
   aborting: 'Aborting…',

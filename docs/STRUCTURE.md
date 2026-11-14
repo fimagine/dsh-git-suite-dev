@@ -246,14 +246,15 @@ Right-clicking a commit row opens the **Tag / Branch / Checkout** menu (`CommitA
 
 ## Conflicts
 
-While a merge, rebase, cherry-pick, or revert is stopped, `mode=operation` reports it with the unmerged files, and the panel shows a warning banner under the action row:
+While a merge, rebase, cherry-pick, or revert is stopped, `mode=operation` reports it with the unmerged files. The conflicted files themselves are listed in the **Unstaged** section (unmerged paths are excluded from the staged list, since `U` is a conflict marker, not a staged change) with a **Conflict** pill instead of git's letter; their row button marks them resolved (`git add`) and their context menu adds **Take ours** / **Take theirs** (`git checkout --ours|--theirs` + `git add`, disabled when that side no longer exists).
+
+A compact strip above the list carries the operation name, the remaining conflict count, and:
 
 - **Continue** runs the matching `--continue` (a merge continues with `git commit --no-edit`; rebase uses `-c core.editor=true` so the editor never opens).
 - **Skip** runs `--skip` for rebase/cherry-pick/revert; a merge has no skip (`400 skip-unsupported`).
 - **Abort** restores the state before the operation.
-- Each conflicted file offers **Take ours** / **Take theirs** (`git checkout --ours|--theirs` + `git add`); during a rebase the sides are relative to the commit being applied, which is git's own convention.
 
-The banner refreshes when the repository changes, when a sync finishes, and after every conflict action.
+The strip refreshes when the repository changes, when a sync finishes, and after every conflict action.
 
 ## Right-sidebar tab
 

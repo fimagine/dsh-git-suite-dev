@@ -47,6 +47,8 @@ export const zh: Record<LocaleKey, string> = {
   conflictAborted: '已中止',
   conflictStillBlocked: '仍有未解决的冲突',
   conflictResolvedFile: '已标记 {file} 为已解决',
+  conflictBadge: '冲突',
+  markResolved: '标记为已解决',
   conflictBody: '{operation} 因冲突停在当前步骤。你可以处理冲突后手动继续，或在这里中止并回到操作前的状态。',
   conflictAbort: '中止并恢复',
   aborting: '中止中…',

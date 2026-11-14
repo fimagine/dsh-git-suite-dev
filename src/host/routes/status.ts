@@ -66,7 +66,9 @@ export async function readWorkspaceStatus(
         path: entry.path,
         ...(entry.origPath === null ? {} : { origPath: entry.origPath }),
       }
-      if (entry.index !== '.' && !entry.untracked) {
+      // Unmerged paths only belong to the unstaged list: their index entry is a
+      // conflict marker, not a staged change.
+      if (entry.index !== '.' && !entry.untracked && !entry.unmerged) {
         const stat = stagedMap.get(entry.path)
         staged.push({
           ...base,

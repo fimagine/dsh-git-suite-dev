@@ -545,7 +545,15 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       />
       <div ref={stackRef} className="dsh-gitlog-stack">
         {viewMode === 'workspace'
-          ? <WorkspacePane view={view} ws={ws} t={t} />
+          ? (
+              <WorkspacePane
+                view={view}
+                ws={ws}
+                t={t}
+                operation={operation}
+                onOperationChanged={() => { void refreshOperation() }}
+              />
+            )
           : hasCommits
             ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} onRefContextMenu={openRefMenu} />
             : <div className="dsh-gitlog-state-pane">{state}</div>}
@@ -616,7 +624,6 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
               onContinue={() => { void conflictAction('continue') }}
               onSkip={() => { void conflictAction('skip') }}
               onAbort={() => { void conflictAction('abort') }}
-              onResolve={(file, side) => { void resolveConflict(file.path, side) }}
             />
           )}
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}

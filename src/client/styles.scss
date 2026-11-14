@@ -1658,18 +1658,12 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-conflict {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--dsw-alias-state-warn-primary);
-    background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
-  }
-
-  &-conflict-head {
-    display: flex;
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--dsw-alias-state-warn-primary);
+    background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
     font-size: $font-meta;
   }
 
@@ -1681,36 +1675,6 @@ $brand: var(--dsw-alias-brand-primary);
     display: flex;
     gap: 6px;
     margin-left: auto;
-  }
-
-  &-conflict-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-height: 132px;
-    margin: 0;
-    padding: 0;
-    overflow: auto;
-    list-style: none;
-    overscroll-behavior: contain;
-  }
-
-  &-conflict-file {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    min-width: 0;
-  }
-
-  &-conflict-path {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    color: $label-primary;
-    font-family: var(--gitlog-mono);
-    font-size: $font-tiny;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   &-note {
@@ -2270,6 +2234,18 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
+
+    // Conflicted files carry a word instead of git's single status letter.
+    &.is-conflict {
+      flex: 0 0 auto;
+      padding: 0 5px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      color: var(--dsw-alias-state-warn-primary);
+      font-family: inherit;
+      font-weight: 600;
+      line-height: 15px;
+    }
   }
 
   &-workspace-path {

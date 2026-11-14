@@ -246,14 +246,15 @@ LICENSE
 
 ## 冲突善后
 
-当 merge / rebase / cherry-pick / revert 停在半途时，`mode=operation` 会返回该状态与未合并文件，面板在操作栏下方显示警告横幅：
+当 merge / rebase / cherry-pick / revert 停在半途时，`mode=operation` 会返回该状态与未合并文件。冲突文件**直接出现在「未暂存」列表里**（未合并路径不再进入已暂存列表——`U` 是冲突标记而不是已暂存的改动），状态位显示为「冲突」胶囊；行末按钮用于标记已解决（`git add`），右键菜单多出「用 ours」「用 theirs」（`git checkout --ours|--theirs` 后 `git add`，该侧不存在时置灰）。
+
+列表上方保留一条紧凑提示条，显示操作名称、剩余冲突数与：
 
 - **继续**：执行对应的 `--continue`（merge 用 `git commit --no-edit`；rebase 带 `-c core.editor=true`，不会弹编辑器）。
 - **跳过**：rebase/cherry-pick/revert 支持 `--skip`；merge 没有跳过（返回 `400 skip-unsupported`）。
 - **中止**：恢复到操作前的状态。
-- 每个冲突文件提供「用 ours」/「用 theirs」（`git checkout --ours|--theirs` 后再 `git add`）；rebase 过程中 ours/theirs 相对于正在应用的提交，与 git 本身语义一致。
 
-横幅会在仓库变化、同步结束以及每次冲突操作后刷新。
+提示条会在仓库变化、同步结束以及每次冲突操作后刷新。
 
 ## 右侧栏标签页
 

@@ -2,7 +2,7 @@ import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
-import { requestRevealFile, toApiError } from '../lib/api.js'
+import { requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
 import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
 import { toast } from './Toast.js'
@@ -10,7 +10,7 @@ import { useTooltip } from './Tooltip.js'
 import { FileActionDialog } from './FileActionDialog.js'
 import { IgnoreFileDialog } from './IgnoreFileDialog.js'
 import { StashCreateDialog } from './StashCreateDialog.js'
-import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
+import type { ConflictFile, OperationPayload, Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
   if (file.staged) return 'staged'
@@ -18,7 +18,14 @@ function scopeOf(file: WorkspaceFile): WorkspaceScope {
 }
 
 /** Working-tree panel: staged/unstaged files, per-file diff, and the commit form. */
-export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: WorkspaceView; t: Translate }): React.ReactElement {
+export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
+  view: GitLogView
+  ws: WorkspaceView
+  t: Translate
+  /** Conflicts of an in-progress merge/rebase, when one is stopped. */
+  operation?: OperationPayload | null
+  onOperationChanged?(): void
+}): React.ReactElement {
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
   const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
@@ -76,8 +83,28 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
     else ws.stage([file.path])
   }
 
+  /** Which sides still exist for a conflicted file (from the operation payload). */
+  const conflictSideOf = (file: string): ConflictFile | undefined => operation?.conflicts.find(entry => entry.path === file)
+
+  /** Resolve one conflicted file by keeping the ours or theirs side. */
+  const resolveConflict = async (file: WorkspaceFile, side: 'ours' | 'theirs'): Promise<void> => {
+    try {
+      await requestCommitOp({ path, action: 'resolve', file: file.path, side })
+      toast(t('conflictResolvedFile').replace('{file}', file.path))
+      ws.refresh()
+      view.refresh()
+      onOperationChanged?.()
+    } catch (error) {
+      toast(toApiError(error).message, 'error')
+    }
+  }
+
   const fileRow = (file: WorkspaceFile): React.ReactElement => {
     const scope = scopeOf(file)
+    const conflicted = file.status === 'U'
+    const conflictSides = conflicted && operation !== null && operation !== undefined
+      ? operation.conflicts.find(conflict => conflict.path === file.path)
+      : undefined
     const selected = ws.selected?.path === file.path && ws.selected.scope === scope
     const group = scope === 'staged' ? 'staged' : 'unstaged'
     const isChecked = checked[group].includes(file.path)
@@ -100,7 +127,9 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
           onChange={() => toggleCheck(group, file.path)}
           aria-label={file.path}
         />
-        <span className="dsh-gitlog-workspace-status">{file.status}</span>
+        {conflicted
+          ? <span className="dsh-gitlog-workspace-status is-conflict">{t('conflictBadge')}</span>
+          : <span className="dsh-gitlog-workspace-status">{file.status}</span>}
         <span
           className="dsh-gitlog-workspace-path"
           title={file.origPath === undefined ? file.path : `${file.path} ← ${file.origPath}`}
@@ -118,15 +147,15 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
         <button
           type="button"
           className="dsh-gitlog-workspace-file-action"
-          title={scope === 'staged' ? t('unstageFile') : t('stageFile')}
-          aria-label={scope === 'staged' ? t('unstageFile') : t('stageFile')}
+          title={conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile')}
+          aria-label={conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile')}
           onClick={event => {
             event.stopPropagation()
             toggleStage(file, scope)
           }}
           onDoubleClick={event => event.stopPropagation()}
           onMouseEnter={event => tooltip.show(
-            scope === 'staged' ? t('unstageFile') : t('stageFile'),
+            conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile'),
             event.currentTarget.getBoundingClientRect(),
           )}
           onMouseLeave={tooltip.hide}
@@ -362,7 +391,35 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
               >
                 {t('revealInExplorer')}
               </button>
-              {fileMenu.file.staged
+              {fileMenu.file.status !== 'U' ? null : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={conflictSideOf(fileMenu.file.path)?.ours === false}
+                  onClick={() => {
+                    const file = fileMenu.file
+                    setFileMenu(null)
+                    void resolveConflict(file, 'ours')
+                  }}
+                >
+                  {t('conflictTakeOurs')}
+                </button>
+              )}
+              {fileMenu.file.status !== 'U' ? null : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={conflictSideOf(fileMenu.file.path)?.theirs === false}
+                  onClick={() => {
+                    const file = fileMenu.file
+                    setFileMenu(null)
+                    void resolveConflict(file, 'theirs')
+                  }}
+                >
+                  {t('conflictTakeTheirs')}
+                </button>
+              )}
+              {fileMenu.file.staged || fileMenu.file.status === 'U'
                 ? null
                 : (
                     <button
