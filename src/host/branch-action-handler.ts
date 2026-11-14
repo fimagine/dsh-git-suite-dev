@@ -9,6 +9,7 @@ interface BranchActionBody {
   action?: unknown
   path?: unknown
   branch?: unknown
+  remote?: unknown
   newName?: unknown
 }
 
@@ -83,8 +84,9 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
       const body = await readJson(req)
       const action = text(body.action)
       const branch = text(body.branch)
+      const remote = text(body.remote)
       if (branch === '') throw new RouteError(400, 'branch-required', 'Choose a branch.')
-      if (!['merge', 'rebase', 'rename', 'delete'].includes(action)) {
+      if (!['merge', 'rebase', 'rename', 'delete', 'track', 'delete-remote'].includes(action)) {
         throw new RouteError(400, 'invalid-action', 'Unknown branch action.')
       }
       const repo = await resolveRepository(context, text(body.path), controller.signal)
@@ -99,6 +101,40 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
           await runGit(repo.root, ['branch', '-m', branch, newName], controller.signal)
         } catch (error) {
           throw gitFailure(error).withDetails({ branch })
+        }
+      } else if (action === 'track') {
+        // `branch` is a remote-tracking ref such as origin/main; the local name is its tail.
+        newName = text(body.newName) || branch.split('/').slice(1).join('/')
+        if (newName === '') throw new RouteError(400, 'name-required', 'Enter a local branch name.')
+        await checkBranch(repo.root, newName, controller.signal)
+        try {
+          await runGit(repo.root, ['switch', '--track', '-c', newName, branch], controller.signal)
+        } catch (error) {
+          const detail = String((error as { stderr?: string | Buffer }).stderr ?? '')
+          if (/already exists/i.test(detail)) {
+            throw new RouteError(409, 'branch-exists', 'A local branch with that name already exists.', { branch: newName })
+          }
+          if (/local changes|would be overwritten|not possible to check out/i.test(detail)) {
+            throw new RouteError(409, 'worktree-dirty', 'The working tree has changes that would be overwritten; commit or stash them first.', { detail })
+          }
+          throw gitFailure(error).withDetails({ branch })
+        }
+      } else if (action === 'delete-remote') {
+        if (remote === '') throw new RouteError(400, 'remote-required', 'Choose a remote.')
+        if (remote.startsWith('-') || remote.includes('\0') || /[\r\n\s]/.test(remote)) {
+          throw new RouteError(400, 'invalid-remote', 'That remote name is not valid.', { remote })
+        }
+        const remotes = (await runGit(repo.root, ['remote'], controller.signal))
+          .split(/\r?\n/)
+          .map(item => item.trim())
+          .filter(item => item !== '')
+        if (!remotes.includes(remote)) {
+          throw new RouteError(404, 'remote-not-found', 'That remote is not configured in this repository.', { remote })
+        }
+        try {
+          await runGit(repo.root, ['push', remote, '--delete', branch], controller.signal)
+        } catch (error) {
+          throw gitFailure(error).withDetails({ branch, remote })
         }
       } else if (action === 'merge') {
         try {
@@ -120,7 +156,7 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
         }
       }
 
-      await send(res, json({ ok: true, action, branch, ...(newName === undefined ? {} : { newName }) }))
+      await send(res, json({ ok: true, action, branch, remote, ...(newName === undefined ? {} : { newName }) }))
     } catch (error) {
       await send(res, failure(error))
     } finally {

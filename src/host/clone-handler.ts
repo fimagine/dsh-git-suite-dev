@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
 import { admitHeaders, failure, json } from './http.js'
+import { isSupportedRemote } from './remote-url.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -46,15 +47,6 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
     res.setHeader(key, value)
   })
   res.end(Buffer.from(await response.arrayBuffer()))
-}
-
-/** Refuse ext::/fd:: style transports that execute local commands. */
-function isSupportedRemote(value: string): boolean {
-  if (value === '' || value.length > 2048) return false
-  if (/^[a-z][a-z0-9+.-]*::/i.test(value)) return false
-  if (/^(https?|ssh|git|file):\/\//i.test(value)) return true
-  if (/^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+:[^\s]+$/.test(value)) return true
-  return isAbsolute(value)
 }
 
 /** POST /git-suite/clone: clone a remote repository into a new local directory. */

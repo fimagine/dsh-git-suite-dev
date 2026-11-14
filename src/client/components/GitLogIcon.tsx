@@ -66,6 +66,27 @@ export function PlusIcon({ size = 16 }: { size?: number }): React.ReactElement {
   )
 }
 
+/** Two opposed arrows: compare with a remote. */
+export function CompareIcon({ size = 14 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M2.5 5.5h9M9.2 3.2 11.5 5.5 9.2 7.8" />
+      <path d="M13.5 10.5h-9M6.8 8.2 4.5 10.5l2.3 2.3" />
+    </svg>
+  )
+}
+
 /** Sparkle icon for the AI commit-message button. */
 export function SparkleIcon({ size = 16 }: { size?: number }): React.ReactElement {
   return (

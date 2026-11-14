@@ -1,9 +1,11 @@
 import type * as React from 'react'
-import { h, useState } from '../runtime.js'
+import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
+import { requestRevealFile, toApiError } from '../lib/api.js'
 import { RefreshIcon, SparkleIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
+import { useToast } from './Toast.js'
 import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
@@ -15,6 +17,9 @@ function scopeOf(file: WorkspaceFile): WorkspaceScope {
 export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: WorkspaceView; t: Translate }): React.ReactElement {
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
+  const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const toast = useToast()
   const status = ws.status
   const staged = status?.staged ?? []
   const unstaged = status?.unstaged ?? []
@@ -27,6 +32,34 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
     })
   }
 
+  useEffect(() => {
+    if (fileMenu === null) return undefined
+    const onPointerDown = (event: MouseEvent): void => {
+      if (menuRef.current !== null && !menuRef.current.contains(event.target as Node)) setFileMenu(null)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setFileMenu(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [fileMenu])
+
+  /** Show one working-tree file in the OS file browser; a missing file becomes a toast. */
+  const revealFile = async (file: WorkspaceFile): Promise<void> => {
+    try {
+      await requestRevealFile({ path, file: file.path })
+    } catch (error) {
+      const failure = toApiError(error)
+      toast.show(failure.code === 'file-missing'
+        ? t('fileMissing').replace('{file}', file.path)
+        : failure.message)
+    }
+  }
+
   const fileRow = (file: WorkspaceFile): React.ReactElement => {
     const scope = scopeOf(file)
     const selected = ws.selected?.path === file.path && ws.selected.scope === scope
@@ -37,6 +70,10 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
         key={`${scope}:${file.path}`}
         className={`dsh-gitlog-workspace-file${selected ? ' is-selected' : ''}`}
         onClick={() => ws.selectFile(file.path, scope)}
+        onContextMenu={event => {
+          event.preventDefault()
+          setFileMenu({ file, x: event.clientX, y: event.clientY })
+        }}
       >
         <input
           type="checkbox"
@@ -255,6 +292,32 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
                 {diffPane}
               </div>
             )}
+      {fileMenu === null
+        ? null
+        : (
+            <div
+              ref={menuRef}
+              className="dsh-gitlog-commit-menu dsh-gitlog-file-menu"
+              style={{
+                left: Math.min(fileMenu.x, window.innerWidth - 220),
+                top: Math.min(fileMenu.y, window.innerHeight - 100),
+              }}
+              role="menu"
+              aria-label={t('fileMenu')}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  void revealFile(fileMenu.file)
+                  setFileMenu(null)
+                }}
+              >
+                {t('revealInExplorer')}
+              </button>
+            </div>
+          )}
+      {toast.node}
     </div>
   )
 }

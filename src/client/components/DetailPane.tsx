@@ -1,7 +1,7 @@
 import type * as React from 'react'
 import { h, useMemo, useRef, useState } from '../runtime.js'
 import type { ApiError } from '../lib/api.js'
-import { formatDate } from '../lib/format.js'
+import { formatDateTime } from '../lib/format.js'
 import { splitPatch } from '../lib/patch.js'
 import type { CommitDetail, DetailStatus, Translate } from '../types.js'
 import { Refs } from './Refs.js'
@@ -108,7 +108,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
             <dt>{t('author')}</dt>
             <dd>{`${detail.author} <${detail.email}>`}</dd>
             <dt>{t('date')}</dt>
-            <dd>{formatDate(detail.date)}</dd>
+            <dd>{formatDateTime(detail.date, t('localeId'))}</dd>
             <dt>{t('commit')}</dt>
             <dd className="dsh-gitlog-detail-commit">
               <code className="dsh-gitlog-hash">{detail.shortHash}</code>
@@ -118,7 +118,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
             </dd>
             <dt>{t('parents')}</dt>
             <dd>{detail.parents.length === 0 ? t('rootCommit') : detail.parents.map(parent => parent.slice(0, 12)).join(', ')}</dd>
-            <dt>{t('localRemoteBranches')}</dt>
+            <dt>{t('commitRefs')}</dt>
             <dd><Refs refs={detail.refs} /></dd>
             <dt>{t('commitMessage')}</dt>
             <dd className="dsh-gitlog-detail-message">

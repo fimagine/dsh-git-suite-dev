@@ -54,9 +54,11 @@ export function parseBranches(output: string, current: string): { branches: Bran
 
   for (const line of output.split(/\r?\n/)) {
     if (line.trim() === '') continue
-    const [ref = '', name = '', symref = '', hash = '', upstream = ''] = line.split(NULL)
+    const [ref = '', name = '', symref = '', hash = '', upstream = '', track = ''] = line.split(NULL)
     if (!ref || !name || symref) continue
     if (ref.startsWith('refs/heads/')) {
+      const aheadMatch = /ahead (\d+)/.exec(track)
+      const behindMatch = /behind (\d+)/.exec(track)
       branches.push({
         ref,
         name,
@@ -64,6 +66,9 @@ export function parseBranches(output: string, current: string): { branches: Bran
         hash: hash || '',
         current: name === current,
         ...(upstream === '' ? {} : { upstream }),
+        ...(aheadMatch === null ? {} : { ahead: Number(aheadMatch[1]) }),
+        ...(behindMatch === null ? {} : { behind: Number(behindMatch[1]) }),
+        ...(track.includes('gone') ? { gone: true } : {}),
       })
       continue
     }
@@ -142,7 +147,7 @@ export async function readRefs(context: RouteContext, url: URL, signal: AbortSig
       runGit(repo.root, ['branch', '--show-current'], signal),
       runGit(repo.root, [
         'for-each-ref',
-        '--format=%(refname)%00%(refname:short)%00%(symref)%00%(objectname:short)%00%(upstream:short)',
+        '--format=%(refname)%00%(refname:short)%00%(symref)%00%(objectname:short)%00%(upstream:short)%00%(upstream:track)',
         'refs/heads',
         'refs/remotes',
       ], signal),

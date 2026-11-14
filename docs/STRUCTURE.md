@@ -19,6 +19,7 @@ src/
     pick-handler.ts
     sync-handler.ts
     remote-handler.ts
+    remote-url.ts
     branch-action-handler.ts
     http.ts
     git.ts
@@ -47,17 +48,25 @@ src/
       useGitLogView.ts
       useWorkspace.ts
     components/
+      AddBranchDialog.tsx
+      AddRemoteDialog.tsx
       BranchDialogs.tsx
       BranchMenu.tsx
       Button.tsx
       CommitActions.tsx
+      CommitColumnsMenu.tsx
       CommitGraph.tsx
       CommitList.tsx
+      CommitRefField.tsx
       CommitRow.tsx
+      DeleteRemoteBranchDialog.tsx
       DeleteRemoteDialog.tsx
+      DeleteTagDialog.tsx
       DetailPane.tsx
       DialogShell.tsx
       Dropdown.tsx
+      EditRemoteDialog.tsx
+      EditTagDialog.tsx
       ErrorState.tsx
       FetchDialog.tsx
       GitLogIcon.tsx
@@ -65,6 +74,7 @@ src/
       PushDialog.tsx
       Refs.tsx
       RefsTree.tsx
+      RemoteBranchMenu.tsx
       RemoteMenu.tsx
       RepoActions.tsx
       RepositoryMenu.tsx
@@ -72,6 +82,9 @@ src/
       Splitter.tsx
       States.tsx
       SyncDialog.tsx
+      TagMenu.tsx
+      Toast.tsx
+      Tooltip.tsx
       TreeIcons.tsx
       WorkspacePane.tsx
     lib/
@@ -111,23 +124,28 @@ LICENSE
 | `host/resource.ts` | Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
 | `host/workspace-action.ts` | Node handler for stage/unstage, commit (optionally amend), and the optional push |
-| `host/clone-handler.ts` | Node handler that validates the remote URL and destination, then runs `git clone` |
-| `host/commit-actions.ts` | Validates names, creates tags/branches, and checks out a branch or detached HEAD (never forced) |
+| `host/clone-handler.ts` | Node handler that validates the remote URL and destination, clones into a staging directory beside the destination, and renames it into place |
+| `host/commit-actions.ts` | Validates names, creates tags and branches (at a commit hash or a ref), and checks out a local branch, a commit hash, or any ref as a detached HEAD (never forced) |
 | `host/generate-handler.ts` | Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
 | `host/pick-handler.ts` | Opens the native `ctx.directoryPicker`; `mode: 'repo'` (default) resolves the Git root and checks the DSH workspace, while `mode: 'directory'` returns a plain directory for clone destinations |
 | `host/sync-handler.ts` | `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, and push per-ref local→remote mappings with optional tracking, tags, and force |
-| `host/remote-handler.ts` | `POST /git-suite/remote`: remove one configured remote after validating it exists |
-| `host/branch-action-handler.ts` | `POST /git-suite/branch-action`: merge, rebase, rename, or delete one local branch with validation and git error details |
+| `host/remote-handler.ts` | `POST /git-suite/remote`: add (`action: 'add'`), rename and/or replace the URL (`action: 'set-url'`), or remove (`action: 'remove'`) one configured remote after validating the names, the URL, and whether they already exist |
+| `host/branch-action-handler.ts` | `POST /git-suite/branch-action`: merge, rebase, rename, or delete a local branch; check out a remote-tracking branch as a new tracking branch (`track`); delete a branch on a remote (`delete-remote`, `push --delete`); with validation and git error details |
 | `host/dsh.ts` | Local DSH host types, including `webServer`, workspaces, `directoryPicker`, `llm`, and `agentDefaultModel` |
 | `host/http.ts` | JSON responses, error serialization, same-origin and private-header checks |
 | `host/git.ts` | Runs read-only git commands and maps failures to error codes |
 | `host/repository.ts` | Validates paths and resolves the repository root with `rev-parse` |
+| `host/remote-url.ts` | Accepts https/ssh/git/file and absolute local remotes; rejects `ext::`-style transports |
+| `host/reveal-handler.ts` | `POST /git-suite/reveal`: keeps the path inside the repository, reports `file-missing`, and opens the OS file browser with the file selected |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
 | `host/parsers.ts` | Parses log output, commit headers, numstat, and refs |
 | `host/routes/` | Readers for branches, the refs tree, paged log, commit detail, working-tree status/diff, plus local branch switching |
 | `host/routes/status.ts` | Working-tree status: staged/unstaged files, branch/upstream/ahead/behind, and the Git author |
 | `host/routes/workspace-diff.ts` | Per-file staged/unstaged diff; synthesizes an added-file patch for untracked files |
 | `host/routes/switch.ts` | Runs `git switch` for a local-branch double-click (POST, local-only, never forced) |
+| `host/routes/tag.ts` | `mode=tag`: one tag's commit, short hash, subject, annotation message, and whether it is annotated |
+| `host/routes/tag-status.ts` | `mode=tag-status`: compares local tags with one remote (`ls-remote --tags`, annotated tags peeled to commits) and reports same/different/local-only plus remote-only names |
+| `host/routes/resolve.ts` | `mode=resolve`: turns any ref (`HEAD~2`, a branch, a tag, a short hash) into its commit hash, short hash, author, date, and subject |
 | `host/types.ts` | Host payload types |
 | `host/errors.ts` | `RouteError` with status, code, and details |
 
@@ -143,7 +161,7 @@ LICENSE
 | `client/SidebarPanel.tsx` | Right-sidebar tab wrapper with the narrow single-column layout |
 | `client/hooks/useGitLogView.ts` | Project scan, refs tree, paged log, detail selection, and actions |
 | `client/hooks/useWorkspace.ts` | Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
-| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch), repository + menu (clone/select), `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout), shared `Button`/`DialogActions` (28px/12px), errors, and states |
+| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout), tag context menu (checkout), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), toast, commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
 | `client/lib/api.ts` | Fetch wrapper with the private header and `AbortSignal` |
 | `client/lib/graph.ts` | Lane layout and geometry for the commit graph |
 | `client/lib/patch.ts` | Splits a commit's combined patch into one section per file for the file list |
@@ -152,7 +170,7 @@ LICENSE
 | `client/lib/projects.ts` | Pure helpers for project groups, labels, and branch labels |
 | `client/lib/recent-projects.ts` | Recent-project persistence across localStorage and a cookie |
 | `client/lib/ui-state.ts` | Persisted panel UI state (view, sort, page size, splitters, tree expansion) in localStorage, with validation |
-| `client/lib/format.ts` | Date and relative-time formatting |
+| `client/lib/format.ts` | Absolute date-time formatting (`2026-10-25 03:10:45` in Chinese, `Oct 25, 2026, 03:10:45` in English) |
 | `client/locales/` | English and Chinese strings, with the English key set as the source of truth |
 | `client/styles.scss` | SCSS stylesheet source |
 | `client/styles.ts` | Exports the CSS string inlined into the artifact |
@@ -164,6 +182,15 @@ The tree reads `mode=tree`, which returns local branches, tags, remote groups, s
 - Branches and tags → `ref=<ref>`; tags may use `refs/tags/*`.
 - Stashes → `scope=stash&ref=<commit hash>`; the host runs `--no-walk -n 1` to load only that commit, and its detail still uses `mode=commit`.
 - Branch groups list local branches directly; remote groups list their remote branches directly; the tree no longer offers "all branches" or "all remotes" entries.
+- A local branch row shows `↑N` / `↓N` after its name when it is ahead of or behind its upstream (read from `%(upstream:track)`), and `gone` when the upstream no longer exists.
+- The tags row has a compare action that calls `mode=tag-status` against the upstream remote (or the first remote): tags that exist only locally, tags whose commit differs from the remote, and a summary of tags that exist only on the remote.
+- The **Remotes** section row ends with a **+** button that opens the add-remote dialog and POSTs `{ action: 'add', name, url }` to `/git-suite/remote`; the section opens itself when a remote is added.
+- The **Branches** section row carries the same **+** button: the new-branch dialog sends `{ name, base }` to `/git-suite/branch`, where `base` defaults to `HEAD` and may be any branch, tag, or revision.
+- Right-clicking a remote-tracking branch offers **Checkout** (as a new tracking branch), merge / rebase it into the current branch, pull it into the current branch (through `/git-suite/sync`), and delete it on the remote (confirmation, `push --delete`).
+- Right-clicking a remote group opens fetch / pull / push, **Edit remote** (rename and URL, `POST /git-suite/remote { action: 'set-url', newName }`), and remove; hovering the group row shows its configured URL.
+- Right-clicking the log header opens a checkbox menu for the graph, date, author, and commit columns (the description column always stays); the choice is persisted and a panel narrower than 760px forces the author and commit columns off.
+- Row hints (remote URL, submodule path, branch switch hint, and truncated labels) use the plugin's own `useTooltip` box instead of the browser `title` bubble, so they render the same on Windows, macOS, and embedded webviews.
+- Right-clicking a tag opens **Checkout {tag}**, **Edit {tag}**, and **Delete {tag}**: checkout detaches HEAD at the tag through `POST /git-suite/checkout { ref }` (annotated and lightweight tags both resolve to their commit); edit loads the tag through `mode=tag` and saves a rename, a new commit, and/or a rewritten message with `force`; delete runs `POST /git-suite/tag { action: 'delete' }` after a confirmation.
 
 While viewing HEAD, the tree highlights the checked-out branch (`head` itself has no node).
 
@@ -188,14 +215,15 @@ The second row's **History / Commit** switch changes between history and the com
 - Staging is file-level (hunk-level staging is not available yet); a successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
 - **Generate with AI** beside the commit message POSTs to `/git-suite/generate-message`, which reads the staged (otherwise unstaged) diff and calls `ctx.llm.stream()` with the provider/model from `ctx.agentDefaultModel.currentSelection()`; the file list and diff are sent to the configured model provider, and the generated text only fills the input. Missing default model, no changes, and model failures return explicit errors.
 - The **+** menu beside the repository/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned repositories, and a manual path; **Open** only opens the repository in this panel. Use DSH's own Workspaces add flow to register a DSH workspace. A non-native picker asks for a typed path.
+- Right-clicking a changed file opens a menu with **Open in file explorer** (`POST /git-suite/reveal`): the host refuses paths outside the repository, answers `404 file-missing` when the file is gone, and otherwise opens the OS browser with the file selected (`explorer /select,`, `open -R`, `xdg-open`). A missing file shows a toast instead of an inline error.
 - Every write remains POST + same-origin + private request header; errors return as JSON and render in the workspace.
 
 ## Commit context actions
 
 Right-clicking a commit row opens the **Tag / Branch / Checkout** menu (`CommitActions`):
 
-- **Tag** → `POST /git-suite/tag`: validates with `git check-ref-format refs/tags/<name>`; a non-empty message uses `git tag -a -m`, otherwise a lightweight tag; `-f` is added only when `force: true` (the **Force an existing tag** checkbox) is set.
-- **Branch** → `POST /git-suite/branch`: validates with `git check-ref-format --branch`, then runs `git branch <name> <hash>`.
+- **Tag** → `POST /git-suite/tag` (title **New tag**): validates with `git check-ref-format refs/tags/<name>`; a non-empty message uses `git tag -a -m`, otherwise a lightweight tag; `-f` is added only when `force: true` (the **Force an existing tag** checkbox) is set. Its commit field is prefilled with the right-clicked commit, editable, and resolves live like the branch dialog.
+- **Branch** → `POST /git-suite/branch`: validates with `git check-ref-format --branch`, then runs `git branch <name> <start>`. The dialog's start-point field is prefilled with the right-clicked commit and stays editable; typing another ref resolves it live through `mode=resolve` and shows that commit's short hash and subject under the field. An empty field falls back to the clicked commit.
 - **Checkout** → `POST /git-suite/checkout`: `branch` runs `git switch <branch>`, `hash` runs `git switch --detach <hash>`; never forced; a working tree that would be overwritten returns 409 `worktree-dirty`. The client asks for confirmation first, warns explicitly for a detached HEAD, and mentions the working-tree risk for a branch.
 - Tag/branch/checkout refresh the log and refs tree; checkout resets the selection to HEAD.
 - All three routes are POST + same-origin + the private request header.

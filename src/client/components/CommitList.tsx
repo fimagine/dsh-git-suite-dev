@@ -2,7 +2,8 @@ import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import { graphGeometry } from '../lib/graph.js'
-import type { Commit, Translate } from '../types.js'
+import type { Commit, CommitColumn, CommitColumns, Translate } from '../types.js'
+import { CommitColumnsMenu } from './CommitColumnsMenu.js'
 import { CommitRow, COMMIT_ROW_HEIGHT } from './CommitRow.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
 import { LoadingLine } from './States.js'
@@ -14,18 +15,23 @@ interface ColumnWidths {
   hash: number
 }
 
-const DEFAULT_COLUMN_WIDTHS: ColumnWidths = { graph: 48, date: 88, author: 110, hash: 64 }
+const DEFAULT_COLUMN_WIDTHS: ColumnWidths = { graph: 48, date: 152, author: 110, hash: 64 }
 const COLUMN_LIMITS: Record<keyof ColumnWidths, readonly [number, number]> = {
   graph: [32, Number.POSITIVE_INFINITY],
-  date: [56, Number.POSITIVE_INFINITY],
+  date: [128, Number.POSITIVE_INFINITY],
   author: [64, Number.POSITIVE_INFINITY],
   hash: [48, Number.POSITIVE_INFINITY],
 }
 const COLUMN_KEYS = ['graph', 'date', 'author', 'hash'] as const
 const COLUMN_STORAGE_KEY = 'dsh.git-suite.commit-columns.v1'
+const COLUMN_VISIBILITY_KEY = 'dsh.git-suite.commit-visible.v1'
+const DEFAULT_VISIBILITY: CommitColumns = { graph: true, date: true, author: true, hash: true }
 const COLUMN_PADDING = 26
-const COLUMN_GAPS = 32
 const MIN_DESCRIPTION_WIDTH = 120
+/** Below this rendered width the log drops the author and commit columns. */
+const NARROW_WIDTH = 760
+/** Date column width when the panel is too narrow to keep the user's width. */
+const COMPACT_DATE_WIDTH = 132
 const OVERSCAN_ROWS = 6
 const INITIAL_RENDERED_ROWS = 40
 const AUTO_LOAD_ROWS = 5
@@ -50,6 +56,21 @@ function readColumnWidths(): ColumnWidths {
     return widths
   } catch {
     return { ...DEFAULT_COLUMN_WIDTHS }
+  }
+}
+
+function readColumnVisibility(): CommitColumns {
+  try {
+    const raw = window.localStorage.getItem(COLUMN_VISIBILITY_KEY)
+    if (raw === null) return { ...DEFAULT_VISIBILITY }
+    const parsed = JSON.parse(raw) as Partial<Record<string, unknown>>
+    const visibility = { ...DEFAULT_VISIBILITY }
+    for (const key of COLUMN_KEYS) {
+      if (typeof parsed[key] === 'boolean') visibility[key] = parsed[key]
+    }
+    return visibility
+  } catch {
+    return { ...DEFAULT_VISIBILITY }
   }
 }
 
@@ -128,6 +149,9 @@ export function CommitList({ view, t, onContextMenu }: {
   const listRef = useRef<HTMLElement | null>(null)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [widths, setWidths] = useState<ColumnWidths>(readColumnWidths)
+  const [chosen, setChosen] = useState<CommitColumns>(readColumnVisibility)
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 900px)').matches)
+  const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
   const [range, setRange] = useState({ start: 0, end: Math.min(commits.length, INITIAL_RENDERED_ROWS) })
   const startWidths = useRef<ColumnWidths>(widths)
   const loadMoreRef = useRef(view.loadMore)
@@ -140,6 +164,25 @@ export function CommitList({ view, t, onContextMenu }: {
       // Storage can be disabled; resizing still works for this session.
     }
   }, [widths])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(chosen))
+    } catch {
+      // Storage can be disabled; the choice still applies for this session.
+    }
+  }, [chosen])
+
+  useEffect(() => {
+    // Width-based: the right-sidebar tab is narrow even in a wide window.
+    const list = listRef.current
+    if (list === null) return undefined
+    const update = (): void => setNarrow(list.clientWidth < NARROW_WIDTH)
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const list = listRef.current
@@ -220,19 +263,48 @@ export function CommitList({ view, t, onContextMenu }: {
     })
   }
 
+  // Narrow panels drop the author and commit columns no matter what was saved.
+  const columns: CommitColumns = {
+    graph: chosen.graph,
+    date: chosen.date,
+    author: chosen.author && !narrow,
+    hash: chosen.hash && !narrow,
+  }
+  const dateWidth = narrow ? `${COMPACT_DATE_WIDTH}px` : 'var(--gitlog-date-w, 152px)'
+  const template: string[] = []
+  if (columns.graph) template.push('var(--gitlog-graph-w, auto)')
+  template.push('minmax(120px, 1fr)')
+  if (columns.date) template.push(dateWidth)
+  if (columns.author) template.push('var(--gitlog-author-w, 110px)')
+  if (columns.hash) template.push('var(--gitlog-hash-w, 64px)')
+
+  const fixedWidth = (columns.graph ? widths.graph : 0)
+    + (columns.date ? (narrow ? COMPACT_DATE_WIDTH : widths.date) : 0)
+    + (columns.author ? widths.author : 0)
+    + (columns.hash ? widths.hash : 0)
+  const gapWidth = Math.max(0, template.length - 1) * 8
+
   const style = {
     '--gitlog-graph-w': `${widths.graph}px`,
     '--gitlog-date-w': `${widths.date}px`,
     '--gitlog-author-w': `${widths.author}px`,
     '--gitlog-hash-w': `${widths.hash}px`,
-    '--gitlog-table-min': `calc(${widths.graph}px + ${widths.date}px + ${widths.author}px + ${widths.hash}px + ${COLUMN_PADDING + COLUMN_GAPS + MIN_DESCRIPTION_WIDTH}px)`,
+    '--gitlog-columns': template.join(' '),
+    '--gitlog-table-min': `calc(${fixedWidth}px + ${COLUMN_PADDING + gapWidth + MIN_DESCRIPTION_WIDTH}px)`,
   } as React.CSSProperties
 
-  // Each resizer sits in the 8px grid gap at the boundary it moves.
+  // Each resizer sits in the 8px grid gap at the boundary it moves, measured
+  // from the right edge over the columns that are currently visible.
   const graphResizerLeft = 'calc(10px + var(--gitlog-graph-w))'
-  const dateResizerRight = 'calc(16px + var(--gitlog-hash-w) + 8px + var(--gitlog-author-w) + 8px + var(--gitlog-date-w))'
-  const authorResizerRight = 'calc(16px + var(--gitlog-hash-w) + 8px + var(--gitlog-author-w))'
-  const hashResizerRight = 'calc(16px + var(--gitlog-hash-w))'
+  const hashResizerRight = `calc(16px + ${widths.hash}px)`
+  const authorResizerRight = `calc(16px + ${widths.author + (columns.hash ? widths.hash + 8 : 0)}px)`
+  const dateResizerRight = `calc(16px + ${(narrow ? COMPACT_DATE_WIDTH : widths.date)
+    + (columns.author ? widths.author + 8 : 0)
+    + (columns.hash ? widths.hash + 8 : 0)}px)`
+
+  const toggleColumn = (column: CommitColumn): void => {
+    setChosen(current => ({ ...current, [column]: !columns[column] }))
+  }
 
   const localBranches = view.tree?.branches ?? []
   const remoteGroups = view.tree?.remotes ?? []
@@ -309,36 +381,58 @@ export function CommitList({ view, t, onContextMenu }: {
             {t('showRemoteBranches')}
           </label>
         </div>
-        <div className="dsh-gitlog-commit-header">
-          <span className="dsh-gitlog-col dsh-gitlog-col-graph">{t('columnGraph')}</span>
+        <div
+          className="dsh-gitlog-commit-header"
+          onContextMenu={event => {
+            event.preventDefault()
+            setColumnsMenu({ x: event.clientX, y: event.clientY })
+          }}
+        >
+          {columns.graph ? <span className="dsh-gitlog-col dsh-gitlog-col-graph">{t('columnGraph')}</span> : null}
           <span className="dsh-gitlog-col dsh-gitlog-col-description">{t('columnDescription')}</span>
-          <span className="dsh-gitlog-col dsh-gitlog-col-date">{t('columnDate')}</span>
-          <span className="dsh-gitlog-col dsh-gitlog-col-author">{t('columnAuthor')}</span>
-          <span className="dsh-gitlog-col dsh-gitlog-col-hash">{t('columnCommit')}</span>
-          <ColumnResizer
-            label={`${t('resizeColumn')} · ${t('columnGraph')}`}
-            style={{ left: graphResizerLeft }}
-            onStart={beginResize}
-            onDrag={resizeGraph}
-          />
-          <ColumnResizer
-            label={`${t('resizeColumn')} · ${t('columnDate')}`}
-            style={{ right: dateResizerRight }}
-            onStart={beginResize}
-            onDrag={deltaX => resizeColumn('date', deltaX)}
-          />
-          <ColumnResizer
-            label={`${t('resizeColumn')} · ${t('columnAuthor')}`}
-            style={{ right: authorResizerRight }}
-            onStart={beginResize}
-            onDrag={deltaX => resizeColumn('author', deltaX)}
-          />
-          <ColumnResizer
-            label={`${t('resizeColumn')} · ${t('columnCommit')}`}
-            style={{ right: hashResizerRight }}
-            onStart={beginResize}
-            onDrag={deltaX => resizeColumn('hash', deltaX)}
-          />
+          {columns.date ? <span className="dsh-gitlog-col dsh-gitlog-col-date">{t('columnDate')}</span> : null}
+          {columns.author ? <span className="dsh-gitlog-col dsh-gitlog-col-author">{t('columnAuthor')}</span> : null}
+          {columns.hash ? <span className="dsh-gitlog-col dsh-gitlog-col-hash">{t('columnCommit')}</span> : null}
+          {columns.graph
+            ? (
+                <ColumnResizer
+                  label={`${t('resizeColumn')} · ${t('columnGraph')}`}
+                  style={{ left: graphResizerLeft }}
+                  onStart={beginResize}
+                  onDrag={resizeGraph}
+                />
+              )
+            : null}
+          {columns.date
+            ? (
+                <ColumnResizer
+                  label={`${t('resizeColumn')} · ${t('columnDate')}`}
+                  style={{ right: dateResizerRight }}
+                  onStart={beginResize}
+                  onDrag={deltaX => resizeColumn('date', deltaX)}
+                />
+              )
+            : null}
+          {columns.author
+            ? (
+                <ColumnResizer
+                  label={`${t('resizeColumn')} · ${t('columnAuthor')}`}
+                  style={{ right: authorResizerRight }}
+                  onStart={beginResize}
+                  onDrag={deltaX => resizeColumn('author', deltaX)}
+                />
+              )
+            : null}
+          {columns.hash
+            ? (
+                <ColumnResizer
+                  label={`${t('resizeColumn')} · ${t('columnCommit')}`}
+                  style={{ right: hashResizerRight }}
+                  onStart={beginResize}
+                  onDrag={deltaX => resizeColumn('hash', deltaX)}
+                />
+              )
+            : null}
         </div>
       </div>
       <div className="dsh-gitlog-list-body" style={{ height: commits.length * COMMIT_ROW_HEIGHT }}>
@@ -359,12 +453,21 @@ export function CommitList({ view, t, onContextMenu }: {
                 t={t}
                 row={row}
                 geometry={geometry}
+                columns={columns}
               />
             </div>
           )
         })}
       </div>
       {status === 'loading' ? <LoadingLine label={t('loadingCommits')} /> : null}
+      <CommitColumnsMenu
+        context={columnsMenu}
+        columns={columns}
+        narrow={narrow}
+        t={t}
+        onToggle={toggleColumn}
+        onClose={() => setColumnsMenu(null)}
+      />
     </section>
   )
 }

@@ -1,6 +1,9 @@
 import type * as React from 'react'
 import { CommitActions, type CommitContext } from './components/CommitActions.js'
 import { CommitList } from './components/CommitList.js'
+import { AddRemoteDialog } from './components/AddRemoteDialog.js'
+import { AddBranchDialog } from './components/AddBranchDialog.js'
+import { EditRemoteDialog } from './components/EditRemoteDialog.js'
 import { BranchMenu, type BranchMenuState } from './components/BranchMenu.js'
 import { BranchDeleteDialog, BranchRenameDialog } from './components/BranchDialogs.js'
 import { DeleteRemoteDialog } from './components/DeleteRemoteDialog.js'
@@ -9,6 +12,11 @@ import { ErrorState } from './components/ErrorState.js'
 import { PanelControls } from './components/PanelControls.js'
 import { RefsTree } from './components/RefsTree.js'
 import { RemoteMenu, type RemoteMenuState } from './components/RemoteMenu.js'
+import { RemoteBranchMenu, type RemoteBranchMenuState, type RemoteBranchSelection } from './components/RemoteBranchMenu.js'
+import { DeleteRemoteBranchDialog } from './components/DeleteRemoteBranchDialog.js'
+import { TagMenu, type TagMenuState, type TagSelection } from './components/TagMenu.js'
+import { EditTagDialog } from './components/EditTagDialog.js'
+import { DeleteTagDialog } from './components/DeleteTagDialog.js'
 import { Button } from './components/Button.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
@@ -18,11 +26,11 @@ import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
-import { requestBranchAction, toApiError } from './lib/api.js'
+import { requestBranchAction, requestCheckout, requestTagStatus, toApiError } from './lib/api.js'
 import { readUiState, writeUiState } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
-import type { Branch, Commit, Selection, Translate } from './types.js'
+import type { Branch, Commit, Selection, TagStatusPayload, Translate } from './types.js'
 
 export interface GitLogPanelProps {
   t: Translate
@@ -36,6 +44,12 @@ const MIN_TREE_HEIGHT = 140
 const MAX_TREE_HEIGHT = 460
 const MIN_DETAIL_RATIO = 0.2
 const MAX_DETAIL_RATIO = 0.8
+
+/** Split `origin/feature/x` into the remote name and the branch name on that remote. */
+function splitRemoteBranch(name: string): { remote: string; branch: string } {
+  const slash = name.indexOf('/')
+  return slash <= 0 ? { remote: '', branch: name } : { remote: name.slice(0, slash), branch: name.slice(slash + 1) }
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -62,9 +76,20 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
   const [remoteMenu, setRemoteMenu] = useState<RemoteMenuState | null>(null)
   const [remoteDelete, setRemoteDelete] = useState<string | null>(null)
+  const [remoteEdit, setRemoteEdit] = useState<string | null>(null)
+  const [remoteBranchMenu, setRemoteBranchMenu] = useState<RemoteBranchMenuState | null>(null)
+  const [remoteBranchDelete, setRemoteBranchDelete] = useState<{ remote: string; branch: string } | null>(null)
+  const [addRemoteOpen, setAddRemoteOpen] = useState(false)
+  const [addBranchOpen, setAddBranchOpen] = useState(false)
   const [branchMenu, setBranchMenu] = useState<BranchMenuState | null>(null)
   const [branchDialog, setBranchDialog] = useState<{ action: 'rename' | 'delete'; branch: Branch } | null>(null)
   const [branchActionError, setBranchActionError] = useState<string | null>(null)
+  const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
+  const [tagStatus, setTagStatus] = useState<TagStatusPayload | null>(null)
+  const [tagStatusError, setTagStatusError] = useState<string | null>(null)
+  const [tagEdit, setTagEdit] = useState<string | null>(null)
+  const [tagDelete, setTagDelete] = useState<string | null>(null)
+  const [tagActionError, setTagActionError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const stackRef = useRef<HTMLDivElement | null>(null)
   const treeStart = useRef({ width: 240, height: 220, maxWidth: MAX_TREE_WIDTH, maxHeight: MAX_TREE_HEIGHT })
@@ -219,6 +244,117 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     }
   }
 
+  /** Right-clicking a tag checks it out by detaching HEAD at the tag's commit. */
+  const checkoutTag = async (tag: TagSelection): Promise<void> => {
+    setTagActionError(null)
+    try {
+      await requestCheckout({
+        path: view.repo?.repoRoot ?? view.pathInput.trim(),
+        ref: tag.ref,
+      })
+      ws.refresh()
+      view.selectRef({ kind: 'head' })
+      view.refresh()
+    } catch (error) {
+      setTagActionError(toApiError(error).message)
+    }
+  }
+
+  /** Compare local tags with the upstream remote (or the first configured one). */
+  const compareTags = async (): Promise<void> => {
+    const path = view.repo?.repoRoot ?? view.pathInput.trim()
+    const upstream = ws.status?.upstream ?? ''
+    const slash = upstream.indexOf('/')
+    const remote = slash > 0 ? upstream.slice(0, slash) : (view.tree?.remotes[0]?.name ?? '')
+    if (path === '' || remote === '') {
+      setTagStatusError(t('remoteMissing'))
+      return
+    }
+    setTagStatusError(null)
+    try {
+      setTagStatus(await requestTagStatus({ path, remote }))
+    } catch (error) {
+      setTagStatus(null)
+      setTagStatusError(toApiError(error).message)
+    }
+  }
+
+  const tagCounts = (() => {
+    if (tagStatus === null) return null
+    let different = 0
+    let localOnly = 0
+    for (const state of Object.values(tagStatus.statuses)) {
+      if (state === 'different') different += 1
+      else if (state === 'local-only') localOnly += 1
+    }
+    return { different, localOnly, remoteOnly: tagStatus.remoteOnly.length }
+  })()
+
+  /** Right-click actions on a remote-tracking branch such as `origin/main`. */
+  const checkoutRemoteBranch = async (branch: RemoteBranchSelection): Promise<void> => {
+    setBranchActionError(null)
+    try {
+      await requestBranchAction({
+        action: 'track',
+        path: view.repo?.repoRoot ?? view.pathInput.trim(),
+        branch: branch.name,
+      })
+      ws.refresh()
+      view.selectRef({ kind: 'head' })
+      view.refresh()
+    } catch (error) {
+      setBranchActionError(toApiError(error).message)
+    }
+  }
+
+  const mergeRemoteBranch = async (branch: RemoteBranchSelection): Promise<void> => {
+    setBranchActionError(null)
+    try {
+      await requestBranchAction({
+        action: 'merge',
+        path: view.repo?.repoRoot ?? view.pathInput.trim(),
+        branch: branch.name,
+      })
+      ws.refresh()
+      view.refresh()
+    } catch (error) {
+      setBranchActionError(toApiError(error).message)
+    }
+  }
+
+  const rebaseRemoteBranch = async (branch: RemoteBranchSelection): Promise<void> => {
+    setBranchActionError(null)
+    try {
+      await requestBranchAction({
+        action: 'rebase',
+        path: view.repo?.repoRoot ?? view.pathInput.trim(),
+        branch: branch.name,
+      })
+      ws.refresh()
+      view.refresh()
+    } catch (error) {
+      setBranchActionError(toApiError(error).message)
+    }
+  }
+
+  const pullRemoteBranch = (branch: RemoteBranchSelection): void => {
+    const target = splitRemoteBranch(branch.name)
+    if (target.remote === '') {
+      setBranchActionError(t('remoteMissing'))
+      return
+    }
+    ws.sync('pull', { remote: target.remote, branch: target.branch })
+  }
+
+  const deleteRemoteBranch = (branch: RemoteBranchSelection): void => {
+    const target = splitRemoteBranch(branch.name)
+    if (target.remote === '') {
+      setBranchActionError(t('remoteMissing'))
+      return
+    }
+    setRemoteBranchDelete({ remote: target.remote, branch: target.branch })
+  }
+
   const fetchBranch = (branch: Branch): void => {
     const upstream = branchUpstream(branch)
     if (upstream === null) return
@@ -253,6 +389,12 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onSelect={view.selectRef}
         onSwitch={view.switchBranch}
         onOpenSubmodule={openSubmodule}
+        onAddBranch={view.repo === null ? undefined : () => setAddBranchOpen(true)}
+        onAddRemote={view.repo === null ? undefined : () => setAddRemoteOpen(true)}
+        onCompareTags={view.repo === null ? undefined : () => { void compareTags() }}
+        tagStatus={tagStatus}
+        onTagMenu={(tag, event) => setTagMenu({ tag, x: event.clientX, y: event.clientY })}
+        onRemoteBranchMenu={(branch, event) => setRemoteBranchMenu({ branch, x: event.clientX, y: event.clientY })}
         onRemoteMenu={(remote, event) => setRemoteMenu({ remote, x: event.clientX, y: event.clientY })}
         onBranchMenu={openBranchMenu}
         t={t}
@@ -327,6 +469,19 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       />
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}
       {branchActionError !== null ? <p className="dsh-gitlog-note" role="alert">{branchActionError}</p> : null}
+      {tagActionError !== null ? <p className="dsh-gitlog-note" role="alert">{tagActionError}</p> : null}
+      {tagStatusError !== null ? <p className="dsh-gitlog-note" role="alert">{tagStatusError}</p> : null}
+      {tagStatus === null || tagCounts === null
+        ? null
+        : (
+            <p className="dsh-gitlog-note">
+              {t('tagsCompared')
+                .replace('{remote}', tagStatus.remote)
+                .replace('{different}', String(tagCounts.different))
+                .replace('{localOnly}', String(tagCounts.localOnly))
+                .replace('{remoteOnly}', String(tagCounts.remoteOnly))}
+            </p>
+          )}
       {view.switching ? <p className="dsh-gitlog-note" role="status">{t('switching')}</p> : null}
       {view.switchError !== null ? <p className="dsh-gitlog-note" role="alert">{view.switchError}</p> : null}
       {error !== null && commits.length > 0
@@ -355,9 +510,45 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onFetch={fetchRemote}
         onPull={pullRemote}
         onPush={pushRemote}
+        onEdit={setRemoteEdit}
         onDelete={setRemoteDelete}
         onClose={() => setRemoteMenu(null)}
       />
+      <TagMenu
+        context={tagMenu}
+        t={t}
+        onCheckout={tag => { void checkoutTag(tag) }}
+        onEdit={tag => setTagEdit(tag.name)}
+        onDelete={tag => setTagDelete(tag.name)}
+        onClose={() => setTagMenu(null)}
+      />
+      {tagEdit === null
+        ? null
+        : <EditTagDialog view={view} tag={tagEdit} t={t} onClose={() => setTagEdit(null)} />}
+      {tagDelete === null
+        ? null
+        : <DeleteTagDialog view={view} tag={tagDelete} t={t} onClose={() => setTagDelete(null)} />}
+      <RemoteBranchMenu
+        context={remoteBranchMenu}
+        t={t}
+        onCheckout={branch => { void checkoutRemoteBranch(branch) }}
+        onMerge={branch => { void mergeRemoteBranch(branch) }}
+        onRebase={branch => { void rebaseRemoteBranch(branch) }}
+        onPull={pullRemoteBranch}
+        onDelete={deleteRemoteBranch}
+        onClose={() => setRemoteBranchMenu(null)}
+      />
+      {remoteBranchDelete === null
+        ? null
+        : (
+            <DeleteRemoteBranchDialog
+              view={view}
+              remote={remoteBranchDelete.remote}
+              branch={remoteBranchDelete.branch}
+              t={t}
+              onClose={() => setRemoteBranchDelete(null)}
+            />
+          )}
       {remoteDelete === null
         ? null
         : (
@@ -368,6 +559,23 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
               onClose={() => setRemoteDelete(null)}
             />
           )}
+      {remoteEdit === null
+        ? null
+        : (
+            <EditRemoteDialog
+              view={view}
+              remote={remoteEdit}
+              url={view.tree?.remotes.find(group => group.name === remoteEdit)?.url ?? ''}
+              t={t}
+              onClose={() => setRemoteEdit(null)}
+            />
+          )}
+      {addRemoteOpen
+        ? <AddRemoteDialog view={view} t={t} onClose={() => setAddRemoteOpen(false)} />
+        : null}
+      {addBranchOpen
+        ? <AddBranchDialog view={view} t={t} onClose={() => setAddBranchOpen(false)} />
+        : null}
       <BranchMenu
         context={branchMenu}
         t={t}

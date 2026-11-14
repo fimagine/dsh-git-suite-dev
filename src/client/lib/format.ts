@@ -1,53 +1,31 @@
-import type { Translate } from '../types.js'
-
-/** Locale-aware absolute date, falling back to the value itself when unparsable. */
-export function formatDate(value: string): string {
+/**
+ * Absolute date and time down to the second, in the plugin's own UI language.
+ * Chinese reads `2026-10-25 03:10:45`; other locales spell the month
+ * (`Oct 25, 2026, 03:10:45`) so the column stays localized.
+ */
+export function formatDateTime(value: string, locale: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
+  const chinese = locale.toLowerCase().startsWith('zh')
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    const formatter = new Intl.DateTimeFormat(locale, {
       year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+      month: chinese ? '2-digit' : 'short',
+      day: chinese ? '2-digit' : 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date)
-  } catch {
-    return date.toLocaleString()
-  }
-}
-
-const UNITS: ReadonlyArray<readonly [Intl.RelativeTimeFormatUnit, number]> = [
-  ['year', 31536000],
-  ['month', 2592000],
-  ['week', 604800],
-  ['day', 86400],
-  ['hour', 3600],
-  ['minute', 60],
-]
-
-/** Short relative time ("3 days ago") with a plain-text fallback when Intl is unavailable. */
-export function relativeTime(value: string, t: Translate): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const seconds = Math.round((date.getTime() - Date.now()) / 1000)
-  const abs = Math.abs(seconds)
-  if (abs < 45) return t('justNow')
-
-  let formatter: Intl.RelativeTimeFormat | null = null
-  try {
-    formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-  } catch {
-    formatter = null
-  }
-
-  for (const [unit, size] of UNITS) {
-    if (abs >= size) {
-      const amount = Math.round(seconds / size)
-      return formatter === null
-        ? `${Math.abs(amount)} ${unit}${Math.abs(amount) === 1 ? '' : 's'}`
-        : formatter.format(amount, unit)
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+    const parts: Record<string, string> = {}
+    for (const part of formatter.formatToParts(date)) {
+      if (part.type !== 'literal') parts[part.type] = part.value
     }
+    const time = `${parts.hour ?? '00'}:${parts.minute ?? '00'}:${parts.second ?? '00'}`
+    return chinese
+      ? `${parts.year ?? ''}-${parts.month ?? ''}-${parts.day ?? ''} ${time}`
+      : `${parts.month ?? ''} ${parts.day ?? ''}, ${parts.year ?? ''}, ${time}`
+  } catch {
+    return date.toISOString().replace('T', ' ').slice(0, 19)
   }
-  return formatter === null ? `${abs} seconds` : formatter.format(seconds, 'second')
 }

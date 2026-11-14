@@ -128,6 +128,19 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 10px 12px;
   }
 
+  &-field-hint {
+    overflow: hidden;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &.is-error {
+      color: var(--dsw-alias-state-error-primary);
+    }
+  }
+
   &-field {
     display: flex;
     flex-direction: column;
@@ -451,6 +464,7 @@ $brand: var(--dsw-alias-brand-primary);
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
   }
 
   &-field-row {
@@ -522,23 +536,51 @@ $brand: var(--dsw-alias-brand-primary);
     background: $border-l1;
   }
 
+  &-menu-check {
+    display: inline-block;
+    width: 16px;
+    color: $label-secondary;
+  }
+
+  &-file-menu {
+    min-width: 200px;
+  }
+
+  &-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    z-index: 1002;
+    max-width: min(460px, calc(100vw - 32px));
+    padding: 8px 14px;
+    transform: translateX(-50%);
+    border: 1px solid $border-l2;
+    border-radius: 8px;
+    background: $bg-layer-2;
+    color: $label-primary;
+    font-size: $font-meta;
+    line-height: 1.4;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+  }
+
   &-remote-menu .danger {
     color: var(--dsw-alias-state-error-primary);
   }
 
   &-dialog-target {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: baseline;
     gap: 8px;
-    min-width: 0;
+    max-width: 100%;
     margin: 0;
     padding: 8px 10px;
     border: 1px solid $border-l1;
     border-radius: 8px;
     background: $bg-base;
+    overflow: hidden;
 
     code {
-      flex: 0 0 auto;
       color: $label-secondary;
       font-family: var(--gitlog-mono);
       font-size: $font-tiny;
@@ -572,13 +614,18 @@ $brand: var(--dsw-alias-brand-primary);
       display: flex;
       align-items: center;
       gap: 8px;
+      min-width: 0;
       font-size: $font-meta;
       cursor: pointer;
 
       code {
+        min-width: 0;
+        overflow: hidden;
         color: $label-secondary;
         font-family: var(--gitlog-mono);
         font-size: $font-tiny;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
     }
 
@@ -599,7 +646,12 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-settings.dsh-gitlog-repo-dialog {
-    width: min(520px, 100%);
+    width: min(600px, 100%);
+  }
+
+  // Branch tables and long URLs get a roomier box on wide enough windows.
+  &-settings.dsh-gitlog-repo-dialog.dsh-gitlog-dialog-wide {
+    width: min(780px, 100%);
   }
 
   &-body {
@@ -755,8 +807,42 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
-  &-tree-section-head {
+  // The section row holds the toggle plus the section's own actions (add remote).
+  &-tree-section-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
     margin-top: 6px;
+  }
+
+  &-tree-section-row &-tree-section-head {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  &-tree-action {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-secondary;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
   }
 
   &-tree-row.is-selected {
@@ -813,6 +899,19 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-tree-current {
     color: $brand;
+  }
+
+  &-tree-counter {
+    flex: 0 0 auto;
+    margin-left: 6px;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    &.is-warn {
+      color: var(--dsw-alias-state-warn-primary);
+    }
   }
 
   // One 16px column per hierarchy level. `is-line` continues an ancestor,
@@ -944,11 +1043,12 @@ $brand: var(--dsw-alias-brand-primary);
     position: relative;
     display: grid;
     grid-template-columns:
-      var(--gitlog-graph-w, auto)
-      minmax(120px, 1fr)
-      var(--gitlog-date-w, 88px)
-      var(--gitlog-author-w, 110px)
-      var(--gitlog-hash-w, 64px);
+      var(--gitlog-columns,
+        var(--gitlog-graph-w, auto)
+        minmax(120px, 1fr)
+        var(--gitlog-date-w, 152px)
+        var(--gitlog-author-w, 110px)
+        var(--gitlog-hash-w, 64px));
     align-items: center;
     gap: 8px;
     min-width: var(--gitlog-table-min, 0);
@@ -1022,11 +1122,12 @@ $brand: var(--dsw-alias-brand-primary);
     position: relative;
     display: grid;
     grid-template-columns:
-      var(--gitlog-graph-w, auto)
-      minmax(120px, 1fr)
-      var(--gitlog-date-w, 88px)
-      var(--gitlog-author-w, 110px)
-      var(--gitlog-hash-w, 64px);
+      var(--gitlog-columns,
+        var(--gitlog-graph-w, auto)
+        minmax(120px, 1fr)
+        var(--gitlog-date-w, 152px)
+        var(--gitlog-author-w, 110px)
+        var(--gitlog-hash-w, 64px));
     align-items: center;
     width: 100%;
     min-width: var(--gitlog-table-min, 0);
@@ -1500,6 +1601,22 @@ $brand: var(--dsw-alias-brand-primary);
     padding: 14px 20px;
   }
 
+  &-tooltip {
+    position: fixed;
+    z-index: 1001;
+    max-width: min(360px, calc(100vw - 16px));
+    padding: 5px 8px;
+    border: 1px solid $border-l2;
+    border-radius: 6px;
+    background: $bg-layer-2;
+    color: $label-primary;
+    font-size: $font-tiny;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+  }
+
   &-settings-backdrop {
     position: fixed;
     inset: 0;
@@ -1507,14 +1624,19 @@ $brand: var(--dsw-alias-brand-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 12px;
     background: rgba(0, 0, 0, .48);
   }
 
   &-settings {
+    box-sizing: border-box;
     width: min(380px, 100%);
-    max-height: calc(100vh - 48px);
-    overflow: auto;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    // Keep the wheel inside the dialog once its own scroll hits the end.
+    overscroll-behavior: contain;
     border: 1px solid $border-l2;
     border-radius: 12px;
     background: $bg-layer-1;
@@ -1522,23 +1644,32 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-settings-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 10px 16px;
     border-bottom: 1px solid $border-l1;
+    background: $bg-layer-1;
 
     h2 {
+      min-width: 0;
+      overflow: hidden;
       font-size: 14px;
       font-weight: 600;
       line-height: 1.25;
       color: $label-primary;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
   &-settings-close {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     width: 28px;
@@ -1566,15 +1697,23 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-settings-body {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
+    min-width: 0;
     padding: 18px;
   }
 
+  // Sticking the actions to the bottom keeps the buttons reachable in short
+  // windows; they own no horizontal padding so they line up with the fields.
   &-settings-actions {
+    position: sticky;
+    bottom: 0;
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
-    padding: 0 18px 16px;
+    padding: 8px 0 0;
+    background: $bg-layer-1;
   }
 
   &-settings-hint {
@@ -1671,6 +1810,12 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 8px 18px;
   }
 
+  &-push {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   &-push-remote {
     display: flex;
     align-items: flex-end;
@@ -1694,7 +1839,7 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-push-title {
-    margin: 12px 0 6px;
+    margin: 14px 0 0;
     color: $label-secondary;
     font-size: $font-meta;
     font-weight: 600;
@@ -1709,11 +1854,12 @@ $brand: var(--dsw-alias-brand-primary);
   &-push-scroll {
     max-height: 220px;
     overflow: auto;
+    overscroll-behavior: contain;
   }
 
   &-push-row {
     display: grid;
-    grid-template-columns: 64px minmax(110px, 1fr) minmax(140px, 1.2fr) 44px;
+    grid-template-columns: 64px minmax(140px, 1fr) minmax(160px, 1fr) 44px;
     align-items: center;
     gap: 8px;
     padding: 4px 8px;
@@ -1754,7 +1900,7 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-push-select-all {
-    margin-top: 8px;
+    margin-top: 0;
     height: auto;
     font-size: $font-meta;
   }
@@ -1763,7 +1909,7 @@ $brand: var(--dsw-alias-brand-primary);
     display: flex;
     flex-wrap: wrap;
     gap: 8px 20px;
-    margin-top: 4px;
+    margin-top: 0;
 
     .dsh-gitlog-check {
       height: auto;
@@ -2146,8 +2292,6 @@ $brand: var(--dsw-alias-brand-primary);
 
   .dsh-gitlog-commit,
   .dsh-gitlog-commit-header {
-    grid-template-columns: var(--gitlog-graph-w, auto) minmax(120px, 1fr) 64px;
-    min-width: calc(var(--gitlog-graph-w, 48px) + 64px + 12px + 26px + 120px);
     gap: 6px;
     padding-right: 10px;
   }
@@ -2241,8 +2385,6 @@ $brand: var(--dsw-alias-brand-primary);
 
   .#{$prefix}-commit,
   .#{$prefix}-commit-header {
-    grid-template-columns: var(--gitlog-graph-w, auto) minmax(120px, 1fr) 70px;
-    min-width: calc(var(--gitlog-graph-w, 48px) + 70px + 12px + 26px + 120px);
     gap: 6px;
     padding-right: 10px;
   }

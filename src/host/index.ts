@@ -5,6 +5,7 @@ import { createBranchHandler, createCheckoutHandler, createTagHandler } from './
 import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
 import { createRemoteHandler } from './remote-handler.js'
+import { createRevealHandler } from './reveal-handler.js'
 import { createResource } from './resource.js'
 import { createSwitchHandler } from './switch-handler.js'
 import { createSyncHandler } from './sync-handler.js'
@@ -22,6 +23,7 @@ const BRANCH_PATH = '/git-suite/branch'
 const CHECKOUT_PATH = '/git-suite/checkout'
 const SYNC_PATH = '/git-suite/sync'
 const REMOTE_PATH = '/git-suite/remote'
+const REVEAL_PATH = '/git-suite/reveal'
 const BRANCH_ACTION_PATH = '/git-suite/branch-action'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
@@ -99,6 +101,11 @@ export function apply(ctx: HostContext): void {
     path: REMOTE_PATH,
     handler: createRemoteHandler(context),
   }), 'git-suite: remote route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: REVEAL_PATH,
+    handler: createRevealHandler(context),
+  }), 'git-suite: reveal route')
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: BRANCH_ACTION_PATH,

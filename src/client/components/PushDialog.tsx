@@ -31,7 +31,9 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
   const [targets, setTargets] = useState<Record<string, string>>(() => Object.fromEntries(
     locals.map(branch => [branch.name, branch.name]),
   ))
-  const [tracks, setTracks] = useState<Record<string, boolean>>({})
+  const [tracks, setTracks] = useState<Record<string, boolean>>(() => Object.fromEntries(
+    locals.map(branch => [branch.name, branch.upstream === `${initialRemote}/${branch.name}`]),
+  ))
   const [tags, setTags] = useState(false)
   const [force, setForce] = useState(false)
 
@@ -51,10 +53,14 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
   const chooseRemote = (value: string): void => {
     setRemote(value)
     setTargets(Object.fromEntries(locals.map(branch => [branch.name, branch.name])))
+    // The tracking column shows whether the branch already follows that remote branch.
+    setTracks(Object.fromEntries(
+      locals.map(branch => [branch.name, branch.upstream === `${value}/${branch.name}`]),
+    ))
   }
 
   return (
-    <DialogShell title={`${t('push')}: ${view.repo?.repoName ?? ''}`} t={t} onClose={onClose}>
+    <DialogShell title={`${t('push')}: ${view.repo?.repoName ?? ''}`} t={t} wide onClose={onClose}>
       <div className="dsh-gitlog-push">
         <div className="dsh-gitlog-push-remote">
           <label className="dsh-gitlog-field">
@@ -92,7 +98,13 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
                   className="dsh-gitlog-push-target"
                   value={targets[branch.name] ?? branch.name}
                   options={targetOptions}
-                  onChange={value => setTargets(currentTargets => ({ ...currentTargets, [branch.name]: value }))}
+                  onChange={value => {
+                    setTargets(currentTargets => ({ ...currentTargets, [branch.name]: value }))
+                    setTracks(currentTracks => ({
+                      ...currentTracks,
+                      [branch.name]: branch.upstream === `${remote}/${value}`,
+                    }))
+                  }}
                   ariaLabel={`${branch.name} ${t('remoteBranch')}`}
                   placeholder={branch.name}
                 />

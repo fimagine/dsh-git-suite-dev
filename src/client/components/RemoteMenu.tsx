@@ -14,12 +14,13 @@ export interface RemoteMenuProps {
   onFetch(remote: string): void
   onPull(remote: string): void
   onPush(remote: string): void
+  onEdit(remote: string): void
   onDelete(remote: string): void
   onClose(): void
 }
 
-/** Right-click menu for one remote: fetch, pull, push, remove. */
-export function RemoteMenu({ context, t, onFetch, onPull, onPush, onDelete, onClose }: RemoteMenuProps): React.ReactElement | null {
+/** Right-click menu for one remote: fetch, pull, push, edit URL, remove. */
+export function RemoteMenu({ context, t, onFetch, onPull, onPush, onEdit, onDelete, onClose }: RemoteMenuProps): React.ReactElement | null {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -39,10 +40,10 @@ export function RemoteMenu({ context, t, onFetch, onPull, onPush, onDelete, onCl
   }, [context, onClose])
 
   if (context === null) return null
-  const label = (key: 'remoteFetchMenu' | 'remotePullMenu' | 'remotePushMenu' | 'remoteRemoveMenu'): string =>
+  const label = (key: 'remoteFetchMenu' | 'remotePullMenu' | 'remotePushMenu' | 'remoteEditMenu' | 'remoteRemoveMenu'): string =>
     t(key).replace('{remote}', context.remote)
   const left = Math.min(context.x, window.innerWidth - 200)
-  const top = Math.min(context.y, window.innerHeight - 160)
+  const top = Math.min(context.y, window.innerHeight - 190)
 
   const choose = (action: (remote: string) => void): void => {
     action(context.remote)
@@ -60,6 +61,7 @@ export function RemoteMenu({ context, t, onFetch, onPull, onPush, onDelete, onCl
       <button type="button" role="menuitem" onClick={() => choose(onFetch)}>{label('remoteFetchMenu')}</button>
       <button type="button" role="menuitem" onClick={() => choose(onPull)}>{label('remotePullMenu')}</button>
       <button type="button" role="menuitem" onClick={() => choose(onPush)}>{label('remotePushMenu')}</button>
+      <button type="button" role="menuitem" onClick={() => choose(onEdit)}>{label('remoteEditMenu')}</button>
       <button type="button" role="menuitem" className="danger" onClick={() => choose(onDelete)}>{label('remoteRemoveMenu')}</button>
     </div>
   )

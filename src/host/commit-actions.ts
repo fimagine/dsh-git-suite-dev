@@ -11,10 +11,14 @@ const MAX_BODY_BYTES = 64 * 1024
 interface NameBody {
   path?: unknown
   hash?: unknown
+  base?: unknown
+  ref?: unknown
   name?: unknown
   message?: unknown
   force?: unknown
   branch?: unknown
+  action?: unknown
+  previousName?: unknown
 }
 
 function header(req: IncomingMessage, name: string): string | null {
@@ -71,6 +75,15 @@ async function assertBranchName(root: string, name: string, signal: AbortSignal)
   }
 }
 
+async function tagExists(root: string, name: string, signal: AbortSignal): Promise<boolean> {
+  try {
+    await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/tags/${name}`], signal)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function checkoutFailure(error: unknown): RouteError {
   const failed = error as GitExecError
   const detail = String(failed?.stderr ?? '').trim()
@@ -98,30 +111,81 @@ async function admitPost(req: IncomingMessage, res: ServerResponse, label: strin
   return true
 }
 
-/** POST /git-suite/tag: create (or force-move) a tag on one commit. */
+/** POST /git-suite/tag: create, move, rename, or delete one tag. */
 export function createTagHandler(context: RouteContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
-    if (!(await admitPost(req, res, 'create a tag'))) return
+    if (!(await admitPost(req, res, 'change a tag'))) return
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 30_000)
     res.once('close', () => controller.abort())
     try {
       const body = await readJson(req)
       const repo = await resolveRepository(context, text(body.path), controller.signal)
+      const action = text(body.action) === '' ? 'create' : text(body.action)
       const hash = text(body.hash)
+      const base = text(body.base)
       const name = text(body.name)
       const message = text(body.message)
       const force = body.force === true
-      if (!isCommitHash(hash)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
+      const previousName = text(body.previousName)
       await assertTagName(repo.root, name, controller.signal)
+
+      if (action === 'delete') {
+        if (!(await tagExists(repo.root, name, controller.signal))) {
+          throw new RouteError(404, 'tag-not-found', 'That tag is not configured in this repository.', { name })
+        }
+        try {
+          await runGit(repo.root, ['tag', '-d', name], controller.signal)
+        } catch (error) {
+          throw gitFailure(error).withDetails({ name })
+        }
+        await send(res, json({ ok: true, action, tag: name }))
+        return
+      }
+      if (action !== 'create') throw new RouteError(400, 'invalid-action', 'Unknown tag action.')
+
+      if (hash !== '' && !isCommitHash(hash)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
       if (message.length > 4000) throw new RouteError(400, 'message-too-long', 'The tag message is too long.')
-      const args = ['tag', ...(force ? ['-f'] : []), ...(message === '' ? [] : ['-a', '-m', message]), name, hash]
+      let target = hash
+      if (target === '') {
+        const ref = base === '' ? 'HEAD' : base
+        if (ref.startsWith('-') || ref.includes('\0') || /[\r\n]/.test(ref)) {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+        try {
+          target = (await runGit(repo.root, ['rev-parse', '--verify', `${ref}^{commit}`], controller.signal)).trim()
+        } catch {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+        if (!isCommitHash(target)) {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+      }
+
+      const rename = previousName !== '' && previousName !== name
+      if (rename) {
+        if (!(await tagExists(repo.root, previousName, controller.signal))) {
+          throw new RouteError(404, 'tag-not-found', 'That tag is not configured in this repository.', { name: previousName })
+        }
+        if (await tagExists(repo.root, name, controller.signal)) {
+          throw new RouteError(409, 'tag-exists', 'A tag with that name already exists.', { name })
+        }
+      }
+
+      const args = ['tag', ...(force ? ['-f'] : []), ...(message === '' ? [] : ['-a', '-m', message]), name, target]
       try {
         await runGit(repo.root, args, controller.signal)
       } catch (error) {
         throw gitFailure(error)
       }
-      await send(res, json({ ok: true, tag: name, hash }))
+      if (rename) {
+        try {
+          await runGit(repo.root, ['tag', '-d', previousName], controller.signal)
+        } catch (error) {
+          throw gitFailure(error).withDetails({ name: previousName })
+        }
+      }
+      await send(res, json({ ok: true, action, tag: name, hash: target, ...(rename ? { previousName } : {}) }))
     } catch (error) {
       await send(res, failure(error))
     } finally {
@@ -130,7 +194,7 @@ export function createTagHandler(context: RouteContext): (req: IncomingMessage, 
   }
 }
 
-/** POST /git-suite/branch: create a local branch at one commit. */
+/** POST /git-suite/branch: create a local branch at one commit or ref. */
 export function createBranchHandler(context: RouteContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     if (!(await admitPost(req, res, 'create a branch'))) return
@@ -141,15 +205,35 @@ export function createBranchHandler(context: RouteContext): (req: IncomingMessag
       const body = await readJson(req)
       const repo = await resolveRepository(context, text(body.path), controller.signal)
       const hash = text(body.hash)
+      const base = text(body.base)
       const name = text(body.name)
-      if (!isCommitHash(hash)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
+      if (hash !== '' && !isCommitHash(hash)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
       await assertBranchName(repo.root, name, controller.signal)
+      let start = hash
+      if (start === '') {
+        const ref = base === '' ? 'HEAD' : base
+        if (ref.startsWith('-') || ref.includes('\0') || /[\r\n]/.test(ref)) {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+        try {
+          start = (await runGit(repo.root, ['rev-parse', '--verify', `${ref}^{commit}`], controller.signal)).trim()
+        } catch {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+        if (!isCommitHash(start)) {
+          throw new RouteError(400, 'bad-commit', 'That starting point could not be resolved.', { base: ref })
+        }
+      }
       try {
-        await runGit(repo.root, ['branch', name, hash], controller.signal)
+        await runGit(repo.root, ['branch', name, start], controller.signal)
       } catch (error) {
+        const detail = String((error as GitExecError)?.stderr ?? '')
+        if (/already exists/i.test(detail)) {
+          throw new RouteError(409, 'branch-exists', 'A branch with that name already exists.', { name })
+        }
         throw gitFailure(error)
       }
-      await send(res, json({ ok: true, branch: name, hash }))
+      await send(res, json({ ok: true, branch: name, hash: start }))
     } catch (error) {
       await send(res, failure(error))
     } finally {
@@ -170,7 +254,8 @@ export function createCheckoutHandler(context: RouteContext): (req: IncomingMess
       const repo = await resolveRepository(context, text(body.path), controller.signal)
       const branch = text(body.branch)
       const hash = text(body.hash)
-      if (branch === '' && hash === '') {
+      const ref = text(body.ref)
+      if (branch === '' && hash === '' && ref === '') {
         throw new RouteError(400, 'no-target', 'Choose a branch or a commit to check out.')
       }
       try {
@@ -178,8 +263,19 @@ export function createCheckoutHandler(context: RouteContext): (req: IncomingMess
           await assertBranchName(repo.root, branch, controller.signal)
           await runGit(repo.root, ['switch', branch], controller.signal)
         } else {
-          if (!isCommitHash(hash)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
-          await runGit(repo.root, ['switch', '--detach', hash], controller.signal)
+          let target = hash
+          if (target === '') {
+            if (ref.startsWith('-') || ref.includes('\0') || /[\r\n]/.test(ref)) {
+              throw new RouteError(400, 'bad-commit', 'That revision could not be resolved.', { ref })
+            }
+            try {
+              target = (await runGit(repo.root, ['rev-parse', '--verify', `${ref}^{commit}`], controller.signal)).trim()
+            } catch {
+              throw new RouteError(400, 'bad-commit', 'That revision could not be resolved.', { ref })
+            }
+          }
+          if (!isCommitHash(target)) throw new RouteError(400, 'bad-commit', 'That commit could not be resolved.')
+          await runGit(repo.root, ['switch', '--detach', target], controller.signal)
         }
       } catch (error) {
         if (error instanceof RouteError) throw error

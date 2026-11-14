@@ -11,6 +11,10 @@ export interface TreeNode {
   selection?: Selection
   /** Repository-relative path when this node opens a submodule repository. */
   submodulePath?: string
+  /** Ahead/behind counts and a missing upstream, for local branch nodes. */
+  ahead?: number
+  behind?: number
+  gone?: boolean
   children?: TreeNode[]
 }
 
@@ -127,6 +131,9 @@ function buildBranchNodes(branches: readonly Branch[]): TreeNode[] {
       kind: 'branch',
       title: branch.name,
       current: branch.current,
+      ...(branch.ahead === undefined ? {} : { ahead: branch.ahead }),
+      ...(branch.behind === undefined ? {} : { behind: branch.behind }),
+      ...(branch.gone === true ? { gone: true } : {}),
       selection: { kind: 'branch', ref: branch.ref, name: branch.name, remote: false },
     })
   }

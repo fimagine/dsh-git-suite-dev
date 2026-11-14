@@ -4,6 +4,9 @@ import { readBranches } from './routes/branches.js'
 import { readCommit } from './routes/commit.js'
 import { readLog } from './routes/log.js'
 import { readRefs } from './routes/refs.js'
+import { resolveRef } from './routes/resolve.js'
+import { readTag } from './routes/tag.js'
+import { readTagStatus } from './routes/tag-status.js'
 import { readWorkspaceStatus } from './routes/status.js'
 import { readWorkspaceDiff } from './routes/workspace-diff.js'
 import { scanProjects } from './scan.js'
@@ -29,6 +32,9 @@ export function createResource(context: RouteContext): RouteResource {
       if (mode === 'branches') return json(await readBranches(context, url, request.signal))
       if (mode === 'log') return json(await readLog(context, url, request.signal))
       if (mode === 'commit') return json(await readCommit(context, url, request.signal))
+      if (mode === 'resolve') return json(await resolveRef(context, url, request.signal))
+      if (mode === 'tag') return json(await readTag(context, url, request.signal))
+      if (mode === 'tag-status') return json(await readTagStatus(context, url, request.signal))
       if (mode === 'status') return json(await readWorkspaceStatus(context, url, request.signal))
       if (mode === 'workspace-diff') return json(await readWorkspaceDiff(context, url, request.signal))
       return json({

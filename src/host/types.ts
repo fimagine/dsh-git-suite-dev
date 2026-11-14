@@ -67,6 +67,37 @@ export interface WorkspaceCommit {
   pushed: boolean
 }
 
+/** One ref resolved to the commit it points at. */
+export interface ResolvePayload {
+  ok: true
+  hash: string
+  shortHash: string
+  author: string
+  date: string
+  subject: string
+}
+
+/** One tag with the commit it points at and its annotation message. */
+export interface TagInfoPayload {
+  ok: true
+  name: string
+  hash: string
+  shortHash: string
+  subject: string
+  message: string
+  annotated: boolean
+  objectHash: string
+}
+
+/** How each local tag compares with one remote's tags. */
+export interface TagStatusPayload {
+  ok: true
+  remote: string
+  statuses: Record<string, 'same' | 'different' | 'local-only'>
+  /** Tags that exist on the remote but not locally. */
+  remoteOnly: string[]
+}
+
 export interface Branch {
   ref: string
   name: string
@@ -74,6 +105,12 @@ export interface Branch {
   hash: string
   current: boolean
   upstream?: string
+  /** Commits the branch is ahead of its upstream. */
+  ahead?: number
+  /** Commits the branch is behind its upstream. */
+  behind?: number
+  /** Upstream branch no longer exists on the remote. */
+  gone?: boolean
 }
 
 export interface Project {

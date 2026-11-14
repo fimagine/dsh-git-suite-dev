@@ -48,7 +48,7 @@ export function SyncDialog({ action, view, ws, t, onClose }: SyncDialogProps): R
   const title = action === 'pull' ? t('pull') : t('push')
 
   return (
-    <DialogShell title={title} t={t} onClose={onClose}>
+    <DialogShell title={title} t={t} wide onClose={onClose}>
       <div className="dsh-gitlog-field">
         <span>{t('remote')}</span>
         <Dropdown

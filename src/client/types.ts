@@ -34,6 +34,12 @@ export interface Branch {
   hash: string
   current: boolean
   upstream?: string
+  /** Commits the branch is ahead of its upstream. */
+  ahead?: number
+  /** Commits the branch is behind its upstream. */
+  behind?: number
+  /** Upstream branch no longer exists on the remote. */
+  gone?: boolean
 }
 
 export interface TagRef {
@@ -64,15 +70,31 @@ export interface FetchOptions {
 
 export interface RemoteRemovePayload {
   ok: true
+  action: 'remove'
   name: string
 }
 
-export type BranchAction = 'merge' | 'rebase' | 'rename' | 'delete'
+export interface RemoteAddPayload {
+  ok: true
+  action: 'add'
+  name: string
+  url: string
+}
+
+export interface RemoteUrlPayload {
+  ok: true
+  action: 'set-url'
+  name: string
+  url: string
+}
+
+export type BranchAction = 'merge' | 'rebase' | 'rename' | 'delete' | 'track' | 'delete-remote'
 
 export interface BranchActionPayload {
   ok: true
   action: BranchAction
   branch: string
+  remote?: string
   newName?: string
 }
 
@@ -125,6 +147,11 @@ export interface Repo {
   /** Superproject working tree when this repository is a submodule. */
   superproject: string | null
 }
+
+/** Commit list columns that the header menu can show or hide. */
+export type CommitColumn = 'graph' | 'date' | 'author' | 'hash'
+
+export type CommitColumns = Record<CommitColumn, boolean>
 
 /** What the commit list currently shows: HEAD, a scope, or one ref/stash. */
 export type Selection =
@@ -248,6 +275,43 @@ export interface WorkspaceActionPayload {
 export interface ClonePayload {
   ok: true
   repoRoot: string
+}
+
+export interface RevealPayload {
+  ok: true
+  file: string
+  path: string
+}
+
+/** One ref resolved to the commit it points at. */
+export interface ResolvePayload {
+  ok: true
+  hash: string
+  shortHash: string
+  author: string
+  date: string
+  subject: string
+}
+
+/** One tag with the commit it points at and its annotation message. */
+export interface TagInfoPayload {
+  ok: true
+  name: string
+  hash: string
+  shortHash: string
+  subject: string
+  message: string
+  annotated: boolean
+  objectHash: string
+}
+
+/** How each local tag compares with one remote's tags. */
+export interface TagStatusPayload {
+  ok: true
+  remote: string
+  statuses: Record<string, 'same' | 'different' | 'local-only'>
+  /** Tags that exist on the remote but not locally. */
+  remoteOnly: string[]
 }
 
 export interface GenerateMessagePayload {

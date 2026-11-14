@@ -3,8 +3,9 @@ import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import { requestBranch, requestCheckout, requestTag, toApiError } from '../lib/api.js'
 import type { Branch, Commit, Translate } from '../types.js'
-import { DialogShell } from './DialogShell.js'
 import { Button, DialogActions } from './Button.js'
+import { CommitRefField } from './CommitRefField.js'
+import { DialogShell } from './DialogShell.js'
 
 export interface CommitContext {
   commit: Commit
@@ -43,7 +44,9 @@ function CommitTarget({ commit }: { commit: Commit }): React.ReactElement {
 
 function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.ReactElement {
   const existing = commit.refs.filter(ref => ref.startsWith('tag: ')).map(ref => ref.slice(5))
+  const path = repoPath(view)
   const [name, setName] = useState(existing[0] ?? '')
+  const [base, setBase] = useState(commit.shortHash)
   const [message, setMessage] = useState('')
   const [force, setForce] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -60,8 +63,9 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
     setError(null)
     try {
       await requestTag({
-        path: repoPath(view),
-        hash: commit.hash,
+        path,
+        // The clicked commit is the default; any typed ref wins.
+        ...(base.trim() === '' ? { hash: commit.hash } : { base: base.trim() }),
         name: tag,
         ...(message.trim() === '' ? {} : { message: message.trim() }),
         force,
@@ -78,7 +82,6 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
   return (
     <DialogShell title={t('tagDialogTitle')} t={t} onClose={onClose}>
       <div className="dsh-gitlog-repo-form">
-        <CommitTarget commit={commit} />
         <label className="dsh-gitlog-field">
           <span>{t('tagName')}</span>
           <input
@@ -96,6 +99,15 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
             autoFocus
           />
         </label>
+        <CommitRefField
+          t={t}
+          path={path}
+          label={t('commit')}
+          value={base}
+          fallback={commit}
+          onChange={setBase}
+          onSubmit={() => { void saveTag() }}
+        />
         <label className="dsh-gitlog-field">
           <span>{t('tagMessage')}</span>
           <textarea
@@ -128,7 +140,9 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
 }
 
 function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.ReactElement {
+  const path = repoPath(view)
   const [name, setName] = useState('')
+  const [base, setBase] = useState(commit.shortHash)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -142,7 +156,12 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
     setBusy(true)
     setError(null)
     try {
-      await requestBranch({ path: repoPath(view), hash: commit.hash, name: branch })
+      // The typed start point wins; the clicked commit is only the default.
+      await requestBranch({
+        path,
+        name: branch,
+        base: base.trim() === '' ? commit.hash : base.trim(),
+      })
       view.refresh()
       onClose()
     } catch (failure) {
@@ -155,7 +174,6 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
   return (
     <DialogShell title={t('branchDialogTitle')} t={t} onClose={onClose}>
       <div className="dsh-gitlog-repo-form">
-        <CommitTarget commit={commit} />
         <label className="dsh-gitlog-field">
           <span>{t('branchName')}</span>
           <input
@@ -173,6 +191,15 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
             autoFocus
           />
         </label>
+        <CommitRefField
+          t={t}
+          path={path}
+          label={t('branchBase')}
+          value={base}
+          fallback={commit}
+          onChange={setBase}
+          onSubmit={() => { void createBranch() }}
+        />
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>

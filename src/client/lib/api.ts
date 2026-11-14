@@ -7,10 +7,15 @@ import type {
   GenerateMessagePayload,
   PickDirectoryPayload,
   PushTarget,
+  RemoteAddPayload,
   RemoteRemovePayload,
+  RemoteUrlPayload,
+  RevealPayload,
   SyncAction,
   SyncPayload,
+  TagInfoPayload,
   TagPayload,
+  TagStatusPayload,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -34,7 +39,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -44,6 +49,8 @@ export interface RequestParams {
   scope?: 'all' | 'remotes' | 'stash' | 'staged' | 'unstaged' | 'untracked'
   ref?: string
   hash?: string
+  name?: string
+  remote?: string
   file?: string
   sort?: 'date' | 'topo'
   remotes?: '1'
@@ -166,6 +173,16 @@ export async function requestClone(body: CloneRequest, signal?: AbortSignal): Pr
   )
 }
 
+export interface RevealFileRequest {
+  path: string
+  file: string
+}
+
+/** POST /git-suite/reveal: show one working-tree file in the OS file browser. */
+export async function requestRevealFile(body: RevealFileRequest, signal?: AbortSignal): Promise<RevealPayload> {
+  return postCommitJson<RevealPayload>('/git-suite/reveal', body, signal)
+}
+
 export interface GenerateMessageRequest {
   path: string
 }
@@ -261,8 +278,15 @@ async function postCommitJson<T>(endpoint: string, body: object, signal?: AbortS
 
 export interface TagRequest {
   path: string
-  hash: string
+  /** `create` (default) or `delete`. */
+  action?: 'create' | 'delete'
+  /** Commit to tag; ignored when `base` is used instead. */
+  hash?: string
+  /** Ref to tag (`HEAD`, a branch, a tag, or a commit). */
+  base?: string
   name: string
+  /** Previous name when the tag is renamed. */
+  previousName?: string
   message?: string
   force?: boolean
 }
@@ -272,13 +296,32 @@ export async function requestTag(body: TagRequest, signal?: AbortSignal): Promis
   return postCommitJson<TagPayload>('/git-suite/tag', body, signal)
 }
 
-export interface BranchRequest {
-  path: string
-  hash: string
-  name: string
+/** GET /git-suite?mode=tag: one tag's commit, subject, and annotation message. */
+export async function requestTagInfo(
+  params: { path: string; name: string },
+  signal?: AbortSignal,
+): Promise<TagInfoPayload> {
+  return requestJson<TagInfoPayload>({ mode: 'tag', path: params.path, name: params.name }, signal)
 }
 
-/** POST /git-suite/branch: create a local branch at one commit. */
+/** GET /git-suite?mode=tag-status: how local tags compare with one remote's tags. */
+export async function requestTagStatus(
+  params: { path: string; remote: string },
+  signal?: AbortSignal,
+): Promise<TagStatusPayload> {
+  return requestJson<TagStatusPayload>({ mode: 'tag-status', path: params.path, remote: params.remote }, signal)
+}
+
+export interface BranchRequest {
+  path: string
+  name: string
+  /** Commit the branch starts at; ignored when `base` is used instead. */
+  hash?: string
+  /** Ref the branch starts at (`HEAD`, a branch, a tag, or a commit). */
+  base?: string
+}
+
+/** POST /git-suite/branch: create a local branch at a commit or ref. */
 export async function requestBranch(body: BranchRequest, signal?: AbortSignal): Promise<BranchPayload> {
   return postCommitJson<BranchPayload>('/git-suite/branch', body, signal)
 }
@@ -287,6 +330,8 @@ export interface CheckoutRequest {
   path: string
   hash?: string
   branch?: string
+  /** Any revision to detach HEAD at, e.g. a tag ref; ignored when `hash` is set. */
+  ref?: string
 }
 
 /** POST /git-suite/checkout: switch to a local branch or detach HEAD at a commit. */
@@ -317,15 +362,41 @@ export interface RemoveRemoteRequest {
   name: string
 }
 
+export interface AddRemoteRequest {
+  path: string
+  name: string
+  url: string
+}
+
+export interface SetRemoteUrlRequest {
+  path: string
+  /** Current remote name. */
+  name: string
+  url: string
+  /** New name when the remote is renamed as well. */
+  newName?: string
+}
+
 /** POST /git-suite/remote: remove one configured remote. */
 export async function requestRemoveRemote(body: RemoveRemoteRequest, signal?: AbortSignal): Promise<RemoteRemovePayload> {
-  return postCommitJson<RemoteRemovePayload>('/git-suite/remote', body, signal)
+  return postCommitJson<RemoteRemovePayload>('/git-suite/remote', { action: 'remove', ...body }, signal)
+}
+
+/** POST /git-suite/remote: add one configured remote. */
+export async function requestAddRemote(body: AddRemoteRequest, signal?: AbortSignal): Promise<RemoteAddPayload> {
+  return postCommitJson<RemoteAddPayload>('/git-suite/remote', { action: 'add', ...body }, signal)
+}
+
+/** POST /git-suite/remote: rename and/or replace the URL of one configured remote. */
+export async function requestSetRemoteUrl(body: SetRemoteUrlRequest, signal?: AbortSignal): Promise<RemoteUrlPayload> {
+  return postCommitJson<RemoteUrlPayload>('/git-suite/remote', { action: 'set-url', ...body }, signal)
 }
 
 export interface BranchActionRequest {
   action: BranchAction
   path: string
   branch: string
+  remote?: string
   newName?: string
 }
 

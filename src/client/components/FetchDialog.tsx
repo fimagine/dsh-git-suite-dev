@@ -30,7 +30,7 @@ export function FetchDialog({ ws, t, onClose }: FetchDialogProps): React.ReactEl
   )
 
   return (
-    <DialogShell title={t('fetch')} t={t} onClose={onClose}>
+    <DialogShell title={t('fetch')} t={t} wide onClose={onClose}>
       <div className="dsh-gitlog-fetch-options">
         {option(fetchAll, setFetchAll, t('fetchAllRemotes'))}
         {option(prune, setPrune, t('pruneTracking'))}

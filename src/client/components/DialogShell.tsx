@@ -1,16 +1,22 @@
 import type * as React from 'react'
-import { h, useEffect } from '../runtime.js'
+import { h, useEffect, useRef } from '../runtime.js'
 import type { Translate } from '../types.js'
 
 export interface DialogShellProps {
   title: string
   t: Translate
+  /** Wider frame for dialogs that list branches or long URLs. */
+  wide?: boolean
   onClose(): void
   children: React.ReactNode
 }
 
 /** Shared modal frame used by the repository and commit-action dialogs. */
-export function DialogShell({ title, t, onClose, children }: DialogShellProps): React.ReactElement {
+export function DialogShell({ title, t, wide = false, onClose, children }: DialogShellProps): React.ReactElement {
+  // A click only dismisses the modal when the press started on the backdrop
+  // itself; selecting text inside and releasing outside must not close it.
+  const pressedBackdrop = useRef(false)
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -22,12 +28,17 @@ export function DialogShell({ title, t, onClose, children }: DialogShellProps): 
   return (
     <div
       className="dsh-gitlog-settings-backdrop"
+      onMouseDown={event => {
+        pressedBackdrop.current = event.target === event.currentTarget
+      }}
       onClick={event => {
-        if (event.target === event.currentTarget) onClose()
+        const dismiss = pressedBackdrop.current && event.target === event.currentTarget
+        pressedBackdrop.current = false
+        if (dismiss) onClose()
       }}
     >
       <div
-        className="dsh-gitlog-settings dsh-gitlog-repo-dialog"
+        className={`dsh-gitlog-settings dsh-gitlog-repo-dialog${wide ? ' dsh-gitlog-dialog-wide' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
