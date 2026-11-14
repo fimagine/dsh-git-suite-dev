@@ -1,6 +1,7 @@
 import type * as React from 'react'
-import { h, useEffect } from '../runtime.js'
-import type { Translate } from '../types.js'
+import { h, useEffect, useState } from '../runtime.js'
+import { requestVersionCheck, toApiError } from '../lib/api.js'
+import type { Translate, VersionPayload } from '../types.js'
 import { Dropdown } from './Dropdown.js'
 import { Button, DialogActions } from './Button.js'
 
@@ -34,8 +35,12 @@ export interface SettingsDialogProps {
   onClose(): void
 }
 
-/** Modal settings; currently the commit page size. */
+/** Modal settings: commit page size and a version/update check. */
 export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogProps): React.ReactElement {
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<VersionPayload | null>(null)
+  const [checkError, setCheckError] = useState<string | null>(null)
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
@@ -43,6 +48,20 @@ export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogPr
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
+
+  const check = async (): Promise<void> => {
+    if (checking) return
+    setChecking(true)
+    setCheckError(null)
+    try {
+      setResult(await requestVersionCheck())
+    } catch (error) {
+      setResult(null)
+      setCheckError(toApiError(error).message)
+    } finally {
+      setChecking(false)
+    }
+  }
 
   return (
     <div
@@ -78,6 +97,25 @@ export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogPr
             />
           </label>
           <p className="dsh-gitlog-settings-hint">{t('settingsHint')}</p>
+          <div className="dsh-gitlog-settings-section">
+            <h3>{t('versionSection')}</h3>
+            <p className="dsh-gitlog-settings-hint">
+              {t('currentVersion').replace('{version}', __GIT_SUITE_VERSION__)}
+            </p>
+            <Button onClick={() => { void check() }} disabled={checking}>
+              {checking ? t('checkingUpdate') : t('checkUpdate')}
+            </Button>
+            {checkError === null ? null : <p className="dsh-gitlog-note" role="alert">{checkError}</p>}
+            {result !== null && result.updateAvailable
+              ? <p className="dsh-gitlog-note" role="status">{t('updateAvailable').replace('{version}', result.latest)}</p>
+              : null}
+            {result !== null && result.updateAvailable
+              ? <p className="dsh-gitlog-settings-hint">{t('updateHint')}</p>
+              : null}
+            {result !== null && !result.updateAvailable
+              ? <p className="dsh-gitlog-note" role="status">{t('updateUpToDate')}</p>
+              : null}
+          </div>
         </div>
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button variant="primary" onClick={onClose}>{t('close')}</Button>

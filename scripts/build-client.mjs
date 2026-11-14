@@ -14,7 +14,7 @@
  * the process sandbox forbids the API service's piped stdio.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { watchFile, writeFileSync } from 'node:fs'
+import { readFileSync, watchFile, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as sass from 'sass'
@@ -24,6 +24,7 @@ const cli = join(root, 'node_modules', 'esbuild', 'bin', 'esbuild')
 const scssFile = join(root, 'src', 'client', 'styles.scss')
 const cssFile = join(root, 'src', 'client', 'styles.generated.css')
 const watch = process.argv.includes('--watch')
+const packageVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 
 function compileStyles() {
   const result = sass.compile(scssFile, {
@@ -42,6 +43,8 @@ const args = [
   '--jsx=transform',
   '--jsx-factory=h',
   '--loader:.css=text',
+  // Lets the settings dialog show the installed version without a request.
+  `--define:__GIT_SUITE_VERSION__=${JSON.stringify(packageVersion)}`,
   '--sourcemap',
   '--legal-comments=none',
   '--outfile=dist/client.js',

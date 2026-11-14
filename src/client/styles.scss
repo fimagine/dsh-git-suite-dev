@@ -565,6 +565,11 @@ $brand: var(--dsw-alias-brand-primary);
     font-size: $font-meta;
     line-height: 1.4;
     box-shadow: 0 12px 32px rgb(0 0 0 / 40%);
+
+    &.is-error {
+      border-color: var(--dsw-alias-state-error-primary);
+      color: var(--dsw-alias-state-error-primary);
+    }
   }
 
   &-remote-menu .danger {
@@ -1752,6 +1757,21 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
     font-size: $font-tiny;
     line-height: 1.5;
+  }
+
+  &-settings-section {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid $border-l1;
+
+    h3 {
+      color: $label-secondary;
+      font-size: $font-meta;
+      font-weight: 600;
+    }
   }
 
   &-workspace {

@@ -77,7 +77,15 @@ export interface ResolvePayload {
   subject: string
 }
 
-/** One tag with the commit it points at and its annotation message. */
+/** Installed version versus the latest one published on npm. */
+export interface VersionPayload {
+  ok: true
+  current: string
+  latest: string
+  updateAvailable: boolean
+}
+
+/** One local tag with the commit it points at and its annotation message. */
 export interface TagInfoPayload {
   ok: true
   name: string

@@ -17,6 +17,7 @@ import type {
   TagInfoPayload,
   TagPayload,
   TagStatusPayload,
+  VersionPayload,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -40,7 +41,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -323,6 +324,11 @@ export async function requestTagStatus(
   signal?: AbortSignal,
 ): Promise<TagStatusPayload> {
   return requestJson<TagStatusPayload>({ mode: 'tag-status', path: params.path, remote: params.remote }, signal)
+}
+
+/** GET /git-suite?mode=version: installed version versus the latest npm release. */
+export async function requestVersionCheck(signal?: AbortSignal): Promise<VersionPayload> {
+  return requestJson<VersionPayload>({ mode: 'version' }, signal)
 }
 
 export interface BranchRequest {

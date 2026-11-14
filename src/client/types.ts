@@ -283,6 +283,14 @@ export interface OpenAppPayload {
   path: string
 }
 
+/** Installed version versus the latest one published on npm. */
+export interface VersionPayload {
+  ok: true
+  current: string
+  latest: string
+  updateAvailable: boolean
+}
+
 export interface RevealPayload {
   ok: true
   file: string

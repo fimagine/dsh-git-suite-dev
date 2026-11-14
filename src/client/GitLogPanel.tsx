@@ -25,6 +25,7 @@ import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
 import { SettingsDialog, SettingsIcon } from './components/SettingsDialog.js'
 import { Splitter } from './components/Splitter.js'
+import { ToastHost } from './components/Toast.js'
 import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
@@ -507,6 +508,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   return (
     <div className="dsh-gitlog">
       <style>{CSS}</style>
+      <ToastHost />
       <div className="dsh-gitlog-topbar">
         <PanelControls view={view} t={t} />
         <div className="dsh-gitlog-header-actions">

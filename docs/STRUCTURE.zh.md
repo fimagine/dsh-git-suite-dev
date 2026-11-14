@@ -151,6 +151,7 @@ LICENSE
 | `host/routes/switch.ts` | 双击本地分支时执行 `git switch`（POST、仅本地分支、不 force） |
 | `host/routes/tag.ts` | `mode=tag`：单个标签指向的提交、短哈希、标题、附注说明，以及是否为附注标签 |
 | `host/routes/tag-status.ts` | `mode=tag-status`：把本地标签与某个远端比较（`ls-remote --tags`，附注标签解析到提交），给出 相同/不同/仅本地 与仅远端的标签名 |
+| `host/routes/version.ts` | `mode=version`：读取自身 `package.json` 版本并与 npm 上 `dsh-git-suite` 的最新版比较（20 秒超时，离线返回 `502 registry-unreachable`） |
 | `host/routes/resolve.ts` | `mode=resolve`：把任意引用（`HEAD~2`、分支、标签、短哈希）解析成提交哈希、短哈希、作者、日期与标题 |
 | `host/types.ts` | 宿主端 payload 类型 |
 | `host/errors.ts` | `RouteError`（状态码、错误码、details） |
@@ -167,7 +168,7 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
-| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取，再是「命令行」与按平台命名的文件管理器）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast 提示、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
+| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数 + 版本检查更新）、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取，再是「命令行」与按平台命名的文件管理器）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 |

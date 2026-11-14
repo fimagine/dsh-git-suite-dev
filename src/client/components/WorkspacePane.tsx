@@ -5,7 +5,7 @@ import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestRevealFile, toApiError } from '../lib/api.js'
 import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
-import { useToast } from './Toast.js'
+import { toast } from './Toast.js'
 import { useTooltip } from './Tooltip.js'
 import { FileActionDialog } from './FileActionDialog.js'
 import { IgnoreFileDialog } from './IgnoreFileDialog.js'
@@ -24,7 +24,6 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
   const [fileAction, setFileAction] = useState<{ kind: 'discard' | 'delete'; file: string } | null>(null)
   const [ignoreFile, setIgnoreFile] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const toast = useToast()
   const tooltip = useTooltip()
   const status = ws.status
   const staged = status?.staged ?? []
@@ -60,9 +59,12 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
       await requestRevealFile({ path, file: file.path })
     } catch (error) {
       const failure = toApiError(error)
-      toast.show(failure.code === 'file-missing'
-        ? t('fileMissing').replace('{file}', file.path)
-        : failure.message)
+      toast(
+        failure.code === 'file-missing'
+          ? t('fileMissing').replace('{file}', file.path)
+          : failure.message,
+        'error',
+      )
     }
   }
 
@@ -404,7 +406,6 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
               onClose={() => setIgnoreFile(null)}
             />
           )}
-      {toast.node}
       {tooltip.node}
     </div>
   )
