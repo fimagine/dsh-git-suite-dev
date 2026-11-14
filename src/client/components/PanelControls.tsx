@@ -10,7 +10,7 @@ import { RepositoryMenu } from './RepositoryMenu.js'
 /** Project and path controls above the commit list; page size lives in Settings. */
 export function PanelControls({ view, t }: { view: GitLogView; t: Translate }): React.ReactElement {
   return (
-    <form className="dsh-gitlog-controls" onSubmit={view.submitPath}>
+    <div className="dsh-gitlog-controls">
       <Dropdown
         className="dsh-gitlog-field project"
         value={view.selectedProjectPath}
@@ -39,6 +39,11 @@ export function PanelControls({ view, t }: { view: GitLogView; t: Translate }): 
           type="text"
           value={view.pathInput}
           onChange={event => view.changePathText(event.target.value)}
+          onKeyDown={event => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+            event.preventDefault()
+            view.submitPath()
+          }}
           placeholder={t('pathPlaceholder')}
           spellCheck={false}
           autoComplete="off"
@@ -46,6 +51,6 @@ export function PanelControls({ view, t }: { view: GitLogView; t: Translate }): 
         />
       </label>
       <RepositoryMenu view={view} t={t} />
-    </form>
+    </div>
   )
 }

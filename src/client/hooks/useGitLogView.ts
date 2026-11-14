@@ -1,4 +1,3 @@
-import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from '../runtime.js'
 import { isAbortError, requestJson, toApiError, type ApiError } from '../lib/api.js'
 import { layoutGraph, type GraphLayout } from '../lib/graph.js'
@@ -68,7 +67,7 @@ export interface GitLogView {
   setSort(value: 'date' | 'topo'): void
   setShowRemotes(value: boolean): void
   selectProjectPath(path: string): void
-  submitPath(event: FormEvent<HTMLFormElement>): void
+  submitPath(): void
   openPath(path: string): void
   refresh(): void
   loadMore(): void
@@ -323,8 +322,7 @@ export function useGitLogView(t: Translate): GitLogView {
     void loadTree(path)
   }, [loadLog, loadTree, limit])
 
-  const submitPath = (event: FormEvent<HTMLFormElement>): void => {
-    event.preventDefault()
+  const submitPath = (): void => {
     openPath(pathInput)
   }
 

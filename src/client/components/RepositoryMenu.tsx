@@ -55,8 +55,8 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
     }
   }
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const clone = async (): Promise<void> => {
+    if (busy) return
     const remote = url.trim()
     const target = destination.trim() || suggested
     if (remote === '' || target === '') {
@@ -79,13 +79,18 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
 
   return (
     <DialogShell title={t('cloneTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void submit(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <label className="dsh-gitlog-field">
           <span>{t('remoteUrl')}</span>
           <input
             type="text"
             value={url}
             onChange={event => setUrl(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void clone()
+            }}
             placeholder={t('remoteUrlPlaceholder')}
             spellCheck={false}
             autoComplete="off"
@@ -99,6 +104,11 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
               type="text"
               value={destination}
               onChange={event => setDestination(event.target.value)}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void clone()
+              }}
               placeholder={suggested === '' ? t('cloneToPlaceholder') : suggested}
               spellCheck={false}
               autoComplete="off"
@@ -117,11 +127,11 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => { void clone() }}>
             {busy ? t('cloning') : t('clone')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }
@@ -156,8 +166,8 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
     }
   }
 
-  const open = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const openRepository = async (): Promise<void> => {
+    if (busy) return
     const target = path.trim()
     if (target === '') return
     setBusy(true)
@@ -175,7 +185,7 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
 
   return (
     <DialogShell title={t('chooseLocalTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void open(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <label className="dsh-gitlog-field">
           <span>{t('project')}</span>
           <Dropdown
@@ -197,6 +207,11 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
               type="text"
               value={path}
               onChange={event => changePath(event.target.value)}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                void openRepository()
+              }}
               placeholder={t('pathPlaceholder')}
               spellCheck={false}
               autoComplete="off"
@@ -222,11 +237,11 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
             {t('rescan')}
           </Button>
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={path.trim() === '' || busy}>
+          <Button type="button" variant="primary" disabled={path.trim() === '' || busy} onClick={() => { void openRepository() }}>
             {busy ? t('opening') : t('open')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }

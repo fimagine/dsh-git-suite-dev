@@ -20,8 +20,8 @@ function gitEnvironment(): NodeJS.ProcessEnv {
   }
 }
 
-/** Run one read-only git command in `cwd` and resolve with its UTF-8 stdout. */
-export function runGit(cwd: string, args: readonly string[], signal?: AbortSignal): Promise<string> {
+/** Run one git command in `cwd` and resolve with its UTF-8 stdout. */
+export function runGit(cwd: string, args: readonly string[], signal?: AbortSignal, timeoutMs = GIT_TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'git',
@@ -31,7 +31,7 @@ export function runGit(cwd: string, args: readonly string[], signal?: AbortSigna
         env: gitEnvironment(),
         encoding: 'utf8',
         windowsHide: true,
-        timeout: GIT_TIMEOUT_MS,
+        timeout: timeoutMs,
         maxBuffer: GIT_MAX_BUFFER,
         signal,
       },

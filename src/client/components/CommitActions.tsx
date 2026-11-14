@@ -49,8 +49,8 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const saveTag = async (): Promise<void> => {
+    if (busy) return
     const tag = name.trim()
     if (tag === '') {
       setError(t('tagNameRequired'))
@@ -77,7 +77,7 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
 
   return (
     <DialogShell title={t('tagDialogTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void submit(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <CommitTarget commit={commit} />
         <label className="dsh-gitlog-field">
           <span>{t('tagName')}</span>
@@ -85,6 +85,11 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
             type="text"
             value={name}
             onChange={event => setName(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void saveTag()
+            }}
             placeholder={t('tagNamePlaceholder')}
             spellCheck={false}
             autoComplete="off"
@@ -113,11 +118,11 @@ function TagDialog({ view, commit, t, onClose }: CommitDialogProps): React.React
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => { void saveTag() }}>
             {busy ? t('tagSaving') : t('tagSave')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }
@@ -127,8 +132,8 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const createBranch = async (): Promise<void> => {
+    if (busy) return
     const branch = name.trim()
     if (branch === '') {
       setError(t('branchNameRequired'))
@@ -149,7 +154,7 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
 
   return (
     <DialogShell title={t('branchDialogTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void submit(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <CommitTarget commit={commit} />
         <label className="dsh-gitlog-field">
           <span>{t('branchName')}</span>
@@ -157,6 +162,11 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
             type="text"
             value={name}
             onChange={event => setName(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void createBranch()
+            }}
             placeholder={t('branchNamePlaceholder')}
             spellCheck={false}
             autoComplete="off"
@@ -166,11 +176,11 @@ function BranchDialog({ view, commit, t, onClose }: CommitDialogProps): React.Re
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => { void createBranch() }}>
             {busy ? t('branchSaving') : t('branchCreate')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }
@@ -182,8 +192,8 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
   const [error, setError] = useState<string | null>(null)
   const detached = target === 'detached'
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const confirmCheckout = async (): Promise<void> => {
+    if (busy) return
     setBusy(true)
     setError(null)
     try {
@@ -203,7 +213,7 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
 
   return (
     <DialogShell title={t('checkoutDialogTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void submit(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <CommitTarget commit={commit} />
         <fieldset className="dsh-gitlog-checkout-options">
           <legend>{t('checkoutTarget')}</legend>
@@ -236,11 +246,11 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => { void confirmCheckout() }}>
             {busy ? t('checkingOut') : t('checkoutConfirm')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }

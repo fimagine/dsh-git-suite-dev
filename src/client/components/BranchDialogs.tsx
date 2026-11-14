@@ -19,8 +19,8 @@ export function BranchRenameDialog({ view, branch, t, onClose }: BranchRenameDia
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault()
+  const renameBranch = async (): Promise<void> => {
+    if (busy) return
     const value = name.trim()
     if (value === '') {
       setError(t('branchNameRequired'))
@@ -45,13 +45,18 @@ export function BranchRenameDialog({ view, branch, t, onClose }: BranchRenameDia
 
   return (
     <DialogShell title={t('branchRenameTitle')} t={t} onClose={onClose}>
-      <form className="dsh-gitlog-repo-form" onSubmit={event => { void submit(event) }}>
+      <div className="dsh-gitlog-repo-form">
         <label className="dsh-gitlog-field">
           <span>{t('branchName')}</span>
           <input
             type="text"
             value={name}
             onChange={event => setName(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void renameBranch()
+            }}
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -60,11 +65,11 @@ export function BranchRenameDialog({ view, branch, t, onClose }: BranchRenameDia
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions>
           <Button onClick={onClose}>{t('cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+          <Button type="button" variant="primary" disabled={busy} onClick={() => { void renameBranch() }}>
             {busy ? t('branchSaving') : t('branchRenameAction')}
           </Button>
         </DialogActions>
-      </form>
+      </div>
     </DialogShell>
   )
 }

@@ -1,11 +1,15 @@
-import { stat } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { rename, rm, stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { dirname, isAbsolute, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
 import { admitHeaders, failure, json } from './http.js'
 
 const MAX_BODY_BYTES = 64 * 1024
+
+/** A network clone can take far longer than the timeout used for read-only git commands. */
+const CLONE_TIMEOUT_MS = 30 * 60_000
 
 interface CloneBody {
   url?: unknown
@@ -72,7 +76,7 @@ export function createCloneHandler(): (req: IncomingMessage, res: ServerResponse
     }
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 120_000)
+    const timeout = setTimeout(() => controller.abort(), CLONE_TIMEOUT_MS)
     res.once('close', () => controller.abort())
     try {
       const body = await readJson(req)
@@ -103,10 +107,19 @@ export function createCloneHandler(): (req: IncomingMessage, res: ServerResponse
         // ENOENT is the expected case: git clone creates the destination.
       }
 
+      // Clone beside the destination and rename on success: a clone that is
+      // cancelled or fails never leaves a destination that blocks a retry.
+      const staging = resolve(parent, `${basename(destination)}.cloning-${randomUUID().slice(0, 8)}`)
       try {
-        await runGit(parent, ['clone', '--', url, destination], controller.signal)
+        await runGit(parent, ['clone', '--', url, staging], controller.signal, CLONE_TIMEOUT_MS)
+        try {
+          await rename(staging, destination)
+        } catch {
+          throw new RouteError(409, 'destination-exists', 'The destination already exists; choose another directory.', { path: destination })
+        }
       } catch (error) {
-        throw gitFailure(error)
+        await rm(staging, { recursive: true, force: true }).catch(() => {})
+        throw error instanceof RouteError ? error : gitFailure(error)
       }
       await send(res, json({ ok: true, repoRoot: destination }))
     } catch (error) {
