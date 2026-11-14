@@ -148,6 +148,7 @@ LICENSE
 | `host/remote-url.ts` | 接受 https/ssh/git/file 与绝对本地路径，拒绝 `ext::` 之类的命令型传输 |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`：校验路径在仓库内、文件存在，然后在系统文件浏览器中选中该文件 |
 | `host/open-handler.ts` | `POST /git-suite/open`：在仓库根目录打开命令行（`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`）、系统文件管理器（`explorer.exe`/`open`/`xdg-open`）或 VS Code；Windows 上由 `host/vscode.ts` 直接启动 `Code.exe`，因为 `code` 的 `.cmd` shim 必须经过 cmd.exe，会闪一个控制台窗口 |
+| `host/routes/commit-messages.ts` | `mode=commit-messages`：最近 40 条不重复的提交信息（`git log -n 120 --format=%B`），供提交框的 ArrowUp 历史使用 |
 | `host/routes/apps.ts` | `mode=apps`：报告 VS Code 是否可用（Windows 检查 GUI 可执行文件是否存在、macOS 检查 .app、Linux 跑 `code --version`），因此只有真正能打开时才显示按钮 |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
@@ -228,6 +229,7 @@ LICENSE
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
 - 暂存以文件为单位（暂不提供 hunk/区块级暂存）；每个文件行最右侧有 **+**（暂存该文件）或 **−**（取消暂存）按钮，双击文件行也会在已暂存/未暂存之间切换（行文字 `user-select: none`，双击不会选中文本）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 状态字母带颜色：**M** 黄、**U**（未跟踪，原先显示 `?`）绿、**D** 红、**R**/**C** 蓝、**A** 绿。未合并路径由 `mode=status` 的 `unmerged` 标志标识，显示为红色「冲突」胶囊而不是字母。
+- 提交信息输入框按仓库保存草稿（`commitDrafts`，localStorage、去抖写入，只有提交成功后才清空）。**光标在 0 位按 ↑** 开始遍历该仓库最近的提交信息（`mode=commit-messages`，新→旧）；插入后**光标在末位、且未编辑时按 ↓** 继续遍历，遍历完最旧一条后回到开始遍历前输入的内容。任何编辑都视为新提交信息并重置遍历。
 - 悬停文件行显示插件 tooltip，格式为 `<绝对路径> - <状态词>`（重命名会追加 `(from <旧路径>)`）；行的提示取代了原先只在路径上的提示。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
 - 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径；点「打开」只在当前面板打开仓库。如需加入 DSH 工作区，请使用 DSH 自带的 Workspaces 添加入口。目录选择器不是 native 时提示手动输入路径。
@@ -288,5 +290,6 @@ DSH 每个包只通过 `exports["./client"]` 加载一个惰性工厂（`window.
 - `dist/` 和 `src/client/styles.generated.css` 都是构建产物，已被 Git 忽略；克隆后先 `pnpm install && pnpm build`，DSH 插件管理器不会替你构建。
 - `pnpm watch:client` 监听 `src/client/` 与 `styles.scss`，SCSS 改动会重新编译并触发 esbuild 重建；DSH HMR 监听 `dist/client.js`，重建后页面会重新加载该插件。
 - 修改 `package.json` 的入口路径后，需要重启 DSH（或在插件页禁用再启用该插件），因为运行中的 Host 会缓存插件清单。
+
 
 
