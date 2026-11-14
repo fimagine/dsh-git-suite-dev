@@ -287,11 +287,13 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
 }
 
 /** Right-click menu for a commit: tag, branch, checkout, pick/revert/reset, reflog. */
-export function CommitActions({ view, context, t, onClose, onChanged }: {
+export function CommitActions({ view, context, t, onClose, onChanged, onRebaseOnto }: {
   view: GitLogView
   context: CommitContext | null
   t: Translate
   onClose(): void
+  /** Rebase the current branch onto this commit (opens the shared dialog). */
+  onRebaseOnto?(target: string): void
   /** Also refresh the working tree, which reset and pick/revert can touch. */
   onChanged?(): void
 }): React.ReactElement | null {
@@ -391,7 +393,23 @@ export function CommitActions({ view, context, t, onClose, onChanged }: {
       <button type="button" role="menuitem" onClick={() => { void run('cherry-pick') }}>{t('commitCherryPick')}</button>
       <button type="button" role="menuitem" onClick={() => { void run('revert') }}>{t('commitRevert')}</button>
       <button type="button" role="menuitem" onClick={() => setDialog('reset')}>{t('commitReset')}</button>
+      {onRebaseOnto === undefined
+        ? null
+        : (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                const target = commit.hash
+                onClose()
+                onRebaseOnto(target)
+              }}
+            >
+              {t('commitRebaseOnto')}
+            </button>
+          )}
       <button type="button" role="menuitem" onClick={() => setDialog('reflog')}>{t('commitReflog')}</button>
     </div>
   )
 }
+

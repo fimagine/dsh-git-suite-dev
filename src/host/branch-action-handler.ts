@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
+import { detectOperation } from './routes/operation.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
 import type { RouteContext } from './types.js'
@@ -11,6 +12,7 @@ interface BranchActionBody {
   branch?: unknown
   remote?: unknown
   newName?: unknown
+  target?: unknown
 }
 
 const MAX_BODY_BYTES = 16 * 1024
@@ -85,11 +87,45 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
       const action = text(body.action)
       const branch = text(body.branch)
       const remote = text(body.remote)
-      if (branch === '') throw new RouteError(400, 'branch-required', 'Choose a branch.')
-      if (!['merge', 'rebase', 'rename', 'delete', 'track', 'delete-remote'].includes(action)) {
+      if (!['merge', 'rebase', 'rebase-onto', 'rename', 'delete', 'track', 'delete-remote'].includes(action)) {
         throw new RouteError(400, 'invalid-action', 'Unknown branch action.')
       }
       const repo = await resolveRepository(context, text(body.path), controller.signal)
+
+      // Rebasing onto an arbitrary ref acts on the current branch, so the
+      // clicked branch is irrelevant and any commit-ish is accepted.
+      if (action === 'rebase-onto') {
+        const target = text(body.target)
+        if (target === '' || target.startsWith('-')) {
+          throw new RouteError(400, 'invalid-target', 'Choose a commit, tag, or branch to rebase onto.', { target })
+        }
+        try {
+          await runGit(repo.root, ['rev-parse', '--verify', `${target}^{commit}`], controller.signal)
+        } catch {
+          throw new RouteError(404, 'unknown-target', 'That ref does not resolve to a commit.', { target })
+        }
+        const current = (await runGit(repo.root, ['rev-parse', '--abbrev-ref', 'HEAD'], controller.signal)).trim()
+        if (current === 'HEAD') {
+          throw new RouteError(409, 'detached-head', 'Check out a branch before rebasing.')
+        }
+        try {
+          await runGit(repo.root, ['rebase', target], controller.signal)
+        } catch (error) {
+          const operation = await detectOperation(repo.root, controller.signal)
+          if (operation !== null) {
+            throw new RouteError(409, 'operation-conflict', 'The rebase stopped with conflicts.', {
+              operation,
+              detail: error instanceof Error ? error.message : String(error),
+            })
+          }
+          throw gitFailure(error).withDetails({ target })
+        }
+        const head = (await runGit(repo.root, ['rev-parse', 'HEAD'], controller.signal)).trim()
+        await send(res, json({ ok: true, action, branch: current, target, head }))
+        return
+      }
+
+      if (branch === '') throw new RouteError(400, 'branch-required', 'Choose a branch.')
       await checkBranch(repo.root, branch, controller.signal)
 
       let newName: string | undefined
@@ -164,3 +200,4 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
     }
   }
 }
+

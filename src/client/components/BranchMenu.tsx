@@ -14,6 +14,8 @@ export interface BranchMenuProps {
   onCheckout(branch: Branch): void
   onMerge(branch: Branch): void
   onRebase(branch: Branch): void
+  /** Rebase the current branch onto an arbitrary ref. */
+  onRebaseOnto(): void
   onFetch(branch: Branch): void
   onPull(branch: Branch): void
   onPush(branch: Branch): void
@@ -23,7 +25,7 @@ export interface BranchMenuProps {
 }
 
 /** Right-click menu for one local branch. */
-export function BranchMenu({ context, t, onCheckout, onMerge, onRebase, onFetch, onPull, onPush, onRename, onDelete, onClose }: BranchMenuProps): React.ReactElement | null {
+export function BranchMenu({ context, t, onCheckout, onMerge, onRebase, onRebaseOnto, onFetch, onPull, onPush, onRename, onDelete, onClose }: BranchMenuProps): React.ReactElement | null {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function BranchMenu({ context, t, onCheckout, onMerge, onRebase, onFetch,
   if (context === null) return null
   const branch = context.branch
   const upstream = branch.upstream ?? ''
-  const label = (key: 'branchCheckout' | 'branchMerge' | 'branchRebase' | 'branchFetch' | 'branchPull' | 'branchPush' | 'branchRename' | 'branchDelete'): string =>
+  const label = (key: 'branchCheckout' | 'branchMerge' | 'branchRebase' | 'branchRebaseOnto' | 'branchFetch' | 'branchPull' | 'branchPush' | 'branchRename' | 'branchDelete'): string =>
     t(key).replace('{branch}', branch.name).replace('{upstream}', upstream === '' ? branch.name : upstream)
   const left = Math.min(context.x, window.innerWidth - 250)
   const top = Math.min(context.y, window.innerHeight - 300)
@@ -65,6 +67,20 @@ export function BranchMenu({ context, t, onCheckout, onMerge, onRebase, onFetch,
       <button type="button" role="menuitem" disabled={branch.current} onClick={() => choose(onCheckout)}>{label('branchCheckout')}</button>
       <button type="button" role="menuitem" disabled={branch.current} onClick={() => choose(onMerge)}>{label('branchMerge')}</button>
       <button type="button" role="menuitem" disabled={branch.current} onClick={() => choose(onRebase)}>{label('branchRebase')}</button>
+      {branch.current
+        ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onRebaseOnto()
+                onClose()
+              }}
+            >
+              {label('branchRebaseOnto')}
+            </button>
+          )
+        : null}
       <div className="dsh-gitlog-menu-separator" role="separator" />
       <button type="button" role="menuitem" disabled={upstream === ''} onClick={() => choose(onFetch)}>{label('branchFetch')}</button>
       <button type="button" role="menuitem" disabled={upstream === ''} onClick={() => choose(onPull)}>{label('branchPull')}</button>
@@ -75,3 +91,4 @@ export function BranchMenu({ context, t, onCheckout, onMerge, onRebase, onFetch,
     </div>
   )
 }
+

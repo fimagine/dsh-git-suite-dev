@@ -19,6 +19,7 @@ import { EditTagDialog } from './components/EditTagDialog.js'
 import { AddTagDialog } from './components/AddTagDialog.js'
 import { DeleteTagDialog } from './components/DeleteTagDialog.js'
 import { ForcePushTagDialog } from './components/ForcePushTagDialog.js'
+import { RebaseDialog } from './components/RebaseDialog.js'
 import { FetchTagDialog } from './components/FetchTagDialog.js'
 import { StashMenu, type StashMenuState } from './components/StashMenu.js'
 import { ConflictBanner } from './components/ConflictBanner.js'
@@ -88,6 +89,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [addRemoteOpen, setAddRemoteOpen] = useState(false)
   const [addBranchOpen, setAddBranchOpen] = useState(false)
   const [branchMenu, setBranchMenu] = useState<BranchMenuState | null>(null)
+  const [rebaseTarget, setRebaseTarget] = useState<string | null>(null)
   const [branchDialog, setBranchDialog] = useState<{ action: 'rename' | 'delete'; branch: Branch } | null>(null)
   const [branchActionError, setBranchActionError] = useState<string | null>(null)
   const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
@@ -642,7 +644,23 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
           ws.refresh()
           void refreshOperation()
         }}
+        onRebaseOnto={target => setRebaseTarget(target)}
       />
+      {rebaseTarget === null
+        ? null
+        : (
+            <RebaseDialog
+              view={view}
+              t={t}
+              initialTarget={rebaseTarget}
+              onDone={() => {
+                view.refresh()
+                ws.refresh()
+                void refreshOperation()
+              }}
+              onClose={() => setRebaseTarget(null)}
+            />
+          )}
       <StashMenu
         view={view}
         context={stashMenu}
@@ -771,6 +789,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onCheckout={checkoutBranch}
         onMerge={mergeBranch}
         onRebase={rebaseBranch}
+        onRebaseOnto={() => setRebaseTarget('')}
         onFetch={fetchBranch}
         onPull={pullBranch}
         onPush={pushBranch}
@@ -800,6 +819,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     </div>
   )
 }
+
 
 
 

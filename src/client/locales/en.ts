@@ -163,6 +163,15 @@ export const en = {
   branchCheckout: 'Checkout {branch}',
   branchMerge: 'Merge {branch} into current branch',
   branchRebase: 'Rebase current branch onto {branch}',
+  branchRebaseOnto: 'Rebase onto any commit or tag…',
+  rebaseOntoTitle: 'Rebase the current branch',
+  rebaseOntoTarget: 'Rebase onto',
+  rebaseOntoWarning: 'This replays the commits of {branch} on top of the chosen commit; unpushed commits get new hashes.',
+  rebaseOntoAction: 'Rebase',
+  rebasing: 'Rebasing…',
+  rebaseTargetRequired: 'Choose a commit, tag, or branch to rebase onto.',
+  rebaseDone: 'Rebase finished',
+  commitRebaseOnto: 'Rebase onto this commit…',
   branchFetch: 'Fetch {branch}',
   branchPull: 'Pull {upstream}',
   branchPush: 'Push to {upstream}',
@@ -379,4 +388,5 @@ export const en = {
 } as const
 
 export type LocaleKey = keyof typeof en
+
 

@@ -88,7 +88,7 @@ export interface RemoteUrlPayload {
   url: string
 }
 
-export type BranchAction = 'merge' | 'rebase' | 'rename' | 'delete' | 'track' | 'delete-remote'
+export type BranchAction = 'merge' | 'rebase' | 'rebase-onto' | 'rename' | 'delete' | 'track' | 'delete-remote'
 
 export interface BranchActionPayload {
   ok: true
@@ -424,5 +424,6 @@ export interface CheckoutPayload {
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 export type DetailStatus = 'idle' | LoadStatus
+
 
 

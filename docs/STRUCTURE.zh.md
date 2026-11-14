@@ -140,7 +140,7 @@ LICENSE
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 |
 | `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，支持单个标签（`tagRefs`）、全部标签（`tags`）与 `force`；`fetch-tag` 用远端覆盖单个本地标签 |
 | `host/remote-handler.ts` | `POST /git-suite/remote`：新增（`action: 'add'`）、改名和/或修改地址（`action: 'set-url'`）或删除（`action: 'remove'`）指定远端，会校验名称、地址格式以及是否已存在 |
-| `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
+| `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；把当前分支变基到任意引用（`rebase-onto`，目标用 `rev-parse --verify` 解析，遇到冲突返回 `409 operation-conflict`）；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` |
 | `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验 |
 | `host/git.ts` | 执行只读 git 命令并把失败映射为错误码 |
@@ -202,6 +202,7 @@ LICENSE
 - 远端分组行尾有「+」按钮：打开添加远端弹窗，向 `/git-suite/remote` POST `{ action: 'add', name, url }`；添加成功后该分组会自动展开。
 - 分支分组行尾有同样的「+」按钮：打开新建分支弹窗，向 `/git-suite/branch` POST `{ name, base }`；`base` 留空表示 `HEAD`，也可以填分支、标签或任意版本表达式。
 - 远端分支右键菜单：检出为本地跟踪分支、合并/变基到当前分支、拉取到当前分支（走 `/git-suite/sync`）、删除远端分支（二次确认，`push --delete`）。
+- 右键**当前分支**多出「变基到任意提交/标签…」，打开 `RebaseDialog`：`CommitRefField` 可实时解析提交、标签或分支，宿主执行 `git rebase <target>`（`rebase-onto`）。提交右键菜单也有同样动作并预填被点击的提交（「变基到此提交…」）。变基因冲突停下时返回 `409 operation-conflict`，由冲突横幅接管（继续 / 跳过 / 中止）。
 - 远端分组右键打开菜单：获取 / 拉取 / 推送、**编辑远端**（可改名并改地址，`POST /git-suite/remote { action: 'set-url', newName }`）、删除；悬停该行会显示已配置的远端地址。
 - 右键提交列表表头打开复选菜单，选择显示图表 / 日期 / 作者 / 提交列（描述列始终显示）；选择会持久化，面板宽度小于 760px 时自动隐藏作者与提交列并在菜单中禁用这两项。
 - 行内提示（远端地址、子模块路径、切换分支提示、被截断的分支名）与所有控件提示都使用插件自己的 tooltip：每个面板挂载一个 `TooltipHost`，元素用 `tooltipProps(text)`，`Button` 的 `title` 属性也会转换成同一套 tooltip（界面里不再出现浏览器原生 `title` 气泡）。气泡淡入 120ms、淡出 110ms，淡出期间宿主保持挂载。

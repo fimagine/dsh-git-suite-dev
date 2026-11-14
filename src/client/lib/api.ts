@@ -485,9 +485,12 @@ export async function requestSetRemoteUrl(body: SetRemoteUrlRequest, signal?: Ab
 export interface BranchActionRequest {
   action: BranchAction
   path: string
-  branch: string
+  /** Ignored by ebase-onto, which always acts on the current branch. */
+  branch?: string
   remote?: string
   newName?: string
+  /** ebase-onto only: any commit, tag, or branch to rebase onto. */
+  target?: string
 }
 
 /** POST /git-suite/branch-action: merge, rebase, rename, or delete a local branch. */
@@ -498,4 +501,5 @@ export async function requestBranchAction(body: BranchActionRequest, signal?: Ab
 export function toApiError(error: unknown): ApiError {
   return error instanceof ApiError ? error : new ApiError(error instanceof Error ? error.message : String(error), 'internal')
 }
+
 

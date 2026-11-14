@@ -165,6 +165,15 @@ export const zh: Record<LocaleKey, string> = {
   branchCheckout: '检出 {branch}',
   branchMerge: '合并 {branch} 至当前分支',
   branchRebase: '将当前分支变基到 {branch}',
+  branchRebaseOnto: '变基到任意提交/标签…',
+  rebaseOntoTitle: '变基当前分支',
+  rebaseOntoTarget: '变基到',
+  rebaseOntoWarning: '这会把 {branch} 上的提交重放到目标提交上，未推送的提交会得到新的哈希。',
+  rebaseOntoAction: '变基',
+  rebasing: '变基中…',
+  rebaseTargetRequired: '请选择要变基到的提交、标签或分支。',
+  rebaseDone: '变基完成',
+  commitRebaseOnto: '变基到此提交…',
   branchFetch: '获取 {branch}',
   branchPull: '拉取 {upstream}',
   branchPush: '推送到 {upstream}',
@@ -379,4 +388,5 @@ export const zh: Record<LocaleKey, string> = {
   detached: '分离头指针',
   merge: '合并',
 }
+
 
