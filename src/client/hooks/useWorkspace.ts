@@ -9,7 +9,7 @@ import {
   type ApiError,
   type WorkspaceActionRequest,
 } from '../lib/api.js'
-import { readUiState, writeUiState } from '../lib/ui-state.js'
+import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type {
   FetchOptions,
   LoadStatus,
@@ -70,15 +70,12 @@ export interface WorkspaceView {
 /** Unsent commit message for one repository, kept across panel switches. */
 function readDraft(key: string): string {
   if (key === '') return ''
-  return readUiState().commitDrafts?.[key] ?? ''
+  return readRepoUiState(key).draft ?? ''
 }
 
 function writeDraft(key: string, value: string): void {
   if (key === '') return
-  const drafts = { ...(readUiState().commitDrafts ?? {}) }
-  if (value === '') delete drafts[key]
-  else drafts[key] = value
-  writeUiState({ commitDrafts: drafts })
+  writeRepoUiState({ draft: value }, key)
 }
 
 export function useWorkspace(path: string, revision: string, t: Translate, onCommitted?: () => void): WorkspaceView {
@@ -370,5 +367,6 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
     commit,
   }
 }
+
 
 

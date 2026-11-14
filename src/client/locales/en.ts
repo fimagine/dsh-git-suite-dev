@@ -4,9 +4,13 @@ export const en = {
   title: 'Git Suite',
   subtitle: 'Browse and operate local Git repositories: history, branches, diffs, and more.',
   refresh: 'Refresh',
+  showTree: 'Show branch tree',
+  hideTree: 'Hide branch tree',
   settings: 'Settings',
   pageSize: 'Commits per page',
   settingsHint: 'The new page size applies the next time commits are loaded.',
+  openCommand: 'Open the Git Suite sidebar',
+  guideDescription: 'Browse and operate a local Git repository.',
   close: 'Close',
   cancel: 'Cancel',
   open: 'Open',
@@ -146,6 +150,17 @@ export const en = {
   stageAll: 'Stage all',
   unstageAll: 'Unstage all',
   stageFile: 'Stage file',
+  stageHunk: 'Stage this hunk',
+  unstageHunk: 'Unstage this hunk',
+  hunkStaged: 'Staged that hunk',
+  stageLine: 'Stage selected line',
+  unstageLine: 'Unstage selected line',
+  stageLines: 'Stage selected {count} lines',
+  unstageLines: 'Unstage selected {count} lines',
+  linesStaged: 'Staged the selected lines',
+  linesUnstaged: 'Unstaged the selected lines',
+  diffMenu: 'Line actions',
+  hunkUnstaged: 'Unstaged that hunk',
   unstageFile: 'Unstage file',
   noStaged: 'No staged changes',
   noUnstaged: 'No unstaged changes',
@@ -236,7 +251,7 @@ export const en = {
   ok: 'OK',
   noRemotes: 'No remotes configured.',
   commitMessage: 'Commit message',
-  generateMessage: 'Generate with AI',
+  generateMessage: 'Generate commit message',
   generatingMessage: 'Generating…',
   commit: 'Commit',
   committing: 'Committing…',
@@ -336,12 +351,15 @@ export const en = {
   noCommits: 'No commits found',
   noCommitsHint: 'This repository has no commits on the selected refs yet.',
   selectCommit: 'Select a commit',
-  selectCommitHint: 'Choose a commit from the list to inspect its files and patch.',
+  selectCommitHint: 'Choose a commit from the list to inspect its files and diff.',
   changedFiles: 'Changes',
-  patch: 'Patch',
-  noPatch: 'This commit has no textual patch to display.',
-  fileNoPatch: 'This file has no textual patch to display.',
-  patchTruncated: 'The patch is large and was truncated by the viewer.',
+  patch: 'Diff',
+  noPatch: 'This commit has no textual diff to display.',
+  fileNoPatch: 'This file has no textual diff to display.',
+  diffMore: 'Show {count} more lines',
+  diffUnified: 'Unified',
+  diffSplit: 'Side by side',
+  patchTruncated: 'The diff is large and was truncated by the viewer.',
   author: 'Author',
   date: 'Date',
   columnGraph: 'Graph',
@@ -380,7 +398,7 @@ export const en = {
   resizeStaged: 'Resize the staged list',
   resizeCommitForm: 'Resize the commit message area',
   resizeDetail: 'Resize the commit detail',
-  resizePatch: 'Resize the patch',
+  resizePatch: 'Resize the diff',
   resizeSummary: 'Resize the summary and changed files',
   noSubject: '(no subject)',
   detached: 'detached',
@@ -388,5 +406,15 @@ export const en = {
 } as const
 
 export type LocaleKey = keyof typeof en
+
+
+
+
+
+
+
+
+
+
 
 

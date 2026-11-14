@@ -32,6 +32,8 @@ export interface SplitSize {
   start(): void
   drag(deltaX: number, deltaY: number): void
   reset(): void
+  /** Adopt an externally stored value (e.g. the bucket of a newly opened repository). */
+  apply(size: number): void
 }
 
 const PERSIST_DELAY_MS = 140
@@ -103,5 +105,12 @@ export function useSplitSize(options: SplitSizeOptions): SplitSize {
     reset(): void {
       setState({ size: clamp(initialSize, safe(resolve(min), initialSize), safe(resolve(max), initialSize)), touched: true })
     },
+    apply(size: number): void {
+      if (!Number.isFinite(size)) return
+      const low = safe(resolve(min), Number.NEGATIVE_INFINITY)
+      const high = safe(resolve(max), Number.POSITIVE_INFINITY)
+      setState({ size: clamp(size, low, high), touched: true })
+    },
   }
 }
+

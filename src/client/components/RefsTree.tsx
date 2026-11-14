@@ -2,17 +2,22 @@ import type * as React from 'react'
 import type { ApiError } from '../lib/api.js'
 import { buildRefSections, filterTree, type TreeNode, type TreeSection } from '../lib/refs-tree.js'
 import { selectionKey } from '../lib/selection.js'
-import { readUiState, writeUiState } from '../lib/ui-state.js'
+import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import { h, useEffect, useMemo, useRef, useState } from '../runtime.js'
 import type { LoadStatus, RefsPayload, Selection, Translate } from '../types.js'
-import { PlusIcon, TagDiffIcon, TagLocalIcon } from './GitLogIcon.js'
+import { PlusIcon, RefreshIcon, TagDiffIcon, TagLocalIcon } from './GitLogIcon.js'
 import type { RemoteBranchSelection } from './RemoteBranchMenu.js'
 import type { TagSelection } from './TagMenu.js'
-import { hideTooltip, showTooltip, showTooltipNow } from './Tooltip.js'
+import { hideTooltip, showTooltip, showTooltipNow, tooltipProps } from './Tooltip.js'
 import { ChevronIcon, CurrentBranchIcon, SectionIcon } from './TreeIcons.js'
 import type { TagStatusPayload } from '../types.js'
 
 export interface RefsTreeProps {
+  /** Normalized repository root the tree belongs to; scopes its saved expansion. */
+  repoKey: string
+  /** Refresh the history list and this tree; the header host places it after the search. */
+  onRefresh?(): void
+  refreshing?: boolean
   tree: RefsPayload | null
   status: LoadStatus
   error: ApiError | null
@@ -72,23 +77,23 @@ interface EmptyRow {
 type TreeRow = SectionRow | NodeRow | EmptyRow
 
 /** Branch/tag/remote/stash navigation for the left column of the panel. */
-export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onAddTag, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, onStashMenu, t }: RefsTreeProps): React.ReactElement {
+export function RefsTree({ repoKey, onRefresh, refreshing = false, tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onAddTag, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, onStashMenu, t }: RefsTreeProps): React.ReactElement {
   const [query, setQuery] = useState('')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
     ...SECTION_DEFAULT_OPEN,
-    ...(readUiState().openSections ?? {}),
+    ...(readRepoUiState(repoKey).openSections ?? {}),
   }))
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>(() => ({
-    ...(readUiState().collapsedFolders ?? {}),
+    ...(readRepoUiState(repoKey).collapsedFolders ?? {}),
   }))
   const searching = query.trim() !== ''
 
   useEffect(() => {
-    writeUiState({ openSections })
+    writeRepoUiState({ openSections }, repoKey)
   }, [openSections])
 
   useEffect(() => {
-    writeUiState({ collapsedFolders })
+    writeRepoUiState({ collapsedFolders }, repoKey)
   }, [collapsedFolders])
   const sections = useMemo(() => buildRefSections(tree, t), [tree, t])
 
@@ -353,6 +358,20 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
           spellCheck={false}
           autoComplete="off"
         />
+        {onRefresh === undefined
+          ? null
+          : (
+              <button
+                type="button"
+                className="dsh-gitlog-tree-refresh"
+                aria-label={t('refresh')}
+                {...tooltipProps(t('refresh'))}
+                disabled={refreshing}
+                onClick={onRefresh}
+              >
+                <RefreshIcon size={14} />
+              </button>
+            )}
       </div>
       <div className="dsh-gitlog-tree-scroll">
         {tree === null && status === 'loading' ? <p className="dsh-gitlog-tree-empty">{t('loadingRefs')}</p> : null}
@@ -375,4 +394,9 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
     </aside>
   )
 }
+
+
+
+
+
 

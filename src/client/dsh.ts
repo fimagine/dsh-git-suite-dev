@@ -49,6 +49,8 @@ export interface SlotsService {
 export interface SidebarRightGuideEntry {
   id: string
   order: number
+  /** Catalog command whose effective keycap the guide card shows. */
+  commandId?: string
   title(): string
   description?(): string
   icon?: React.ComponentType<IconProps>
@@ -69,6 +71,28 @@ export interface SidebarRightTabsService {
   register(definition: SidebarRightTabDefinition): () => void
 }
 
+/** A keyboard shortcut contributed to DSH's catalog (shown on guide cards too). */
+export interface ShortcutCommandRegistration {
+  id: string
+  label(): string
+  aliases: readonly string[]
+  defaults: Readonly<Record<string, { code: string; modifiers: readonly string[] }>>
+  regions: readonly string[]
+  modals: readonly string[]
+  resolve(context: { modal?: string | null }): { status: 'handled'; run(): void } | { status: 'blocked'; reason: string } | { status: 'pass' }
+}
+
+export interface ShortcutsService {
+  register(command: ShortcutCommandRegistration): () => void
+}
+
+/** The right sidebar's navigation service: open (and focus) a tab by kind. */
+export interface SidebarRightService {
+  openTab(kind: string, options?: { revealIfOpened?: boolean; params?: unknown }): void
+  isExpanded?(): boolean
+  toggleExpanded?(): void
+}
+
 export interface ClientContext {
   effect(setup: () => (() => void) | void, label?: string): void
   /** Run `setup` in a child fiber that waits for every named service. */
@@ -77,6 +101,10 @@ export interface ClientContext {
   slots: SlotsService
   /** Present only inside `inject(['sidebarRightTabs'], …)`. */
   sidebarRightTabs?: SidebarRightTabsService
+  /** Present only inside `inject(['sidebarRight'], …)`. */
+  sidebarRight?: SidebarRightService
+  /** Present only inside `inject(['shortcuts'], …)`. */
+  shortcuts?: ShortcutsService
 }
 
 export interface ClientPlugin {
@@ -93,3 +121,6 @@ declare global {
 export function moduleLoader(): ModuleLoader {
   return window.__ModuleLoader__
 }
+
+
+

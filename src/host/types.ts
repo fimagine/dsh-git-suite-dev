@@ -183,6 +183,9 @@ export interface WorkspaceRef {
 export interface RouteContext {
   workspaces(): WorkspaceRef[]
   defaultPath(): string
+  /** Working directory of one Session, when the host keeps a record of it. */
+  sessionDirectory?(sessionId: string): string | null
 }
+
 
 

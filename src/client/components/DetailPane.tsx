@@ -4,9 +4,13 @@ import type { ApiError } from '../lib/api.js'
 import { formatDateTime } from '../lib/format.js'
 import { splitPatch } from '../lib/patch.js'
 import type { CommitDetail, DetailStatus, Translate } from '../types.js'
+import { useDiffMode } from '../lib/use-diff-mode.js'
 import { useSplitSize } from '../lib/use-split-size.js'
 import { tooltipProps } from './Tooltip.js'
 import { Refs } from './Refs.js'
+import { DiffView } from './DiffView.js'
+import { Spinner } from './States.js'
+import { SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
 import { Splitter } from './Splitter.js'
 
 export interface DetailPaneProps {
@@ -29,6 +33,7 @@ function clamp(value: number, min: number, max: number): number {
  */
 export function DetailPane({ detail, status, error, t }: DetailPaneProps): React.ReactElement {
   const [fileChoice, setFileChoice] = useState<{ hash: string | null; index: number }>({ hash: null, index: 0 })
+  const diffMode = useDiffMode()
   const sections = useMemo(() => splitPatch(detail?.patch ?? ''), [detail?.patch])
   const innerRef = useRef<HTMLDivElement | null>(null)
   const infoRef = useRef<HTMLDivElement | null>(null)
@@ -72,7 +77,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
   if (status === 'loading') {
     return (
       <div className="dsh-gitlog-state">
-        <span className="dsh-gitlog-spinner" aria-hidden={true} />
+        <Spinner />
         <p>{t('loadingCommit')}</p>
       </div>
     )
@@ -173,11 +178,28 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
           {activeFile !== undefined
             ? <code className="dsh-gitlog-patch-file" {...tooltipProps(activeFile.path)}>{activeFile.path}</code>
             : null}
+          <button
+            type="button"
+            className="dsh-gitlog-diff-mode"
+            aria-label={diffMode.mode === 'split' ? t('diffUnified') : t('diffSplit')}
+            {...tooltipProps(diffMode.mode === 'split' ? t('diffUnified') : t('diffSplit'))}
+            onClick={diffMode.toggle}
+          >
+            {diffMode.mode === 'split' ? <UnifiedDiffIcon /> : <SplitDiffIcon />}
+          </button>
         </div>
         {detail.files.length === 0
           ? <p className="dsh-gitlog-note">{t('noPatch')}</p>
           : activeSection !== undefined
-            ? <pre key={`${detail.hash}:${selectedFile}`} className="dsh-gitlog-patch" spellCheck={false}>{activeSection}</pre>
+            ? (
+                <DiffView
+                  key={`${detail.hash}:${selectedFile}`}
+                  patch={activeSection}
+                  t={t}
+                  empty={t('fileNoPatch')}
+                  mode={diffMode.mode}
+                />
+              )
             : <p className="dsh-gitlog-note">{detail.patchTruncated ? t('patchTruncated') : t('fileNoPatch')}</p>}
         {detail.patchTruncated && activeSection !== undefined
           ? <p className="dsh-gitlog-note">{t('patchTruncated')}</p>
@@ -186,6 +208,9 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
     </div>
   )
 }
+
+
+
 
 
 

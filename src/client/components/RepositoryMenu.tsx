@@ -246,16 +246,32 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
   )
 }
 
+const MENU_WIDTH = 200
+
 /** The header's "+" button: clone a remote repository or select a local one. */
 export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState<'clone' | 'choose' | null>(null)
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const timer = useRef<number | null>(null)
+
+  /** Anchor the menu to the button but keep it inside the viewport. */
+  const place = (): void => {
+    const rect = rootRef.current?.getBoundingClientRect()
+    if (rect === undefined) {
+      setAnchor(null)
+      return
+    }
+    const left = Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
+    const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 96))
+    setAnchor({ top, left })
+  }
 
   const show = (): void => {
     if (timer.current !== null) window.clearTimeout(timer.current)
     timer.current = null
+    place()
     setOpen(true)
   }
 
@@ -275,11 +291,16 @@ export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }):
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setOpen(false)
     }
+    const reposition = (): void => place()
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
     return () => {
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
     }
   }, [open])
 
@@ -305,12 +326,17 @@ export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }):
         title={t('addRepository')}
         ariaHasPopup="menu"
         ariaExpanded={open}
-        onClick={() => setOpen(value => !value)}
+        onClick={() => { place(); setOpen(value => !value) }}
         icon={<PlusIcon />}
       />
       {open
         ? (
-            <div className="dsh-gitlog-add-menu" role="menu" aria-label={t('addRepository')}>
+            <div
+              className="dsh-gitlog-add-menu is-floating"
+              style={{ top: anchor?.top ?? 0, left: anchor?.left ?? 0 }}
+              role="menu"
+              aria-label={t('addRepository')}
+            >
               <button type="button" role="menuitem" onClick={() => choose('clone')}>
                 {t('cloneRemote')}
               </button>
@@ -325,3 +351,4 @@ export function RepositoryMenu({ view, t }: { view: GitLogView; t: Translate }):
     </div>
   )
 }
+

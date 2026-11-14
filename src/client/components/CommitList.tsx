@@ -7,7 +7,8 @@ import { CommitColumnsMenu } from './CommitColumnsMenu.js'
 import { tooltipProps } from './Tooltip.js'
 import { CommitRow, COMMIT_ROW_HEIGHT } from './CommitRow.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
-import { LoadingLine } from './States.js'
+import { LoadingLine, useMinimumSpin } from './States.js'
+import { RefreshIcon } from './GitLogIcon.js'
 
 interface ColumnWidths {
   graph: number
@@ -148,7 +149,8 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
   onRefContextMenu?(ref: string, event: React.MouseEvent): boolean
 }): React.ReactElement {
   const { commits, selected, graph, status, hasMore } = view
-  const listRef = useRef<HTMLElement | null>(null)
+  const showLoadingLine = useMinimumSpin(status === 'loading')
+  const listRef = useRef<HTMLDivElement | null>(null)
   const headerRef = useRef<HTMLDivElement | null>(null)
   const [widths, setWidths] = useState<ColumnWidths>(readColumnWidths)
   const [chosen, setChosen] = useState<CommitColumns>(readColumnVisibility)
@@ -211,8 +213,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
     const list = listRef.current
     if (list === null) return undefined
     const update = (): void => {
-      const headerHeight = headerRef.current?.offsetHeight ?? 0
-      const visibleHeight = Math.max(0, list.clientHeight - headerHeight)
+      const visibleHeight = Math.max(0, list.clientHeight)
       const start = Math.min(commits.length, Math.max(0, Math.floor(list.scrollTop / COMMIT_ROW_HEIGHT) - OVERSCAN_ROWS))
       const end = Math.min(commits.length, Math.ceil((list.scrollTop + visibleHeight) / COMMIT_ROW_HEIGHT) + OVERSCAN_ROWS)
       setRange(previous => previous.start === start && previous.end === end
@@ -356,7 +357,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
   ]
 
   return (
-    <section ref={listRef} className="dsh-gitlog-list" aria-label={t('commits')} style={style}>
+    <section className="dsh-gitlog-list" aria-label={t('commits')} style={style}>
       <div ref={headerRef} className="dsh-gitlog-list-header">
         <div className="dsh-gitlog-history-toolbar">
           <Dropdown
@@ -382,6 +383,17 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
             />
             {t('showRemoteBranches')}
           </label>
+          <span className="dsh-gitlog-history-spacer" />
+          <button
+            type="button"
+            className="dsh-gitlog-history-refresh"
+            aria-label={t('refresh')}
+            {...tooltipProps(t('refresh'))}
+            disabled={status === 'loading'}
+            onClick={view.refresh}
+          >
+            <RefreshIcon size={14} />
+          </button>
         </div>
         <div
           className="dsh-gitlog-commit-header"
@@ -437,7 +449,8 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
             : null}
         </div>
       </div>
-      <div className="dsh-gitlog-list-body" style={{ height: commits.length * COMMIT_ROW_HEIGHT }}>
+      <div ref={listRef} className="dsh-gitlog-list-scroll">
+        <div className="dsh-gitlog-list-body" style={{ height: commits.length * COMMIT_ROW_HEIGHT }}>
         {visible.map(({ commit, index }) => {
           const row = graph.rows[index]
           if (row === undefined) return null
@@ -462,7 +475,8 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
           )
         })}
       </div>
-      {status === 'loading' ? <LoadingLine label={t('loadingCommits')} /> : null}
+      {showLoadingLine ? <LoadingLine label={t('loadingCommits')} active={status === 'loading'} /> : null}
+      </div>
       <CommitColumnsMenu
         context={columnsMenu}
         columns={columns}
@@ -474,5 +488,12 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
     </section>
   )
 }
+
+
+
+
+
+
+
 
 

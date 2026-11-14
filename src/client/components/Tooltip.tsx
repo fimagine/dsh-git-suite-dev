@@ -1,10 +1,24 @@
 import type * as React from 'react'
-import { h, useEffect, useState } from '../runtime.js'
+import { h, useEffect } from '../runtime.js'
 
 export interface TooltipAnchorRect {
   left: number
   top: number
   bottom: number
+  width?: number
+  right?: number
+}
+
+/** An anchor is either a live element (measured at paint time) or a fixed rect. */
+export type TooltipAnchor = HTMLElement | TooltipAnchorRect
+
+/** Normalized box used by the placement math. */
+interface AnchorBox {
+  left: number
+  top: number
+  bottom: number
+  width: number
+  right: number
 }
 
 interface Placement {
@@ -20,23 +34,14 @@ const DELAY_MS = 260
 const FADE_OUT_MS = 110
 const MAX_WIDTH = 360
 const EDGE = 8
+/** Space between the control and the bubble, so the bubble never covers it. */
+const GAP = 8
 
-interface TooltipState {
-  placement: Placement
-  /** `out` keeps the bubble mounted while it fades away. */
-  phase: 'in' | 'out'
-}
-
-type Listener = (state: TooltipState | null) => void
-
-const listeners = new Set<Listener>()
 let timer: number | null = null
 let removal: number | null = null
 let current: Placement | null = null
-
-function emit(state: TooltipState | null): void {
-  for (const listener of listeners) listener(state)
-}
+let element: HTMLDivElement | null = null
+let hosts = 0
 
 function clearTimer(): void {
   if (timer !== null) {
@@ -52,54 +57,118 @@ function cancelRemoval(): void {
   }
 }
 
-function render(placement: Placement): void {
-  current = placement
-  cancelRemoval()
-  emit({ placement, phase: 'in' })
+/**
+ * The bubble lives in `document.body`: the panel can sit inside transformed or
+ * scaled shells, where a child would be measured against the shell instead of
+ * the viewport.
+ */
+function ensureElement(): HTMLDivElement {
+  if (element !== null) return element
+  // Drop leftovers from an earlier plugin instance (hot reload, remount).
+  for (const stale of Array.from(document.querySelectorAll('.dsh-gitlog-tooltip'))) stale.remove()
+  const node = document.createElement('div')
+  node.className = 'dsh-gitlog-tooltip'
+  node.setAttribute('role', 'tooltip')
+  node.style.display = 'none'
+  document.body.appendChild(node)
+  element = node
+  return node
 }
 
-function place(text: string, rect: TooltipAnchorRect): void {
-  const body = text.trim()
-  if (body === '') {
-    hideTooltip()
-    return
+function anchorRect(anchor: TooltipAnchor): AnchorBox {
+  if (!(anchor instanceof HTMLElement)) {
+    const width = anchor.width ?? 0
+    return { left: anchor.left, top: anchor.top, bottom: anchor.bottom, width, right: anchor.left + width }
   }
-  const width = Math.min(MAX_WIDTH, window.innerWidth - EDGE * 2)
-  const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - width - EDGE))
-  const above = rect.bottom + 64 > window.innerHeight
-  render({ text: body, left, top: above ? rect.top - 6 : rect.bottom + 6, above })
+  const rect = anchor.getBoundingClientRect()
+  return { left: rect.left, top: rect.top, bottom: rect.bottom, width: rect.width, right: rect.right }
+}
+
+/**
+ * Position the bubble, then measure where it actually landed and correct the
+ * offset. The measurement loop makes the placement independent of the
+ * coordinate space: CSS zoom, transforms, or nested scrolling all resolve to
+ * one translation that the second pass removes.
+ */
+function applyPlacement(text: string, anchor: TooltipAnchor): void {
+  const node = ensureElement()
+  const target = anchorRect(anchor)
+  const root = document.documentElement.getBoundingClientRect()
+  const above = target.bottom + 64 > root.bottom
+
+  node.textContent = text
+  node.classList.remove('is-hiding')
+  node.style.display = ''
+  node.style.visibility = 'hidden'
+  node.style.maxWidth = `${MAX_WIDTH}px`
+  // No transform: the vertical position comes from the measured height, so a
+  // bubble above its control never depends on one.
+  node.style.transform = 'none'
+
+  let left = target.left
+  let top = target.bottom + GAP
+  node.style.left = `${left}px`
+  node.style.top = `${top}px`
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const box = node.getBoundingClientRect()
+    const wantLeft = Math.max(root.left + EDGE, Math.min(target.left, root.right - EDGE - box.width))
+    const wantTop = above ? target.top - GAP - box.height : target.bottom + GAP
+    const dx = wantLeft - box.left
+    const dy = wantTop - box.top
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) break
+    left += dx
+    top += dy
+    node.style.left = `${left}px`
+    node.style.top = `${top}px`
+  }
+
+  // Safety net: never let the bubble sit on top of its own control.
+  const box = node.getBoundingClientRect()
+  const overlaps = box.left < target.left + target.width && box.right > target.left
+    && box.top < target.bottom && box.bottom > target.top
+  if (overlaps) {
+    const shift = above ? target.top - GAP - box.bottom : target.bottom + GAP - box.top
+    top += shift
+    node.style.top = `${top}px`
+  }
+  node.style.visibility = ''
+  current = { text, left, top, above }
 }
 
 /** Show `text` near the anchor after the shared hover delay. */
-export function showTooltip(text: string, rect: TooltipAnchorRect): void {
+export function showTooltip(text: string, anchor: TooltipAnchor): void {
   clearTimer()
-  if (current !== null) emit({ placement: current, phase: 'out' })
+  if (current !== null && element !== null) element.classList.add('is-hiding')
   timer = window.setTimeout(() => {
     timer = null
-    place(text, rect)
+    applyPlacement(text.trim(), anchor)
   }, DELAY_MS)
 }
 
 /** Show immediately, for keyboard focus. */
-export function showTooltipNow(text: string, rect: TooltipAnchorRect): void {
+export function showTooltipNow(text: string, anchor: TooltipAnchor): void {
   clearTimer()
-  place(text, rect)
+  applyPlacement(text.trim(), anchor)
 }
 
-/** Fade the bubble out, then unmount it once the animation has finished. */
+/** Fade the bubble out, then hide it once the animation has finished. */
 export function hideTooltip(): void {
   clearTimer()
-  if (current === null) {
+  if (current === null || element === null) {
     cancelRemoval()
-    emit(null)
     return
   }
   cancelRemoval()
-  emit({ placement: current, phase: 'out' })
+  element.classList.add('is-hiding')
   removal = window.setTimeout(() => {
     removal = null
     current = null
-    emit(null)
+    if (element !== null) {
+      element.style.display = 'none'
+      element.textContent = ''
+      element.classList.remove('is-hiding')
+    }
   }, FADE_OUT_MS)
 }
 
@@ -120,7 +189,7 @@ export function tooltipProps(text: string | (() => string)): TooltipTargetProps 
   return {
     onMouseEnter(event) {
       const body = value()
-      if (body.trim() !== '') showTooltip(body, event.currentTarget.getBoundingClientRect())
+      if (body.trim() !== '') showTooltip(body, event.currentTarget)
     },
     onMouseLeave() {
       hideTooltip()
@@ -128,7 +197,7 @@ export function tooltipProps(text: string | (() => string)): TooltipTargetProps 
     onFocus(event) {
       if (!event.currentTarget.matches(':focus-visible')) return
       const body = value()
-      if (body.trim() !== '') showTooltipNow(body, event.currentTarget.getBoundingClientRect())
+      if (body.trim() !== '') showTooltipNow(body, event.currentTarget)
     },
     onBlur() {
       hideTooltip()
@@ -137,25 +206,13 @@ export function tooltipProps(text: string | (() => string)): TooltipTargetProps 
 }
 
 /**
- * Mount once per panel. It draws the single active tooltip, positioned against
- * the viewport, and dismisses itself on scroll or resize.
+ * Mount once per panel. It keeps the single document-level bubble alive and
+ * dismisses it on scroll or resize.
  */
 export function TooltipHost(): React.ReactElement | null {
-  const [state, setState] = useState<TooltipState | null>(null)
-
   useEffect(() => {
-    listeners.add(setState)
-    return () => {
-      listeners.delete(setState)
-      if (listeners.size === 0) {
-        clearTimer()
-        cancelRemoval()
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (state === null) return undefined
+    hosts += 1
+    const node = ensureElement()
     const dismiss = (): void => {
       clearTimer()
       hideTooltip()
@@ -163,25 +220,19 @@ export function TooltipHost(): React.ReactElement | null {
     window.addEventListener('scroll', dismiss, true)
     window.addEventListener('resize', dismiss)
     return () => {
+      hosts -= 1
       window.removeEventListener('scroll', dismiss, true)
       window.removeEventListener('resize', dismiss)
+      if (hosts > 0) return
+      hosts = 0
+      clearTimer()
+      cancelRemoval()
+      current = null
+      node.remove()
+      if (element === node) element = null
     }
-  }, [state])
-
-  if (state === null) return null
-  const { placement, phase } = state
-  return (
-    <div
-      className={`dsh-gitlog-tooltip${phase === 'out' ? ' is-hiding' : ''}`}
-      role="tooltip"
-      style={{
-        left: placement.left,
-        top: placement.top,
-        maxWidth: `${MAX_WIDTH}px`,
-        transform: placement.above ? 'translateY(-100%)' : undefined,
-      }}
-    >
-      {placement.text}
-    </div>
-  )
+  }, [])
+  return null
 }
+
+

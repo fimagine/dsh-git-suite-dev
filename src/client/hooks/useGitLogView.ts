@@ -3,8 +3,9 @@ import { isAbortError, requestJson, toApiError, type ApiError } from '../lib/api
 import { layoutGraph, type GraphLayout } from '../lib/graph.js'
 import { buildProjectGroups, findCurrentProject, type ProjectGroups } from '../lib/projects.js'
 import { addRecentProject, readRecentProjects, writeRecentProjects } from '../lib/recent-projects.js'
+import { requestSessionRepo } from '../lib/api.js'
 import { selectionLabel, selectionParams } from '../lib/selection.js'
-import { readUiState, writeUiState } from '../lib/ui-state.js'
+import { type RepoUiState, readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type {
   Commit,
   CommitDetail,
@@ -66,6 +67,8 @@ export interface GitLogView {
   setLimit(value: number): void
   setSort(value: 'date' | 'topo'): void
   setShowRemotes(value: boolean): void
+  /** Apply the stored preferences of a repository the panel just opened. */
+  applyRepoPreferences(stored: RepoUiState): void
   selectProjectPath(path: string): void
   submitPath(): void
   openPath(path: string): void
@@ -81,7 +84,8 @@ export interface GitLogView {
  * Owns the viewer's state: project scan and recents, the refs tree, paged
  * commit log, the current selection, and the selected commit's detail.
  */
-export function useGitLogView(t: Translate): GitLogView {
+export function useGitLogView(t: Translate, options?: { sessionId?: string }): GitLogView {
+  const sessionId = options?.sessionId
   const [pathInput, setPathInput] = useState('')
   const [repo, setRepo] = useState<Repo | null>(null)
   const [commits, setCommits] = useState<Commit[]>([])
@@ -91,9 +95,9 @@ export function useGitLogView(t: Translate): GitLogView {
   const [treeStatus, setTreeStatus] = useState<LoadStatus>('loading')
   const [treeError, setTreeError] = useState<ApiError | null>(null)
   const [selection, setSelection] = useState<Selection>(HEAD)
-  const [limit, setLimitState] = useState(() => readUiState().limit ?? DEFAULT_LIMIT)
-  const [sort, setSortState] = useState<'date' | 'topo'>(() => readUiState().sort ?? 'date')
-  const [showRemotes, setShowRemotesState] = useState(() => readUiState().showRemotes ?? false)
+  const [limit, setLimitState] = useState(() => readRepoUiState().limit ?? DEFAULT_LIMIT)
+  const [sort, setSortState] = useState<'date' | 'topo'>(() => readRepoUiState().sort ?? 'date')
+  const [showRemotes, setShowRemotesState] = useState(() => readRepoUiState().showRemotes ?? false)
   const [hasMore, setHasMore] = useState(false)
   const [nextOffset, setNextOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -225,10 +229,21 @@ export function useGitLogView(t: Translate): GitLogView {
         if (!controller.signal.aborted && active) setProjectsStatus('error')
       }
       if (!active) return
+      // The sidebar panel opens on the repository of the Session it belongs to.
+      let sessionRepo: string | null = null
+      if (sessionId !== undefined && sessionId !== '') {
+        try {
+          const payload = await requestSessionRepo(sessionId, controller.signal)
+          sessionRepo = payload.path
+        } catch {
+          sessionRepo = null
+        }
+        if (!active) return
+      }
       const remembered = readRecentProjects()
-      setRecentProjects(remembered)
+      setRecentProjects(sessionRepo === null ? remembered : addRecentProject(remembered, sessionRepo))
       recentLoaded.current = true
-      const initialPath = remembered[0] || scanned[0]?.path || ''
+      const initialPath = sessionRepo ?? remembered[0] ?? scanned[0]?.path ?? ''
       setSelectedProjectPath(initialPath)
       setSelection(HEAD)
       void loadLog({ path: initialPath, limit: limitRef.current, offset: 0, selection: HEAD })
@@ -243,7 +258,7 @@ export function useGitLogView(t: Translate): GitLogView {
       detailAbort.current?.abort()
       treeAbort.current?.abort()
     }
-  }, [loadLog, loadTree, scanWorkspaceProjects])
+  }, [loadLog, loadTree, scanWorkspaceProjects, sessionId])
 
   useEffect(() => {
     if (!recentLoaded.current) return
@@ -264,27 +279,39 @@ export function useGitLogView(t: Translate): GitLogView {
 
   const setLimit = useCallback((value: number) => {
     setLimitState(value)
-    writeUiState({ limit: value })
+    writeRepoUiState({ limit: value })
   }, [])
 
   const setSort = useCallback((value: 'date' | 'topo'): void => {
     if (value === sort) return
     setSortState(value)
-    writeUiState({ sort: value })
+    writeRepoUiState({ sort: value })
     void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, sort: value })
   }, [sort, loadLog, repo, pathInput, limit, selection])
 
   const setShowRemotes = useCallback((value: boolean): void => {
     if (value === showRemotes) return
     setShowRemotesState(value)
-    writeUiState({ showRemotes: value })
+    writeRepoUiState({ showRemotes: value })
     if (selection.kind === 'all') {
       void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, showRemotes: value })
     }
   }, [showRemotes, loadLog, repo, pathInput, limit, selection])
 
-  const changePathText = useCallback((value: string) => {
-    setPathInput(value)
+  const applyRepoPreferences = useCallback((stored: RepoUiState): void => {
+    const nextLimit = stored.limit ?? DEFAULT_LIMIT
+    const nextSort = stored.sort ?? 'date'
+    const nextShowRemotes = stored.showRemotes ?? false
+    setLimitState(nextLimit)
+    setSortState(nextSort)
+    setShowRemotesState(nextShowRemotes)
+    const target = repo?.repoRoot ?? pathInput.trim()
+    if (target === '') return
+    if (nextLimit === limit && nextSort === sort && nextShowRemotes === showRemotes) return
+    void loadLog({ path: target, limit: nextLimit, offset: 0, selection: HEAD, sort: nextSort, showRemotes: nextShowRemotes })
+  }, [repo, pathInput, limit, sort, showRemotes, loadLog])
+
+  const changePathText = useCallback((value: string) => {    setPathInput(value)
     setSelectedProjectPath('')
   }, [])
 
@@ -460,6 +487,7 @@ export function useGitLogView(t: Translate): GitLogView {
     setLimit,
     setSort,
     setShowRemotes,
+    applyRepoPreferences,
     selectProjectPath,
     submitPath,
     openPath,
@@ -471,3 +499,7 @@ export function useGitLogView(t: Translate): GitLogView {
     selectCommit,
   }
 }
+
+
+
+

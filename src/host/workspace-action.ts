@@ -1,9 +1,12 @@
-import { readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { readFile, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { tmpdir } from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
 import { admitHeaders, failure, json } from './http.js'
+import { buildLinePatch, selectHunks } from './patch.js'
 import { resolveRepository } from './repository.js'
 import type { RouteContext, WorkspaceCommit } from './types.js'
 
@@ -16,6 +19,8 @@ interface ActionBody {
   amend?: unknown
   push?: unknown
   mode?: unknown
+  hunks?: unknown
+  lines?: unknown
 }
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -138,6 +143,91 @@ export function createWorkspaceActionHandler(context: RouteContext): (req: Incom
         return
       }
 
+      if (action === 'stage-lines' || action === 'unstage-lines') {
+        const paths = parsePaths(body.paths)
+        const target = paths[0]
+        if (target === undefined) throw new RouteError(400, 'no-paths', 'Select a file.')
+        const absolute = resolve(repo.root, target)
+        const rel = relative(repo.root, absolute)
+        if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+          throw new RouteError(400, 'invalid-path', 'That file is outside the repository.', { path: target })
+        }
+        const rawLines = Array.isArray(body.lines) ? body.lines : []
+        const lines = rawLines.filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0)
+        if (lines.length === 0) throw new RouteError(400, 'no-lines', 'Select at least one line.')
+        const reverse = action === 'unstage-lines'
+        let diff = ''
+        try {
+          diff = await runGit(repo.root, ['diff', ...(reverse ? ['--cached'] : []), '--', rel], controller.signal)
+        } catch (error) {
+          throw gitFailure(error)
+        }
+        const patch = buildLinePatch(diff, lines)
+        if (patch === null) {
+          throw new RouteError(404, 'no-lines', 'Those lines cannot be applied on their own.', { file: rel })
+        }
+        const patchFile = join(tmpdir(), `dsh-git-suite-${randomUUID()}.patch`)
+        try {
+          await writeFile(patchFile, patch, 'utf8')
+          await runGit(
+            repo.root,
+            ['apply', '--cached', '--recount', '--unidiff-zero', '--whitespace=nowarn', ...(reverse ? ['--reverse'] : []), patchFile],
+            controller.signal,
+          )
+        } catch (error) {
+          throw gitFailure(error)
+        } finally {
+          await unlink(patchFile).catch(() => {})
+        }
+        await send(res, json({ ok: true, action, file: rel, lines }))
+        return
+      }
+
+      if (action === 'stage-hunks' || action === 'unstage-hunks') {
+        const paths = parsePaths(body.paths)
+        const target = paths[0]
+        if (target === undefined) throw new RouteError(400, 'no-paths', 'Select a file.')
+        const absolute = resolve(repo.root, target)
+        const rel = relative(repo.root, absolute)
+        if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+          throw new RouteError(400, 'invalid-path', 'That file is outside the repository.', { path: target })
+        }
+        const raw = Array.isArray(body.hunks) ? body.hunks : []
+        const hunks = raw.filter((value): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0)
+        if (hunks.length === 0) throw new RouteError(400, 'no-hunks', 'Select at least one hunk.')
+        const reverse = action === 'unstage-hunks'
+        let diff = ''
+        try {
+          diff = await runGit(
+            repo.root,
+            ['diff', ...(reverse ? ['--cached'] : []), '--', rel],
+            controller.signal,
+          )
+        } catch (error) {
+          throw gitFailure(error)
+        }
+        const patch = selectHunks(diff, hunks)
+        if (patch === null) {
+          throw new RouteError(404, 'no-hunks', 'That file has no hunk to apply.', { file: rel })
+        }
+        // `git apply` needs the patch on disk; runGit only passes arguments.
+        const patchFile = join(tmpdir(), `dsh-git-suite-${randomUUID()}.patch`)
+        try {
+          await writeFile(patchFile, patch, 'utf8')
+          await runGit(
+            repo.root,
+            ['apply', '--cached', '--whitespace=nowarn', ...(reverse ? ['--reverse'] : []), patchFile],
+            controller.signal,
+          )
+        } catch (error) {
+          throw gitFailure(error)
+        } finally {
+          await unlink(patchFile).catch(() => {})
+        }
+        await send(res, json({ ok: true, action, file: rel, hunks }))
+        return
+      }
+
       if (action === 'discard' || action === 'delete') {
         const paths = parsePaths(body.paths)
         if (paths.length === 0) throw new RouteError(400, 'no-paths', 'Select at least one file.')
@@ -245,3 +335,5 @@ export function createWorkspaceActionHandler(context: RouteContext): (req: Incom
     }
   }
 }
+
+

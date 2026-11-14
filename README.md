@@ -10,16 +10,25 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 
 ![History](assets/readme-screenshot-0.png)
 
+**Commit details and diff**
+
+![Commit details and diff](assets/readme-screenshot-2.png)
+
 **Commit and file status**
 
 ![Commit and file status](assets/readme-screenshot-1.png)
 
+**Hunk staging and a side-by-side diff**
+
+![Hunk staging and a side-by-side diff](assets/readme-screenshot-3.png)
+
 ## Features
 
-- **History**: paged loading, commit graph, commit details, and per-file patches; sticky header, resizable columns, and virtualized rows.
+- **History**: paged loading, commit graph, commit details, and per-file patches in a unified or side-by-side diff viewer; sticky header, resizable columns, and virtualized rows.
 - **Refs tree**: branches, tags, remotes, stashes, and submodules with search; double-click a local branch to switch; open submodules and return to the parent.
-- **Working tree and commits**: stage/unstage, per-file diffs, commit or amend, push after committing, and AI-generated commit messages.
-- **Remote actions**: the history/commit switch, pull/push/fetch with remote, branch, prune, tag, and force options, and a commit context menu for tag/branch/checkout.
+- **Working tree and commits**: stage/unstage whole files, single hunks, or a dragged line selection, review diffs, commit or amend, push after committing, and generate commit messages with AI.
+- **Remote actions**: the history/commit switch, pull/push/fetch with remote, branch, prune, tag, and force options, merge/rebase, rebase onto any ref, and a commit context menu for tag/branch/checkout/cherry-pick/revert/reset.
+- **Right panel**: the same panel in DSH's right sidebar (Ctrl/Cmd+Shift+G), opening on the repository of the current session and keeping its own view, filters, splitters, and draft per repository.
 - **Repositories**: the **+** menu clones a remote or selects a local repository; the repository dropdown supports name search.
 ## Requirements
 

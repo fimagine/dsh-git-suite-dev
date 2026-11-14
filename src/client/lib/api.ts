@@ -47,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'commit-messages' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'commit-messages' | 'switch' | 'status' | 'workspace-diff' | 'session-repo'
 
 export interface RequestParams {
   mode: RequestMode
@@ -62,6 +62,8 @@ export interface RequestParams {
   file?: string
   sort?: 'date' | 'topo'
   remotes?: '1'
+  /** session-repo: which Session's working directory to resolve. */
+  session?: string
 }
 
 interface ErrorPayload {
@@ -108,7 +110,7 @@ export function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError'
 }
 
-export type WorkspaceAction = 'stage' | 'unstage' | 'commit' | 'discard' | 'delete' | 'ignore'
+export type WorkspaceAction = 'stage' | 'unstage' | 'stage-hunks' | 'unstage-hunks' | 'stage-lines' | 'unstage-lines' | 'commit' | 'discard' | 'delete' | 'ignore'
 
 export interface WorkspaceActionRequest {
   action: WorkspaceAction
@@ -116,6 +118,10 @@ export interface WorkspaceActionRequest {
   paths?: string[]
   /** `ignore` only: which pattern to append to `.gitignore`. */
   mode?: 'file' | 'name' | 'extension'
+  /** `stage-hunks` / `unstage-hunks`: hunk indexes inside the file's diff. */
+  hunks?: number[]
+  /** `stage-lines` / `unstage-lines`: patch line indexes of the selection. */
+  lines?: number[]
   all?: boolean
   message?: string
   amend?: boolean
@@ -191,6 +197,18 @@ export interface OpenAppRequest {
 /** GET /git-suite?mode=apps: which external editors are installed. */
 export async function requestApps(signal?: AbortSignal): Promise<AppsPayload> {
   return requestJson<AppsPayload>({ mode: 'apps' }, signal)
+}
+
+/** Shape of the session-repository lookup: the repo of one Session's working directory. */
+export interface SessionRepoPayload {
+  ok: true
+  path: string | null
+  cwd: string | null
+}
+
+/** GET /git-suite?mode=session-repo: the Git repository of one Session's working directory. */
+export async function requestSessionRepo(sessionId: string, signal?: AbortSignal): Promise<SessionRepoPayload> {
+  return requestJson<SessionRepoPayload>({ mode: 'session-repo', session: sessionId }, signal)
 }
 
 /** POST /git-suite/open: open a terminal or the OS file manager at the repository root. */
@@ -501,5 +519,10 @@ export async function requestBranchAction(body: BranchActionRequest, signal?: Ab
 export function toApiError(error: unknown): ApiError {
   return error instanceof ApiError ? error : new ApiError(error instanceof Error ? error.message : String(error), 'internal')
 }
+
+
+
+
+
 
 

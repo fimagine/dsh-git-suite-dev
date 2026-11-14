@@ -12,6 +12,12 @@ export interface WorkspaceRegistryEntry {
   path: string
 }
 
+/** Shape of the Host `sessions` store; only the two lookups this plugin needs. */
+export interface SessionStoreLike {
+  get?(id: string): unknown
+  list?(): unknown[]
+}
+
 export interface WorkspaceRegistry {
   list?(): WorkspaceRegistryEntry[]
 }
@@ -95,3 +101,4 @@ export interface HostContext {
   llm: LlmService
   agentDefaultModel: AgentDefaultModelService
 }
+

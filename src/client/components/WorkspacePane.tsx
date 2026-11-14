@@ -2,14 +2,17 @@ import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
-import { requestCommitMessages, requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
+import { requestAction, requestCommitMessages, requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
+import { useDiffMode } from '../lib/use-diff-mode.js'
 import { useSplitSize } from '../lib/use-split-size.js'
-import { readUiState, writeUiState } from '../lib/ui-state.js'
-import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
+import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
+import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
 import { Splitter } from './Splitter.js'
+import { Spinner, useMinimumSpin } from './States.js'
 import { toast } from './Toast.js'
 import { hideTooltip, showTooltip, tooltipProps } from './Tooltip.js'
+import { DiffView } from './DiffView.js'
 import { FileActionDialog } from './FileActionDialog.js'
 import { IgnoreFileDialog } from './IgnoreFileDialog.js'
 import { StashCreateDialog } from './StashCreateDialog.js'
@@ -53,8 +56,12 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
   onOperationChanged?(): void
 }): React.ReactElement {
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
+  const repoKey = view.repo?.repoRoot ?? ''
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
   const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
+  const [lineMenu, setLineMenu] = useState<{ start: number; end: number; x: number; y: number } | null>(null)
+  const [lineBusy, setLineBusy] = useState(false)
+  const lineMenuRef = useRef<HTMLDivElement | null>(null)
   const [fileAction, setFileAction] = useState<{ kind: 'discard' | 'delete'; file: string } | null>(null)
   const [ignoreFile, setIgnoreFile] = useState<string | null>(null)
   const [stashOpen, setStashOpen] = useState(false)
@@ -99,6 +106,64 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
           : failure.message,
         'error',
       )
+    }
+  }
+
+  const [hunkBusy, setHunkBusy] = useState(false)
+  const statusSpinning = useMinimumSpin(ws.statusState === 'loading')
+  const diffMode = useDiffMode()
+
+  useEffect(() => {
+    if (lineMenu === null) return undefined
+    const onPointerDown = (event: MouseEvent): void => {
+      if (lineMenuRef.current !== null && !lineMenuRef.current.contains(event.target as Node)) setLineMenu(null)
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setLineMenu(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [lineMenu])
+
+  /** Stage or unstage the selected diff lines, then reload the diff. */
+  const stageLines = async (start: number, end: number): Promise<void> => {
+    const current = ws.selected
+    if (current === null || lineBusy) return
+    const action = current.scope === 'staged' ? 'unstage-lines' : 'stage-lines'
+    const lines = Array.from({ length: end - start + 1 }, (_, offset) => start + offset)
+    setLineBusy(true)
+    setLineMenu(null)
+    try {
+      await requestAction({ action, path, paths: [current.path], lines })
+      ws.selectFile(current.path, current.scope)
+      ws.refresh()
+      toast(action === 'unstage-lines' ? t('linesUnstaged') : t('linesStaged'))
+    } catch (error) {
+      toast(toApiError(error).message, 'error')
+    } finally {
+      setLineBusy(false)
+    }
+  }
+
+  /** Stage or unstage one hunk of the selected file, then reload its diff. */
+  const stageHunk = async (hunk: number): Promise<void> => {
+    const current = ws.selected
+    if (current === null || hunkBusy) return
+    const action = current.scope === 'staged' ? 'unstage-hunks' : 'stage-hunks'
+    setHunkBusy(true)
+    try {
+      await requestAction({ action, path, paths: [current.path], hunks: [hunk] })
+      ws.selectFile(current.path, current.scope)
+      ws.refresh()
+      toast(action === 'unstage-hunks' ? t('hunkUnstaged') : t('hunkStaged'))
+    } catch (error) {
+      toast(toApiError(error).message, 'error')
+    } finally {
+      setHunkBusy(false)
     }
   }
 
@@ -285,21 +350,22 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
   }
 
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const formRef = useRef<HTMLDivElement | null>(null)
   const filesRef = useRef<HTMLDivElement | null>(null)
   const stagedRef = useRef<HTMLElement | null>(null)
   const filesSize = useSplitSize({
-    initial: () => readUiState().commitFilesWidth ?? 380,
+    initial: () => readRepoUiState(repoKey).commitFilesWidth ?? 380,
     min: 260,
     max: () => {
       const width = bodyRef.current?.getBoundingClientRect().width ?? 0
       return width <= 0 ? 520 : Math.max(260, Math.min(width - 320, width * 0.7))
     },
     axis: 'x',
-    persist: value => writeUiState({ commitFilesWidth: value }),
+    persist: value => writeRepoUiState({ commitFilesWidth: value }, repoKey),
   })
   // The form is anchored at the bottom, so dragging up grows it.
   const commitSize = useSplitSize({
-    initial: () => readUiState().commitFormHeight ?? 220,
+    initial: () => readRepoUiState(repoKey).commitFormHeight ?? 220,
     min: 150,
     max: () => {
       const height = filesRef.current?.getBoundingClientRect().height ?? 0
@@ -307,10 +373,38 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     },
     axis: 'y',
     invert: true,
-    persist: value => writeUiState({ commitFormHeight: value }),
+    persist: value => writeRepoUiState({ commitFormHeight: value }, repoKey),
+  })
+  // Stacked layout: the file column and the diff are separated by a splitter too.
+  const narrowFilesSize = useSplitSize({
+    initial: () => readRepoUiState(repoKey).commitFilesHeight ?? 300,
+    min: 160,
+    measure: () => filesRef.current?.getBoundingClientRect().height ?? 0,
+    max: () => {
+      const height = bodyRef.current?.getBoundingClientRect().height ?? 0
+      // Leave room for the diff (min 240px) and the form (min 150px).
+      return height <= 0 ? 520 : Math.max(200, height - 420)
+    },
+    axis: 'y',
+    persist: value => writeRepoUiState({ commitFilesHeight: value }, repoKey),
+  })
+
+  // Stacked layout: the form sits at the bottom, so the divider above it is a
+  // splitter that hands height to the form (and takes it back from the diff).
+  const narrowCommitSize = useSplitSize({
+    initial: () => readRepoUiState(repoKey).commitNarrowHeight ?? 260,
+    min: 150,
+    measure: () => formRef.current?.getBoundingClientRect().height ?? 0,
+    max: () => {
+      const height = bodyRef.current?.getBoundingClientRect().height ?? 0
+      return height <= 0 ? 520 : Math.max(160, height - 220)
+    },
+    axis: 'y',
+    invert: true,
+    persist: value => writeRepoUiState({ commitNarrowHeight: value }, repoKey),
   })
   const stagedSize = useSplitSize({
-    initial: () => readUiState().commitStagedHeight ?? 180,
+    initial: () => readRepoUiState(repoKey).commitStagedHeight ?? 180,
     min: 90,
     measure: () => stagedRef.current?.getBoundingClientRect().height ?? 0,
     max: () => {
@@ -318,7 +412,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
       return height <= 0 ? 420 : Math.max(120, height - commitSize.size - 150)
     },
     axis: 'y',
-    persist: value => writeUiState({ commitStagedHeight: value }),
+    persist: value => writeRepoUiState({ commitStagedHeight: value }, repoKey),
   })
 
   const section = (group: 'staged' | 'unstaged', files: WorkspaceFile[], style?: React.CSSProperties, nodeRef?: React.Ref<HTMLElement>): React.ReactElement => {
@@ -381,18 +475,21 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     )
   }
 
+  const authorLabel = status?.author.name
+    ? `${status.author.name} <${status.author.email}>`
+    : t('notConfigured')
+
   const commitForm = (
     <div
+      ref={formRef}
       className="dsh-gitlog-workspace-commit"
-      style={{ flex: '0 1 auto', height: `${commitSize.size}px` }}
+      style={narrow
+        ? (narrowCommitSize.touched ? { flex: '0 0 auto', height: `${narrowCommitSize.size}px` } : undefined)
+        : { flex: '0 1 auto', height: `${commitSize.size}px` }}
     >
-      <div className="dsh-gitlog-workspace-author">
-        {status?.author.name
-          ? `${status.author.name} <${status.author.email}>`
-          : t('notConfigured')}
-      </div>
       <div className="dsh-gitlog-workspace-message-head">
         <span>{t('commitMessage')}</span>
+        <span className="dsh-gitlog-workspace-author" {...tooltipProps(authorLabel)}>{authorLabel}</span>
       </div>
       <textarea
         ref={messageRef}
@@ -484,6 +581,15 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
         {ws.selected !== null
           ? <code className="dsh-gitlog-patch-file" {...tooltipProps(ws.selected.path)}>{`${scopeLabel} · ${ws.selected.path}`}</code>
           : null}
+        <button
+          type="button"
+          className="dsh-gitlog-diff-mode"
+          aria-label={diffMode.mode === 'split' ? t('diffUnified') : t('diffSplit')}
+          {...tooltipProps(diffMode.mode === 'split' ? t('diffUnified') : t('diffSplit'))}
+          onClick={diffMode.toggle}
+        >
+          {diffMode.mode === 'split' ? <UnifiedDiffIcon /> : <SplitDiffIcon />}
+        </button>
       </div>
       {ws.selected === null
         ? <p className="dsh-gitlog-workspace-empty">{t('selectFileToViewDiff')}</p>
@@ -496,7 +602,25 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                 ? <p className="dsh-gitlog-workspace-empty">{t('binary')}</p>
                 : (
                     <div className="dsh-gitlog-workspace-diff-body">
-                      <pre className="dsh-gitlog-patch" spellCheck={false}>{ws.diff.patch === '' ? t('fileNoPatch') : ws.diff.patch}</pre>
+                      <DiffView
+                        patch={ws.diff.patch}
+                        t={t}
+                        empty={t('fileNoPatch')}
+                        hunkAction={ws.selected === null
+                          ? undefined
+                          : {
+                              label: ws.selected.scope === 'staged' ? t('unstageHunk') : t('stageHunk'),
+                              busy: hunkBusy,
+                              onAction: hunk => { void stageHunk(hunk) },
+                            }}
+                        mode={diffMode.mode}
+                        onLineContextMenu={(selection, event) => setLineMenu({
+                          start: selection.start,
+                          end: selection.end,
+                          x: event.clientX,
+                          y: event.clientY,
+                        })}
+                      />
                       {ws.diff.truncated ? <p className="dsh-gitlog-note">{t('patchTruncated')}</p> : null}
                     </div>
                   )
@@ -520,9 +644,10 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
             : null}
         </div>
         <span className="dsh-gitlog-workspace-spacer" />
-        {ws.statusState === 'loading' ? <span className="dsh-gitlog-spinner" aria-hidden={true} /> : null}
+        <Spinner size={16} active={statusSpinning} />
         <Button
           iconOnly
+          variant="ghost"
           title={t('refresh')}
           onClick={ws.refresh}
           disabled={ws.statusState === 'loading' || path === ''}
@@ -544,7 +669,13 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                 className="dsh-gitlog-workspace-body"
                 style={narrow ? undefined : { gridTemplateColumns: `${filesSize.size}px 6px minmax(0, 1fr)` }}
               >
-                <div ref={filesRef} className="dsh-gitlog-workspace-files">
+                <div
+                  ref={filesRef}
+                  className="dsh-gitlog-workspace-files"
+                  style={narrow && narrowFilesSize.touched
+                    ? { flex: '0 0 auto', height: `${narrowFilesSize.size}px` }
+                    : undefined}
+                >
                   {section(
                     'staged',
                     staged,
@@ -559,27 +690,52 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                     onReset={stagedSize.reset}
                   />
                   {section('unstaged', unstaged)}
-                  <Splitter
-                    orientation="horizontal"
-                    label={t('resizeCommitForm')}
-                    onStart={commitSize.start}
-                    onDrag={commitSize.drag}
-                    onReset={commitSize.reset}
-                  />
-                  {commitForm}
+                  {narrow
+                    ? null
+                    : (
+                        <Splitter
+                          orientation="horizontal"
+                          label={t('resizeCommitForm')}
+                          onStart={commitSize.start}
+                          onDrag={commitSize.drag}
+                          onReset={commitSize.reset}
+                        />
+                      )}
+                  {narrow ? null : commitForm}
                 </div>
                 {narrow
-                  ? null
+                  ? (
+                      <Splitter
+                        orientation="horizontal"
+                        label={t('resizeCommitFiles')}
+                        onStart={narrowFilesSize.start}
+                        onDrag={narrowFilesSize.drag}
+                        onReset={narrowFilesSize.reset}
+                      />
+                    )
                   : (
                       <Splitter
                         orientation="vertical"
                         label={t('resizeCommitFiles')}
                         onStart={filesSize.start}
                         onDrag={filesSize.drag}
-                       onReset={filesSize.reset}
+                        onReset={filesSize.reset}
                       />
                     )}
                 {diffPane}
+                {/* The stacked layout separates the form with the same hairline as a splitter. */}
+                {narrow
+                  ? (
+                      <Splitter
+                        orientation="horizontal"
+                        label={t('resizeCommitForm')}
+                        onStart={narrowCommitSize.start}
+                        onDrag={narrowCommitSize.drag}
+                        onReset={narrowCommitSize.reset}
+                      />
+                    )
+                  : null}
+                {narrow ? commitForm : null}
               </div>
             )}
       {fileMenu === null
@@ -667,6 +823,31 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                   )}
             </div>
           )}
+      {lineMenu === null
+        ? null
+        : (
+            <div
+              ref={lineMenuRef}
+              className="dsh-gitlog-commit-menu dsh-gitlog-file-menu"
+              style={{
+                left: Math.min(lineMenu.x, window.innerWidth - 220),
+                top: Math.min(lineMenu.y, window.innerHeight - 100),
+              }}
+              role="menu"
+              aria-label={t('diffMenu')}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                disabled={lineBusy}
+                onClick={() => { void stageLines(lineMenu.start, lineMenu.end) }}
+              >
+                {(lineMenu.end - lineMenu.start + 1) > 1
+                  ? (ws.selected?.scope === 'staged' ? t('unstageLines') : t('stageLines')).replace('{count}', String(lineMenu.end - lineMenu.start + 1))
+                  : (ws.selected?.scope === 'staged' ? t('unstageLine') : t('stageLine'))}
+              </button>
+            </div>
+          )}
       {fileAction === null
         ? null
         : (
@@ -696,6 +877,22 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

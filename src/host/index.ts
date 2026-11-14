@@ -1,4 +1,4 @@
-import type { HostContext, WorkspaceRegistry, WorkspaceRegistryEntry } from './dsh.js'
+import type { HostContext, SessionStoreLike, WorkspaceRegistry, WorkspaceRegistryEntry } from './dsh.js'
 import { createCloneHandler } from './clone-handler.js'
 import { createBranchActionHandler } from './branch-action-handler.js'
 import { createBranchHandler, createCheckoutHandler, createTagHandler } from './commit-actions.js'
@@ -44,12 +44,36 @@ export function apply(ctx: HostContext): void {
       return []
     }
   }
+  /** The Host session store, when this profile has one. */
+  const readSessionCwd = (sessionId: string): string | null => {
+    const store = ctx.get<SessionStoreLike>('sessions')
+    if (store === undefined) return null
+    const cwdOf = (session: unknown): string | null => {
+      if (typeof session !== 'object' || session === null) return null
+      const header = (session as { header?: { cwd?: unknown } }).header
+      const cwd = header?.cwd
+      return typeof cwd === 'string' && cwd.trim() !== '' ? cwd : null
+    }
+    try {
+      const direct = typeof store.get === 'function' ? store.get(sessionId) : undefined
+      const directCwd = cwdOf(direct)
+      if (directCwd !== null) return directCwd
+      for (const session of typeof store.list === 'function' ? store.list() : []) {
+        if ((session as { id?: unknown }).id === sessionId) return cwdOf(session)
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+
   const context: RouteContext = {
     workspaces: (): WorkspaceRef[] => listWorkspaces(),
     defaultPath(): string {
       const workspace = listWorkspaces()[0]
       return workspace?.path || ctx.workingDirectory.defaultDirectory || process.cwd()
     },
+    sessionDirectory: readSessionCwd,
   }
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
@@ -133,3 +157,4 @@ export function apply(ctx: HostContext): void {
     handler: createBranchActionHandler(context),
   }), 'git-suite: branch action route')
 }
+

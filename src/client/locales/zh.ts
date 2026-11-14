@@ -6,9 +6,13 @@ export const zh: Record<LocaleKey, string> = {
   title: 'Git 套件',
   subtitle: '浏览与操作本地 Git 仓库：提交历史、分支、差异，并逐步支持更多 Git 操作。',
   refresh: '刷新',
+  showTree: '显示分支树',
+  hideTree: '隐藏分支树',
   settings: '设置',
   pageSize: '每页条数',
   settingsHint: '修改后将在下次加载提交时生效。',
+  openCommand: '打开 Git Suite 侧栏',
+  guideDescription: '浏览与操作本地 Git 仓库。',
   close: '关闭',
   cancel: '取消',
   open: '打开',
@@ -148,6 +152,17 @@ export const zh: Record<LocaleKey, string> = {
   stageAll: '暂存所有',
   unstageAll: '取消所有暂存',
   stageFile: '暂存文件',
+  stageHunk: '暂存此块',
+  unstageHunk: '取消暂存此块',
+  hunkStaged: '已暂存该块',
+  stageLine: '暂存选中行',
+  unstageLine: '取消暂存选中行',
+  stageLines: '暂存选中的 {count} 行',
+  unstageLines: '取消暂存选中的 {count} 行',
+  linesStaged: '已暂存选中行',
+  linesUnstaged: '已取消暂存选中行',
+  diffMenu: '改动行菜单',
+  hunkUnstaged: '已取消暂存该块',
   unstageFile: '取消暂存文件',
   noStaged: '没有已暂存的改动',
   noUnstaged: '没有未暂存的改动',
@@ -238,13 +253,13 @@ export const zh: Record<LocaleKey, string> = {
   ok: '确定',
   noRemotes: '没有可用的远端。',
   commitMessage: '提交信息',
-  generateMessage: 'AI 生成',
-  generatingMessage: 'AI 生成中…',
+  generateMessage: '生成提交信息',
+  generatingMessage: '正在生成…',
   commit: '提交',
   committing: '正在提交…',
   commitSucceeded: '已提交',
   amendLastCommit: '修改最后一次提交',
-  pushAfterCommit: '立即推送变更到',
+  pushAfterCommit: '立即推送至',
   noUpstream: '没有上游分支',
   notConfigured: '未配置 Git 用户',
   selectFileToViewDiff: '选择文件查看 diff',
@@ -338,12 +353,15 @@ export const zh: Record<LocaleKey, string> = {
   noCommits: '没有找到提交',
   noCommitsHint: '当前选择的引用上还没有提交。',
   selectCommit: '选择一个提交',
-  selectCommitHint: '从左侧列表选择提交，查看改动的文件和补丁。',
+  selectCommitHint: '从左侧列表选择提交，查看改动的文件和差异。',
   changedFiles: '改动',
-  patch: '补丁',
-  noPatch: '这个提交没有可显示的文本补丁。',
-  fileNoPatch: '这个文件没有可显示的文本补丁。',
-  patchTruncated: '补丁较大，查看器已截断显示。',
+  patch: '差异',
+  noPatch: '这个提交没有可显示的差异。',
+  fileNoPatch: '这个文件没有可显示的差异。',
+  diffMore: '显示剩余 {count} 行',
+  diffUnified: '统一视图',
+  diffSplit: '分栏视图',
+  patchTruncated: '差异较大，查看器已截断显示。',
   author: '作者',
   date: '时间',
   columnGraph: '图谱',
@@ -382,11 +400,21 @@ export const zh: Record<LocaleKey, string> = {
   resizeStaged: '调整已暂存列表高度',
   resizeCommitForm: '调整提交信息区域高度',
   resizeDetail: '调整提交详情高度',
-  resizePatch: '调整补丁宽度',
+  resizePatch: '调整差异宽度',
   resizeSummary: '调整提交信息与改动文件的高度',
   noSubject: '（无标题）',
   detached: '分离头指针',
   merge: '合并',
 }
+
+
+
+
+
+
+
+
+
+
 
 

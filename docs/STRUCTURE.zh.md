@@ -129,12 +129,13 @@ LICENSE
 | `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
-| `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
+| `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、按 hunk 或按选中行暂存/取消暂存（`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines`，由 `host/patch.ts` 组装补丁后 `git apply --cached [--reverse] --recount --unidiff-zero`）、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
 | `host/clone-handler.ts` | POST `/git-suite/clone`：校验远端 URL 与目标目录后，先克隆到目标同级的临时目录，成功后改名到目标目录 |
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支（可指定提交或任意引用作为起点），检出本地分支、指定提交或任意引用（分离 HEAD，不 force） |
 | `host/commit-ops.ts` | `POST /git-suite/commit-op`：拣选或反向提交单个提交、把当前分支重置到某提交（soft/mixed/hard）、对停住的 merge/rebase/cherry-pick/revert 执行 继续/跳过/中止（`409 operation-conflict` 会说明是哪种操作）、用 `--ours`/`--theirs` 解决单个冲突文件 |
 | `host/routes/operation.ts` | `mode=operation`：当前进行中的 merge/rebase/cherry-pick/revert（或 null），以及每个未合并路径仍存在哪些阶段 |
 | `host/routes/reflog.ts` | `mode=reflog`：最近 80 次 HEAD 变动（哈希、selector、动作、作者、时间），用于找回丢失的提交 |
+| `host/routes/session-repo.ts` | `mode=session-repo&session=…`：某个 Session 工作目录所属的 Git 仓库（从 Host `sessions` 存储读取其 `header.cwd`）；Session 不存在或其目录不在仓库内时返回 `path: null` |
 | `host/stash-handler.ts` | `POST /git-suite/stash`：`save`（`stash push`，可选 `--include-untracked` 与 `-m`）、`apply`、`pop`、`drop`；只接受 `stash@{n}` 形式的引用 |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 |
@@ -175,16 +176,17 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
-| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数 + 版本检查更新）、工作区/提交面板、第二行操作栏（Ant Design 5 风格 text 按钮：默认无边框无背景，悬停出现中性底色，按下时底色更重；「历史/提交」是带边框轨道的 `Switch`，保留文字标签，其余只保留图标 + tooltip：拉取/推送/获取、命令行、按平台命名的文件管理器，以及 `mode=apps` 探测到时的 VS Code）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出/拣选/反向提交/重置/最近操作）、标签右键菜单（检出）、贮藏右键菜单（应用/弹出/丢弃）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
+| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序，右侧另有刷新按钮）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数、可录制的打开快捷键、版本检查更新）、工作区/提交面板、第二行操作栏（Ant Design 5 风格 text 按钮：默认无边框无背景，悬停出现中性底色，按下时底色更重；「历史/提交」是带边框轨道的 `Switch`，保留文字标签，其余只保留图标 + tooltip：拉取/推送/获取、命令行、按平台命名的文件管理器，以及 `mode=apps` 探测到时的 VS Code）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出/拣选/反向提交/重置/最近操作）、标签右键菜单（检出）、贮藏右键菜单（应用/弹出/丢弃）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、`Spinner`（唯一的加载动画组件，配合 `useMinimumSpin` 保证转满三圈才消失，避免闪烁）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、`DiffView`（统一或左右分栏 diff：粘性新旧行号栏、增删着色、分批「显示更多」、行号拖选、hunk/行级操作；布局用图标按钮切换，偏好持久化为 `diffMode`）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 |
+| `client/lib/diff.ts` | `parseDiff`：把统一 diff 文本解析为带类型的行（file/hunk/add/del/context/note），并计算新旧行号与增删行数 |
 | `client/lib/use-split-size.ts` | `useSplitSize`：拖动起始值、上下限（数字或延迟测量）、可选的轴/反向/比例换算，以及去抖持久化；面板里所有分割线都基于它 |
 | `client/lib/refs-tree.ts` | 分支目录折叠、远程/贮藏节点与树搜索过滤 |
 | `client/lib/selection.ts` | 选择模型到请求参数、标签文字的映射 |
 | `client/lib/projects.ts` | 项目分组、标签、分支标签等纯函数 |
 | `client/lib/recent-projects.ts` | 最近项目在 localStorage 与 cookie 间的读写 |
-| `client/lib/ui-state.ts` | 面板 UI 状态（视图、排序、页大小、分栏、树展开）在 localStorage 的读写与校验 |
+| `client/lib/ui-state.ts` | 面板状态持久化（localStorage）：按仓库分桶（`repos[normalizeRepoKey(repoRoot)]`，含视图、过滤、分栏尺寸、树展开、草稿）+ 真正全局的偏好（diff 布局、打开快捷键）；旧版扁平字段继续作为每个仓库的回退值 |
 | `client/lib/format.ts` | 绝对日期时间格式化（中文 `2026-10-25 03:10:45`，英文 `Oct 25, 2026, 03:10:45`） |
 | `client/locales/` | 英文与中文文案，key 集合由英文定义 |
 | `client/styles.scss` | SCSS 样式源文件 |
@@ -192,7 +194,7 @@ LICENSE
 
 ## 引用树
 
-`mode=tree` 返回本地分支、标签、远程分组、贮藏和子模块。客户端 `buildRefSections` 把 `feat/x` 这样的分支名折叠成目录，`filterTree` 负责搜索过滤；标签、贮藏或子模块为空时不生成对应分组，子模块分组位于最后。点击引用节点产生一个 `Selection`（`head` / `all` / `remotes` / `branch` / `tag` / `stash`），`selectionParams` 再把它变成日志请求参数；点击子模块节点则打开子模块目录（`openPath`）。日志接口通过 `git rev-parse --show-superproject-working-tree` 返回 `superproject`；打开子模块后，项目选择显示 `[submodule]名称`，并出现「← 父仓库」按钮切回父仓库。
+`mode=tree` 返回本地分支、标签、远程分组、贮藏和子模块。客户端 `buildRefSections` 把 `feat/x` 这样的分支名折叠成目录，`filterTree` 负责搜索过滤；历史页的刷新按钮位于搜索框右侧（提交页改用其顶部的工作区刷新）；标签、贮藏或子模块为空时不生成对应分组，子模块分组位于最后。点击引用节点产生一个 `Selection`（`head` / `all` / `remotes` / `branch` / `tag` / `stash`），`selectionParams` 再把它变成日志请求参数；点击子模块节点则打开子模块目录（`openPath`）。日志接口通过 `git rev-parse --show-superproject-working-tree` 返回 `superproject`；打开子模块后，项目选择显示 `[submodule]名称`，并出现「← 父仓库」按钮切回父仓库。
 
 - 分支、标签 → `ref=<ref>`；标签允许 `refs/tags/*`。
 - 贮藏 → `scope=stash&ref=<commit hash>`，宿主用 `--no-walk -n 1` 只取该提交；详情仍走 `mode=commit`。右键贮藏节点提供「应用」「弹出」「丢弃」（丢弃需确认），都走 `POST /git-suite/stash`；创建贮藏用「未暂存」分组标题右侧的「贮藏更改…」按钮（可填说明、可选包含未跟踪文件；工作区干净时返回 `409 nothing-to-stash`）。
@@ -205,7 +207,7 @@ LICENSE
 - 右键**当前分支**多出「变基到任意提交/标签…」，打开 `RebaseDialog`：`CommitRefField` 可实时解析提交、标签或分支，宿主执行 `git rebase <target>`（`rebase-onto`）。提交右键菜单也有同样动作并预填被点击的提交（「变基到此提交…」）。变基因冲突停下时返回 `409 operation-conflict`，由冲突横幅接管（继续 / 跳过 / 中止）。
 - 远端分组右键打开菜单：获取 / 拉取 / 推送、**编辑远端**（可改名并改地址，`POST /git-suite/remote { action: 'set-url', newName }`）、删除；悬停该行会显示已配置的远端地址。
 - 右键提交列表表头打开复选菜单，选择显示图表 / 日期 / 作者 / 提交列（描述列始终显示）；选择会持久化，面板宽度小于 760px 时自动隐藏作者与提交列并在菜单中禁用这两项。
-- 行内提示（远端地址、子模块路径、切换分支提示、被截断的分支名）与所有控件提示都使用插件自己的 tooltip：每个面板挂载一个 `TooltipHost`，元素用 `tooltipProps(text)`，`Button` 的 `title` 属性也会转换成同一套 tooltip（界面里不再出现浏览器原生 `title` 气泡）。气泡淡入 120ms、淡出 110ms，淡出期间宿主保持挂载。
+- 行内提示（远端地址、子模块路径、切换分支提示、被截断的分支名）与所有控件提示都使用插件自己的 tooltip：每个面板挂载一个 `TooltipHost`，气泡本身是挂在 `document.body` 上的单个元素：先测锚点、再测量自身落点并做位置修正（缩放/变换/zoom 都不会让它错位），与控件保持 8px 间距，靠近底部时按自身实测高度翻到控件上方，元素用 `tooltipProps(text)`，`Button` 的 `title` 属性也会转换成同一套 tooltip（界面里不再出现浏览器原生 `title` 气泡）。气泡淡入 120ms、淡出 110ms，淡出期间宿主保持挂载。
 - 标签节点右键菜单：「检出 {tag}」「编辑 {tag}」「推送 {tag}」「强制推送 {tag}」「用远端覆盖本地 {tag}」（仅当自动比对发现不一致时出现）「删除 {tag}」。检出通过 `POST /git-suite/checkout { ref }` 分离 HEAD；编辑先用 `mode=tag` 读取该标签，再保存改名、改提交或改说明；推送走 `/git-suite/sync { action: 'push', tagRefs: [名称] }`；强制推送与「用远端覆盖本地」（`fetch-tag`）都会改写标签指向，因此各自先进警告确认框；删除经二次确认后执行 `POST /git-suite/tag { action: 'delete' }`。
 
 查看 HEAD 时，树会高亮当前分支（`head` 本身没有节点）。
@@ -221,23 +223,23 @@ LICENSE
 
 ## 文件状态与提交
 
-第二行的「历史 / 提交」在同一页内切换提交历史与提交/文件状态（`WorkspacePane` + `useWorkspace`），共用仓库/路径、引用树和分支切换：
+历史列表把头部（筛选、列标题、列宽拖拽）放在滚动容器之外，滚动条只覆盖提交行。第二行的「历史 / 提交」在同一页内切换提交历史与提交/文件状态（`WorkspacePane` + `useWorkspace`），共用仓库/路径、引用树和分支切换：
 
 - `GET /git-suite?mode=status` 读取 `git status --porcelain=v2 -z --branch -uall`，加上 staged/unstaged numstat 和未跟踪文件行数，返回已暂存/未暂存列表、当前分支、上游、ahead/behind 与 Git 用户。
-- `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` 返回单个文件的 diff；未跟踪文件由宿主合成 `/dev/null → file` 补丁，单文件补丁上限 400k 字符。
+- `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` 返回单个文件的 diff；未跟踪文件由宿主合成 `/dev/null → file` 补丁，单文件补丁上限 400k 字符。工作区差异与提交差异都通过 `DiffView` 渲染：增删行着色、横向滚动时新旧行号栏保持粘性、每次渲染 800 行并提供「显示剩余 N 行」按钮。diff 头部有图标按钮在统一视图（三条通栏）与分栏视图（左右两列）之间切换（持久化为 `diffMode`）：分栏模式把删除与新增左右配对、长行自动折行；行号拖选仍只在统一视图下可用。按下行号列即可选中该行，拖动可跨行选择（行号列是一条粘性轨道，选中行用强调色标注，靠近上下边缘时自动滚动）；选中后 **Ctrl/Cmd+C** 复制所选行；右键选中行可「暂存选中行 / 取消暂存选中行」（`POST /git-suite/action { action: 'stage-lines' | 'unstage-lines', paths: [file], lines: [diff 行号] }`，会重新计算 hunk 头并生成零上下文补丁）。工作区里每个 hunk 头带「暂存此块 / 取消暂存此块」按钮（`POST /git-suite/action { action: 'stage-hunks' | 'unstage-hunks', paths: [file], hunks: [index] }`）。
 - `POST /git-suite/action`（Node handler，因为 DSH resource 路由只接受 GET/HEAD）接受 JSON：
   - `stage` / `unstage`，带 `paths` 或 `all`，分别执行 `git add -A` / `git reset -q HEAD`。
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
 - 暂存以文件为单位（暂不提供 hunk/区块级暂存）；每个文件行最右侧有 **+**（暂存该文件）或 **−**（取消暂存）按钮，双击文件行也会在已暂存/未暂存之间切换（行文字 `user-select: none`，双击不会选中文本）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 状态字母带颜色：**M** 黄、**U**（未跟踪，原先显示 `?`）绿、**D** 红、**R**/**C** 蓝、**A** 绿。未合并路径由 `mode=status` 的 `unmerged` 标志标识，显示为红色「冲突」胶囊而不是字母。
-- 提交信息输入框按仓库保存草稿（`commitDrafts`，localStorage、去抖写入，只有提交成功后才清空）。**光标在 0 位按 ↑** 开始遍历该仓库最近的提交信息（`mode=commit-messages`，新→旧）；插入后**光标在末位、且未编辑时按 ↓** 继续遍历，遍历完最旧一条后回到开始遍历前输入的内容。任何编辑都视为新提交信息并重置遍历。
+- 提交信息输入框按仓库保存草稿（存于该仓库的 `ui-state` 分桶，去抖写入，只有提交成功后才清空）。标题行左侧是「提交信息」，右侧显示已配置的 Git 作者（`姓名 <邮箱>`）。**光标在 0 位按 ↑** 开始遍历该仓库最近的提交信息（`mode=commit-messages`，新→旧）；插入后**光标在末位、且未编辑时按 ↓** 继续遍历，遍历完最旧一条后回到开始遍历前输入的内容。任何编辑都视为新提交信息并重置遍历。
 - 悬停文件行显示插件 tooltip，格式为 `<绝对路径> - <状态词>`（重命名会追加 `(from <旧路径>)`）；行的提示取代了原先只在路径上的提示。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
 - 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径；点「打开」只在当前面板打开仓库。如需加入 DSH 工作区，请使用 DSH 自带的 Workspaces 添加入口。目录选择器不是 native 时提示手动输入路径。
 - 改动文件右键菜单在「在文件资源管理器中显示」之外多一项危险操作：未暂存的已修改文件是「重置更改」（`git checkout --`，带警告确认），未跟踪文件是「删除文件」（带警告确认；宿主对已跟踪路径返回 `409 tracked-file`）。未跟踪文件还提供「忽略」：向 `.gitignore` 追加一条规则，可选仅该路径、仅同名文件（任意目录）、或 `*.后缀`；已暂存文件只提供定位。
 - 改动文件右键打开菜单，提供「在文件资源管理器中显示」（`POST /git-suite/reveal`）：宿主拒绝仓库外路径，文件不存在时返回 `404 file-missing`，否则用系统文件浏览器选中该文件（`explorer /select,`、`open -R`、`xdg-open`）。文件缺失时以 toast 提示，不占用行内错误区。
 - 所有写入仍是 POST + 同源 + 私有请求头；错误以 JSON 返回并在工作区显示。
-- 提交页可调整尺寸：文件列与补丁区之间是竖向分割线（窄屏堆叠布局下隐藏）；文件列内部又是三个可调区域——已暂存列表、未暂存列表、提交信息表单——由两条横向分割线分开。尺寸由 `useSplitSize` 管理，并持久化为 `commitFilesWidth` / `commitStagedHeight` / `commitFormHeight`；提交信息输入框本身不再可拖拽，而是填满表单（表单高度不足时内部滚动）。
+- 提交页可调整尺寸：文件列与差异区之间是竖向分割线；文件列内部又是三个可调区域——已暂存列表、未暂存列表、提交信息表单——由两条横向分割线分开。尺寸由 `useSplitSize` 管理，并持久化为 `commitFilesWidth` / `commitStagedHeight` / `commitFormHeight`；提交信息输入框本身不再可拖拽，而是填满表单（表单高度不足时内部滚动）。在窄屏/侧栏堆叠布局下，文件列与差异区之间是可拖拽分割线（持久化为 `commitFilesHeight`），提交信息表单是 body 的最后一行（在列表与差异区之下），上方也是可拖拽分割线（向上拖增大表单，双击复位，持久化为 `commitNarrowHeight`）；未拖动前表单保持内容高度。
 
 ## 提交右键操作
 
@@ -272,7 +274,7 @@ LICENSE
 1. `ctx.sidebarRightTabs.register(...)` 注册页类型（`id` 为包名、`kind: 'git'`）和「开始」页入口；`guide` 的 `order: 40` 排在 files（10）、terminal（20）、browser（30）之后。
 2. `ctx.slots.register({ name: 'sidebar.right.pane.tab', key: id, locale: 'gitSuite' }, SidebarGitLogPanel)` 注册标签页内容；`key` 必须等于页类型的 `id`。
 
-注册包在 `ctx.inject(['sidebarRightTabs'], …)` 里，右侧栏因此是**可选依赖**：未启用右侧栏时，主面板和左侧栏入口仍然工作。`SidebarGitLogPanel` 的外层 `.dsh-gitlog-sidebar` 把面板切换为窄栏布局（更小的内边距、单列列表/详情、路径输入占满一行）。
+注册包在 `ctx.inject(['sidebarRightTabs'], …)` 里，右侧栏因此是**可选依赖**：未启用右侧栏时，主面板和左侧栏入口仍然工作。`SidebarGitLogPanel` 的外层 `.dsh-gitlog-sidebar` 把面板切换为窄栏布局（更小的内边距、单列列表/详情）；仓库/路径控件仅在当前行确实放不下时才换行。右侧面板的提交页默认不显示分支树（标题栏的分支树按钮可随时打开），历史页与主面板保持显示。任意位置可通过 DSH 快捷键目录打开（或聚焦）该 tab：客户端注册命令 `gitSuite.open`（默认 **Ctrl/Cmd+Shift+G**，可在 DSH 自己的键盘快捷键设置里重新绑定），开始页条目用 `commandId` 指向它，因此卡片会在标题右侧显示当前键帽；命令内部调用 `sidebarRight.openTab('git')`。右侧栏 tab 是 Session 作用域，DSH 会把 `sessionId` 作为属性传入，面板据此请求 `mode=session-repo` 并**默认打开当前 Session 工作目录所在的仓库**（查询失败或该目录不在仓库内时，回退到最近使用/扫描到的仓库）。
 
 ## 构建管线
 
@@ -291,6 +293,23 @@ DSH 每个包只通过 `exports["./client"]` 加载一个惰性工厂（`window.
 - `dist/` 和 `src/client/styles.generated.css` 都是构建产物，已被 Git 忽略；克隆后先 `pnpm install && pnpm build`，DSH 插件管理器不会替你构建。
 - `pnpm watch:client` 监听 `src/client/` 与 `styles.scss`，SCSS 改动会重新编译并触发 esbuild 重建；DSH HMR 监听 `dist/client.js`，重建后页面会重新加载该插件。
 - 修改 `package.json` 的入口路径后，需要重启 DSH（或在插件页禁用再启用该插件），因为运行中的 Host 会缓存插件清单。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

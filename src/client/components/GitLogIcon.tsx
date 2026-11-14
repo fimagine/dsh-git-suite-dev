@@ -151,6 +151,45 @@ export function FolderIcon({ size = 18 }: { size?: number }): React.ReactElement
   )
 }
 
+/** Three full-width bars, for the unified diff layout. */
+export function UnifiedDiffIcon({ size = 16 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <rect x="2" y="3.5" width="12" height="2.2" rx="1.1" />
+      <rect x="2" y="6.9" width="12" height="2.2" rx="1.1" />
+      <rect x="2" y="10.3" width="12" height="2.2" rx="1.1" />
+    </svg>
+  )
+}
+
+/** Two columns of three bars, for the side-by-side layout. */
+export function SplitDiffIcon({ size = 16 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <rect x="2" y="3.5" width="5.3" height="2.2" rx="1.1" />
+      <rect x="8.7" y="3.5" width="5.3" height="2.2" rx="1.1" />
+      <rect x="2" y="6.9" width="5.3" height="2.2" rx="1.1" />
+      <rect x="8.7" y="6.9" width="5.3" height="2.2" rx="1.1" />
+      <rect x="2" y="10.3" width="5.3" height="2.2" rx="1.1" />
+      <rect x="8.7" y="10.3" width="5.3" height="2.2" rx="1.1" />
+    </svg>
+  )
+}
+
 /** Minus glyph for removing a file from the staged set. */
 export function MinusIcon({ size = 16 }: { size?: number }): React.ReactElement {
   return (
@@ -285,6 +324,8 @@ export function PushIcon(): React.ReactElement {
 export function FetchIcon(): React.ReactElement {
   return <CircleArrow direction="down" dashed />
 }
+
+
 
 
 

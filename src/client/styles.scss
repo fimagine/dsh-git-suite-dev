@@ -123,9 +123,10 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-controls {
     display: flex;
-    align-items: flex-end;
     flex-wrap: wrap;
+    align-items: flex-end;
     gap: 10px 12px;
+    min-width: 0;
   }
 
   &-field-hint {
@@ -148,7 +149,8 @@ $brand: var(--dsw-alias-brand-primary);
     min-width: 0;
 
     &.grow {
-      flex: 1 1 340px;
+      // Shrinks before wrapping, so the controls share one line whenever they fit.
+      flex: 1 1 220px;
     }
 
     > span {
@@ -466,6 +468,16 @@ $brand: var(--dsw-alias-brand-primary);
     top: calc(100% + 6px);
     right: 0;
     z-index: 20;
+    // Floating variant: fixed to the viewport so no scrolling ancestor clips it.
+    &.is-floating {
+      position: fixed;
+      top: auto;
+      right: auto;
+      // Above the topbar and the project dropdown, below tooltips and dialogs.
+      z-index: 35;
+      max-height: calc(100vh - 16px);
+      overflow: auto;
+    }
     display: flex;
     flex-direction: column;
     min-width: 200px;
@@ -872,6 +884,31 @@ $brand: var(--dsw-alias-brand-primary);
     background: $bg-layer-1;
   }
 
+  &-tree-refresh {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-secondary;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+  }
+
   &-tree-scroll {
     display: flex;
     flex: 1 1 auto;
@@ -883,7 +920,9 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   input.dsh-gitlog-tree-input {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
     height: 28px;
     padding: 0 9px;
     font-size: $font-meta;
@@ -1106,16 +1145,25 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // Outside the scroller, so the scrollbar never reaches over the header.
+  &-list-header {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    background: $bg-layer-1;
+  }
+
+  &-list-scroll {
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-  }
-
-  &-list-header {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background: $bg-layer-1;
   }
 
   &-list-head {
@@ -1136,10 +1184,40 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 10px;
     flex-wrap: wrap;
     height: $section-head-height;
-    padding: 0 16px;
+    // Same gutter as the refs-tree header, so both column tops line up.
+    padding: 0 8px;
     border-bottom: 1px solid $border-l1;
     box-sizing: border-box;
     background: $bg-layer-1;
+  }
+
+  &-history-spacer {
+    flex: 1 1 auto;
+  }
+
+  &-history-refresh {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: auto;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-secondary;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:disabled {
+      opacity: .5;
+      cursor: default;
+    }
   }
 
   &-history-branch {
@@ -1524,7 +1602,7 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
   }
 
-  &-detail-patch .dsh-gitlog-patch {
+  &-detail-patch .dsh-gitlog-diff {
     flex: 1 1 auto;
     min-height: 0;
     max-height: none;
@@ -1671,10 +1749,13 @@ $brand: var(--dsw-alias-brand-primary);
     font-family: inherit;
   }
 
-  &-patch {
-    margin: 0;
-    padding: 12px;
-    max-height: 360px;
+  // Unified diff: sticky two-column gutter, coloured rows, incremental render.
+  &-diff {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    padding: 4px 0;
     overflow: auto;
     border: 1px solid $border-l1;
     border-radius: 8px;
@@ -1682,9 +1763,198 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-primary;
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
-    line-height: 1.5;
+    line-height: 1.55;
     tab-size: 4;
+    overscroll-behavior: contain;
+  }
+
+  &-diff-line {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: max-content;
     white-space: pre;
+
+    &.is-add {
+      background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #3fb950) 14%, transparent);
+    }
+
+    &.is-del {
+      background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #f85149) 14%, transparent);
+    }
+
+    &.is-hunk {
+      background: color-mix(in srgb, $label-primary 8%, transparent);
+      color: $label-secondary;
+    }
+
+    &.is-file {
+      color: $label-secondary;
+      font-weight: 600;
+    }
+
+    &.is-note,
+    &.is-meta {
+      color: $label-secondary;
+    }
+  }
+
+  // Side-by-side mode: two equal columns, wrapped so each half stays readable.
+  &-diff-split-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  &-diff-cell {
+    display: flex;
+    min-width: 0;
+    border-right: 1px solid $border-l1;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    &:last-child {
+      border-right: 0;
+    }
+
+    .dsh-gitlog-diff-num {
+      width: 40px;
+      flex: 0 0 40px;
+    }
+
+    .dsh-gitlog-diff-code {
+      min-width: 0;
+    }
+
+    &.is-add {
+      background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #3fb950) 14%, transparent);
+    }
+
+    &.is-del {
+      background: color-mix(in srgb, var(--dsw-alias-state-error-primary, #f85149) 14%, transparent);
+    }
+
+    &.is-empty {
+      background: color-mix(in srgb, $label-primary 4%, transparent);
+    }
+  }
+
+  // Split mode headers (file/hunk) keep the code flush with the first gutter.
+  &-diff.is-split > &-diff-line {
+    padding-left: 8px;
+  }
+
+  // Icon-only toggle between the unified and side-by-side diff layouts.
+  &-diff-mode {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 20px;
+    margin-left: auto;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-secondary;
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+
+    svg {
+      display: block;
+    }
+
+    &:hover {
+      border-color: $border-l2;
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+  }
+
+  // The two numbers form one sticky, draggable gutter.
+  &-diff-gutter {
+    position: sticky;
+    left: 0;
+    display: flex;
+    flex: 0 0 auto;
+    // Opaque so horizontally scrolled code never shows through the gutter.
+    background: $bg-base;
+    user-select: none;
+    cursor: default;
+
+    &:hover .dsh-gitlog-diff-num {
+      color: $label-primary;
+    }
+  }
+
+  &-diff-num {
+    flex: 0 0 auto;
+    width: 46px;
+    padding: 0 8px;
+    color: $label-secondary;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Selected rows share the accent tint, overriding the add/del colours.
+  &-diff-line.is-selected,
+  &-diff-line.is-selected.is-add,
+  &-diff-line.is-selected.is-del {
+    background: color-mix(in srgb, $brand 22%, transparent);
+  }
+
+  &-diff:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: -2px;
+  }
+
+  &-diff-code {
+    padding-right: 16px;
+  }
+
+  &-diff-hunk-action {
+    flex: 0 0 auto;
+    margin: 0 8px 0 12px;
+    padding: 1px 8px;
+    border: 1px solid $border-l2;
+    border-radius: 999px;
+    background: $bg-layer-1;
+    color: $label-secondary;
+    font: inherit;
+    font-size: $font-tiny;
+    line-height: 16px;
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+
+    &:hover:not(:disabled) {
+      border-color: $brand;
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+  }
+
+  &-diff-more {
+    position: sticky;
+    bottom: 0;
+    flex: 0 0 auto;
+    margin: 8px;
+    padding: 6px 10px;
+    border: 1px solid $border-l2;
+    border-radius: 6px;
+    background: $bg-layer-1;
+    color: $label-secondary;
+    font: inherit;
+    font-size: $font-tiny;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
   }
 
   &-conflict {
@@ -1740,13 +2010,20 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
+  // SVG spinner: a static low-opacity track and a rotating arc, so the stroke
+  // stays smooth at any size (a CSS border ring looks lumpy at 16px).
   &-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid $border-l2;
-    border-top-color: $brand;
-    border-radius: 50%;
-    animation: dsh-gitlog-spin .8s linear infinite;
+    display: block;
+    flex: 0 0 auto;
+    color: $brand;
+    animation: dsh-gitlog-spin .9s linear infinite;
+
+    // Fade out while still turning, then the component unmounts.
+    &.is-hiding {
+      animation:
+        dsh-gitlog-spin .9s linear infinite,
+        dsh-gitlog-fade-out .16s ease-in forwards;
+    }
   }
 
   &-error-code {
@@ -1765,6 +2042,8 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-tooltip {
+    // Fixed to the viewport; the script corrects the placement by measuring
+    // where the bubble actually lands.
     position: fixed;
     z-index: 1001;
     max-width: min(360px, calc(100vw - 16px));
@@ -2291,6 +2570,8 @@ $brand: var(--dsw-alias-brand-primary);
     white-space: nowrap;
   }
 
+
+
   &-workspace-commit {
     display: flex;
     flex: 0 0 auto;
@@ -2319,19 +2600,31 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    min-width: 0;
 
-    > span {
+    > span:first-child {
+      flex: 0 0 auto;
       color: $label-secondary;
       font-size: $font-meta;
     }
+
+    // Author and email sit in the form's top-right corner.
+    > .dsh-gitlog-workspace-author {
+      min-width: 0;
+      text-align: right;
+    }
   }
 
+  // Quiet by default: the primary Commit button stays the only strong accent.
   &-generate-btn {
-    border-color: $brand;
-    color: $brand;
+    border-color: transparent;
+    background: transparent;
+    color: $label-secondary;
 
-    &:hover {
+    &:hover:not(:disabled) {
+      border-color: $border-l2;
       background: $bg-layer-2;
+      color: $brand;
     }
   }
 
@@ -2403,7 +2696,7 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
-  &-workspace-diff .dsh-gitlog-patch {
+  &-workspace-diff .dsh-gitlog-diff {
     flex: 1 1 auto;
     min-height: 0;
     max-height: none;
@@ -2477,7 +2770,7 @@ $brand: var(--dsw-alias-brand-primary);
     padding: 0;
   }
 
-  .dsh-gitlog-detail-patch .dsh-gitlog-patch {
+  .dsh-gitlog-detail-patch .dsh-gitlog-diff {
     flex: none;
     max-height: 280px;
   }
@@ -2529,7 +2822,8 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   .dsh-gitlog-field.grow {
-    flex-basis: 100%;
+    // Share the row with the project field when the sidebar is wide enough.
+    flex: 1 1 160px;
   }
 
   .dsh-gitlog-workspace {
@@ -2538,11 +2832,14 @@ $brand: var(--dsw-alias-brand-primary);
 
   .dsh-gitlog-workspace-body {
     grid-template-columns: minmax(0, 1fr);
+    // files, files splitter, diff, form splitter, form
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   }
 
   .dsh-gitlog-workspace-files {
     border-right: 0;
-    border-bottom: 1px solid $border-l1;
+    // The splitter below the files draws the line.
+    border-bottom: 0;
   }
 
   .dsh-gitlog-workspace-section {
@@ -2569,6 +2866,12 @@ $brand: var(--dsw-alias-brand-primary);
     opacity: 1;
   }
 
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dsh-gitlog-fade-out {
   to {
     opacity: 0;
   }
@@ -2604,11 +2907,14 @@ $brand: var(--dsw-alias-brand-primary);
 
   .#{$prefix}-workspace-body {
     grid-template-columns: minmax(0, 1fr);
+    // files, files splitter, diff, form splitter, form
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   }
 
   .#{$prefix}-workspace-files {
     border-right: 0;
-    border-bottom: 1px solid $border-l1;
+    // The splitter below the files draws the line.
+    border-bottom: 0;
   }
 
   .#{$prefix}-workspace-section {
@@ -2636,6 +2942,35 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

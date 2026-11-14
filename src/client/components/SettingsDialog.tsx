@@ -97,6 +97,7 @@ export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogPr
             />
           </label>
           <p className="dsh-gitlog-settings-hint">{t('settingsHint')}</p>
+
           <div className="dsh-gitlog-settings-section">
             <h3>{t('versionSection')}</h3>
             <p className="dsh-gitlog-settings-hint">
@@ -124,3 +125,5 @@ export function SettingsDialog({ limit, t, onChange, onClose }: SettingsDialogPr
     </div>
   )
 }
+
+

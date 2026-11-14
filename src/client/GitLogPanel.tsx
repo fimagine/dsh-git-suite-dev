@@ -25,7 +25,7 @@ import { StashMenu, type StashMenuState } from './components/StashMenu.js'
 import { ConflictBanner } from './components/ConflictBanner.js'
 import { toast } from './components/Toast.js'
 import { Button } from './components/Button.js'
-import { RefreshIcon } from './components/GitLogIcon.js'
+import { GitLogIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
 import { SettingsDialog, SettingsIcon } from './components/SettingsDialog.js'
 import { Splitter } from './components/Splitter.js'
@@ -37,15 +37,17 @@ import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
 import { requestBranchAction, requestCheckout, requestCommitOp, requestOperation, requestSync, requestTagStatus, toApiError } from './lib/api.js'
-import { readUiState, writeUiState } from './lib/ui-state.js'
+import { readRepoUiState, setActiveRepo, writeRepoUiState } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
 import type { Branch, Commit, OperationPayload, Selection, TagStatusPayload, Translate } from './types.js'
 
 export interface GitLogPanelProps {
   t: Translate
-  /** Narrow right-sidebar column: start with the refs tree hidden. */
+  /** Narrow right-sidebar column: the commit page starts without the refs tree. */
   compact?: boolean
+  /** Session whose working directory the panel should open on (right sidebar). */
+  sessionId?: string
 }
 
 const MIN_TREE_WIDTH = 160
@@ -71,15 +73,16 @@ function isNarrowViewport(): boolean {
 }
 
 /** The Git suite panel; the same component backs the main area and the right-sidebar tab. */
-export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.ReactElement {
-  const view = useGitLogView(t)
+export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps): React.ReactElement {
+  const view = useGitLogView(t, { sessionId })
   const { status, commits, error, detail, detailStatus, detailError } = view
   const workspacePath = view.repo?.repoRoot ?? view.pathInput.trim()
   const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
   const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
   const [narrow, setNarrow] = useState(isNarrowViewport)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [viewMode, setViewModeState] = useState<'history' | 'workspace'>(() => readUiState().viewMode ?? 'history')
+  const [viewMode, setViewModeState] = useState<'history' | 'workspace'>(() => readRepoUiState().viewMode ?? 'history')
+  const [treeOverride, setTreeOverride] = useState<boolean | null>(null)
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
   const [remoteMenu, setRemoteMenu] = useState<RemoteMenuState | null>(null)
   const [remoteDelete, setRemoteDelete] = useState<string | null>(null)
@@ -112,34 +115,34 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   // One hook per axis: the tree splits horizontally in the narrow layout and
   // vertically otherwise, so both sizes have to stay available.
   const treeWidthSize = useSplitSize({
-    initial: () => clamp(readUiState().treeWidth ?? 240, MIN_TREE_WIDTH, MAX_TREE_WIDTH),
+    initial: () => clamp(readRepoUiState().treeWidth ?? 240, MIN_TREE_WIDTH, MAX_TREE_WIDTH),
     min: MIN_TREE_WIDTH,
     max: () => {
       const width = bodyRef.current?.getBoundingClientRect().width ?? 0
       return width <= 0 ? MAX_TREE_WIDTH : clamp(width - 320, MIN_TREE_WIDTH, MAX_TREE_WIDTH)
     },
     axis: 'x',
-    persist: value => writeUiState({ treeWidth: value }),
+    persist: value => writeRepoUiState({ treeWidth: value }),
   })
   const treeHeightSize = useSplitSize({
-    initial: () => clamp(readUiState().treeHeight ?? 220, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT),
+    initial: () => clamp(readRepoUiState().treeHeight ?? 220, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT),
     min: MIN_TREE_HEIGHT,
     max: () => {
       const height = bodyRef.current?.getBoundingClientRect().height ?? 0
       return height <= 0 ? MAX_TREE_HEIGHT : clamp(height - 240, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT)
     },
     axis: 'y',
-    persist: value => writeUiState({ treeHeight: value }),
+    persist: value => writeRepoUiState({ treeHeight: value }),
   })
   // The detail pane is the remainder under the list, so dragging up grows it.
   const detailSize = useSplitSize({
-    initial: () => clamp(readUiState().detailRatio ?? 0.45, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO),
+    initial: () => clamp(readRepoUiState().detailRatio ?? 0.45, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO),
     min: MIN_DETAIL_RATIO,
     max: MAX_DETAIL_RATIO,
     axis: 'y',
     invert: true,
     reference: () => stackRef.current?.getBoundingClientRect().height ?? 0,
-    persist: value => writeUiState({ detailRatio: value }),
+    persist: value => writeRepoUiState({ detailRatio: value }),
   })
   const treeSize = treeOrientation === 'vertical' ? treeWidthSize : treeHeightSize
 
@@ -151,9 +154,33 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     return () => query.removeEventListener('change', update)
   }, [])
 
+  // The right panel's commit page starts without the refs tree: the lists and
+  // the diff need the height. The header toggle still brings it back.
+  const treeDefault = !(compact && viewMode === 'workspace')
+  const treeVisible = treeOverride ?? treeDefault
+
+  useEffect(() => {
+    setTreeOverride(null)
+  }, [viewMode, compact])
+
+  const repoRoot = view.repo?.repoRoot ?? ''
+
+  // Every repository keeps its own bucket: adopt it when the panel switches.
+  useEffect(() => {
+    setActiveRepo(repoRoot === '' ? null : repoRoot)
+    if (repoRoot === '') return
+    const stored = readRepoUiState(repoRoot)
+    if (stored.viewMode !== undefined) setViewModeState(stored.viewMode)
+    if (stored.treeWidth !== undefined) treeWidthSize.apply(stored.treeWidth)
+    if (stored.treeHeight !== undefined) treeHeightSize.apply(stored.treeHeight)
+    if (stored.detailRatio !== undefined) detailSize.apply(stored.detailRatio)
+    view.applyRepoPreferences(stored)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one run per repository
+  }, [repoRoot])
+
   const setViewMode = (mode: 'history' | 'workspace'): void => {
     setViewModeState(mode)
-    writeUiState({ viewMode: mode })
+    writeRepoUiState({ viewMode: mode })
   }
 
   const state = status === 'loading'
@@ -494,11 +521,15 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   }
 
   const body = (
-    <div ref={bodyRef} className="dsh-gitlog-body has-tree" style={bodyStyle}>
-      <RefsTree
-        tree={view.tree}
-        status={view.treeStatus}
-        error={view.treeError}
+    <div ref={bodyRef} className={treeVisible ? 'dsh-gitlog-body has-tree' : 'dsh-gitlog-body'} style={bodyStyle}>
+      {treeVisible
+        ? (
+            <RefsTree
+              key={repoRoot}
+              repoKey={repoRoot}
+              tree={view.tree}
+              status={view.treeStatus}
+              error={view.treeError}
         selection={view.selection}
         switching={view.switching}
         onSelect={view.selectRef}
@@ -515,6 +546,8 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
           y: event.clientY,
         })}
         onRemoteBranchMenu={(branch, event) => setRemoteBranchMenu({ branch, x: event.clientX, y: event.clientY })}
+        onRefresh={view.refresh}
+        refreshing={status === 'loading'}
         onStashMenu={(stash, event) => {
           const ref = 'ref' in stash && typeof stash.ref === 'string' ? stash.ref : ''
           if (ref !== '') setStashMenu({ selection: stash, ref, x: event.clientX, y: event.clientY })
@@ -522,7 +555,11 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onRemoteMenu={(remote, event) => setRemoteMenu({ remote, x: event.clientX, y: event.clientY })}
         onBranchMenu={openBranchMenu}
         t={t}
-      />
+            />
+          )
+        : null}
+      {treeVisible
+        ? (
       <Splitter
         orientation={treeOrientation}
         label={t('resizeTree')}
@@ -530,10 +567,13 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onDrag={treeSize.drag}
         onReset={treeSize.reset}
       />
+          )
+        : null}
       <div ref={stackRef} className="dsh-gitlog-stack">
         {viewMode === 'workspace'
           ? (
               <WorkspacePane
+                key={repoRoot}
                 view={view}
                 ws={ws}
                 t={t}
@@ -582,10 +622,10 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         <div className="dsh-gitlog-header-actions">
           <Button
             iconOnly
-            title={t('refresh')}
-            onClick={view.refresh}
-            disabled={status === 'loading'}
-            icon={<RefreshIcon />}
+            title={treeVisible ? t('hideTree') : t('showTree')}
+            onClick={() => setTreeOverride(!treeVisible)}
+            ariaPressed={treeVisible}
+            icon={<GitLogIcon size={16} />}
           />
           <Button
             iconOnly
@@ -819,6 +859,18 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
