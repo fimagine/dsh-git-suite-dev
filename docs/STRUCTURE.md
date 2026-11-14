@@ -142,6 +142,7 @@ LICENSE
 | `host/repository.ts` | Validates paths and resolves the repository root with `rev-parse` |
 | `host/remote-url.ts` | Accepts https/ssh/git/file and absolute local remotes; rejects `ext::`-style transports |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`: keeps the path inside the repository, reports `file-missing`, and opens the OS file browser with the file selected |
+| `host/open-handler.ts` | `POST /git-suite/open`: opens a terminal (`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`) or the OS file manager (`explorer.exe`/`open`/`xdg-open`) at the repository root |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
 | `host/parsers.ts` | Parses log output, commit headers, numstat, and refs |
 | `host/routes/` | Readers for branches, the refs tree, paged log, commit detail, working-tree status/diff, plus local branch switching |
@@ -166,7 +167,7 @@ LICENSE
 | `client/SidebarPanel.tsx` | Right-sidebar tab wrapper with the narrow single-column layout |
 | `client/hooks/useGitLogView.ts` | Project scan, refs tree, paged log, detail selection, and actions |
 | `client/hooks/useWorkspace.ts` | Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
-| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout), tag context menu (checkout), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), toast, commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
+| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch, then terminal and the platform-named file manager), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout), tag context menu (checkout), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), toast, commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
 | `client/lib/api.ts` | Fetch wrapper with the private header and `AbortSignal` |
 | `client/lib/graph.ts` | Lane layout and geometry for the commit graph |
 | `client/lib/patch.ts` | Splits a commit's combined patch into one section per file for the file list |

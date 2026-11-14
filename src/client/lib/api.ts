@@ -5,6 +5,7 @@ import type {
   CheckoutPayload,
   ClonePayload,
   GenerateMessagePayload,
+  OpenAppPayload,
   PickDirectoryPayload,
   PushTarget,
   RemoteAddPayload,
@@ -173,6 +174,16 @@ export async function requestClone(body: CloneRequest, signal?: AbortSignal): Pr
     parsed?.error?.code ?? 'request-failed',
     parsed?.error?.details,
   )
+}
+
+export interface OpenAppRequest {
+  path: string
+  target: 'terminal' | 'explorer'
+}
+
+/** POST /git-suite/open: open a terminal or the OS file manager at the repository root. */
+export async function requestOpenApp(body: OpenAppRequest, signal?: AbortSignal): Promise<OpenAppPayload> {
+  return postCommitJson<OpenAppPayload>('/git-suite/open', body, signal)
 }
 
 export interface RevealFileRequest {

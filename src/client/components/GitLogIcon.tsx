@@ -87,6 +87,48 @@ export function CompareIcon({ size = 14 }: { size?: number }): React.ReactElemen
   )
 }
 
+/** Terminal window with a prompt, for the "open a command line" action. */
+export function TerminalIcon({ size = 18 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <rect x="2.6" y="3.6" width="14.8" height="12.8" rx="2.4" />
+      <path d="M6.2 8.1 8.8 10.3l-2.6 2.2" />
+      <path d="M10.6 12.5h3.4" />
+    </svg>
+  )
+}
+
+/** Folder outline, for the "open the file manager" action. */
+export function FolderIcon({ size = 18 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M2.8 6.1c0-1 .8-1.8 1.8-1.8h3.1l1.5 1.9h6.2c1 0 1.8.8 1.8 1.8v5.9c0 1-.8 1.8-1.8 1.8H4.6c-1 0-1.8-.8-1.8-1.8z" />
+    </svg>
+  )
+}
+
 /** Minus glyph for removing a file from the staged set. */
 export function MinusIcon({ size = 16 }: { size?: number }): React.ReactElement {
   return (

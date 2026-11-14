@@ -2,8 +2,9 @@ import type * as React from 'react'
 import { h, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
+import { requestOpenApp, toApiError } from '../lib/api.js'
 import type { Translate } from '../types.js'
-import { FetchIcon, PullIcon, PushIcon } from './GitLogIcon.js'
+import { FetchIcon, FolderIcon, PullIcon, PushIcon, TerminalIcon } from './GitLogIcon.js'
 import { FetchDialog } from './FetchDialog.js'
 import { PushDialog } from './PushDialog.js'
 import { SyncDialog } from './SyncDialog.js'
@@ -24,6 +25,25 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
   const [pullOpen, setPullOpen] = useState(false)
   const [fetchOpen, setFetchOpen] = useState(false)
   const [pushOpen, setPushOpen] = useState(false)
+  const [openError, setOpenError] = useState<string | null>(null)
+
+  const openApp = async (target: 'terminal' | 'explorer'): Promise<void> => {
+    if (path === '') return
+    setOpenError(null)
+    try {
+      await requestOpenApp({ path, target })
+    } catch (error) {
+      setOpenError(toApiError(error).message)
+    }
+  }
+
+  // The OS file manager has a different name on every platform.
+  const explorerLabel = ((): string => {
+    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
+    if (/Mac|iPhone|iPad/i.test(agent)) return t('finder')
+    if (/Windows/i.test(agent)) return t('fileExplorer')
+    return t('fileManager')
+  })()
 
   const syncLabel = (action: 'pull' | 'push' | 'fetch'): string => {
     if (syncBusy && ws.syncAction === action) {
@@ -82,8 +102,29 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
         <FetchIcon />
         <span>{syncLabel('fetch')}</span>
       </button>
+      <button
+        type="button"
+        className="dsh-gitlog-workspace-action"
+        title={t('openTerminal')}
+        onClick={() => { void openApp('terminal') }}
+        disabled={path === ''}
+      >
+        <TerminalIcon />
+        <span>{t('terminal')}</span>
+      </button>
+      <button
+        type="button"
+        className="dsh-gitlog-workspace-action"
+        title={explorerLabel}
+        onClick={() => { void openApp('explorer') }}
+        disabled={path === ''}
+      >
+        <FolderIcon />
+        <span>{explorerLabel}</span>
+      </button>
       {ws.syncNote !== null ? <p className="dsh-gitlog-note" role="status">{ws.syncNote}</p> : null}
       {ws.syncError !== null ? <p className="dsh-gitlog-note" role="alert">{ws.syncError.message}</p> : null}
+      {openError === null ? null : <p className="dsh-gitlog-note" role="alert">{openError}</p>}
       {pullOpen
         ? (
             <SyncDialog

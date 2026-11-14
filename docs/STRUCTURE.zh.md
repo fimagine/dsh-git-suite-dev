@@ -142,6 +142,7 @@ LICENSE
 | `host/repository.ts` | 校验路径并用 `rev-parse` 解析仓库根目录 |
 | `host/remote-url.ts` | 接受 https/ssh/git/file 与绝对本地路径，拒绝 `ext::` 之类的命令型传输 |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`：校验路径在仓库内、文件存在，然后在系统文件浏览器中选中该文件 |
+| `host/open-handler.ts` | `POST /git-suite/open`：在仓库根目录打开命令行（`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`）或系统文件管理器（`explorer.exe`/`open`/`xdg-open`） |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
 | `host/routes/` | 分支、引用树、日志分页、提交详情、文件状态/diff 读取，以及本地分支切换 |
@@ -166,7 +167,7 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
-| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast 提示、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
+| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取，再是「命令行」与按平台命名的文件管理器）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast 提示、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 |

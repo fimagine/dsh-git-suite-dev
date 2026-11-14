@@ -277,6 +277,12 @@ export interface ClonePayload {
   repoRoot: string
 }
 
+export interface OpenAppPayload {
+  ok: true
+  target: 'terminal' | 'explorer'
+  path: string
+}
+
 export interface RevealPayload {
   ok: true
   file: string
@@ -306,8 +312,7 @@ export interface TagInfoPayload {
 }
 
 /** How each local tag compares with one remote's tags. */
-export interface TagStatusPayload {
-  ok: true
+export interface TagStatusPayload {  ok: true
   remote: string
   statuses: Record<string, 'same' | 'different' | 'local-only'>
   /** Tags that exist on the remote but not locally. */
