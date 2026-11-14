@@ -131,7 +131,8 @@ LICENSE
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
 | `host/clone-handler.ts` | POST `/git-suite/clone`：校验远端 URL 与目标目录后，先克隆到目标同级的临时目录，成功后改名到目标目录 |
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支（可指定提交或任意引用作为起点），检出本地分支、指定提交或任意引用（分离 HEAD，不 force） |
-| `host/commit-ops.ts` | `POST /git-suite/commit-op`：拣选或反向提交单个提交、把当前分支重置到某提交（soft/mixed/hard）、中止停在半途的 merge/rebase/cherry-pick/revert（`409 operation-conflict` 会说明是哪种操作） |
+| `host/commit-ops.ts` | `POST /git-suite/commit-op`：拣选或反向提交单个提交、把当前分支重置到某提交（soft/mixed/hard）、对停住的 merge/rebase/cherry-pick/revert 执行 继续/跳过/中止（`409 operation-conflict` 会说明是哪种操作）、用 `--ours`/`--theirs` 解决单个冲突文件 |
+| `host/routes/operation.ts` | `mode=operation`：当前进行中的 merge/rebase/cherry-pick/revert（或 null），以及每个未合并路径仍存在哪些阶段 |
 | `host/routes/reflog.ts` | `mode=reflog`：最近 80 次 HEAD 变动（哈希、selector、动作、作者、时间），用于找回丢失的提交 |
 | `host/stash-handler.ts` | `POST /git-suite/stash`：`save`（`stash push`，可选 `--include-untracked` 与 `-m`）、`apply`、`pop`、`drop`；只接受 `stash@{n}` 形式的引用 |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
@@ -242,6 +243,17 @@ LICENSE
 - 标签/分支/检出成功后刷新日志和引用树；检出后选择回到 HEAD。
 - 提交行里的分支/标签 **chip** 右键打开与引用树相同的菜单（本地分支菜单、远端分支菜单，或标签的 检出/编辑/推送/用远端覆盖/删除）；无法归类的装饰仍落到提交菜单。
 - 以上路由仍是 POST + 同源 + 私有请求头。
+
+## 冲突善后
+
+当 merge / rebase / cherry-pick / revert 停在半途时，`mode=operation` 会返回该状态与未合并文件，面板在操作栏下方显示警告横幅：
+
+- **继续**：执行对应的 `--continue`（merge 用 `git commit --no-edit`；rebase 带 `-c core.editor=true`，不会弹编辑器）。
+- **跳过**：rebase/cherry-pick/revert 支持 `--skip`；merge 没有跳过（返回 `400 skip-unsupported`）。
+- **中止**：恢复到操作前的状态。
+- 每个冲突文件提供「用 ours」/「用 theirs」（`git checkout --ours|--theirs` 后再 `git add`）；rebase 过程中 ours/theirs 相对于正在应用的提交，与 git 本身语义一致。
+
+横幅会在仓库变化、同步结束以及每次冲突操作后刷新。
 
 ## 右侧栏标签页
 

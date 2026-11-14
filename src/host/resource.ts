@@ -9,6 +9,7 @@ import { readTag } from './routes/tag.js'
 import { readTagStatus } from './routes/tag-status.js'
 import { readVersion } from './routes/version.js'
 import { readReflog } from './routes/reflog.js'
+import { readOperation } from './routes/operation.js'
 import { readWorkspaceStatus } from './routes/status.js'
 import { readWorkspaceDiff } from './routes/workspace-diff.js'
 import { scanProjects } from './scan.js'
@@ -39,6 +40,7 @@ export function createResource(context: RouteContext): RouteResource {
       if (mode === 'tag-status') return json(await readTagStatus(context, url, request.signal))
       if (mode === 'version') return json(await readVersion())
       if (mode === 'reflog') return json(await readReflog(context, url, request.signal))
+      if (mode === 'operation') return json(await readOperation(context, url, request.signal))
       if (mode === 'status') return json(await readWorkspaceStatus(context, url, request.signal))
       if (mode === 'workspace-diff') return json(await readWorkspaceDiff(context, url, request.signal))
       return json({

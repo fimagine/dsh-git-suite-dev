@@ -21,6 +21,8 @@ import { DeleteTagDialog } from './components/DeleteTagDialog.js'
 import { ForcePushTagDialog } from './components/ForcePushTagDialog.js'
 import { FetchTagDialog } from './components/FetchTagDialog.js'
 import { StashMenu, type StashMenuState } from './components/StashMenu.js'
+import { ConflictBanner } from './components/ConflictBanner.js'
+import { toast } from './components/Toast.js'
 import { Button } from './components/Button.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
@@ -31,11 +33,11 @@ import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
-import { requestBranchAction, requestCheckout, requestSync, requestTagStatus, toApiError } from './lib/api.js'
+import { requestBranchAction, requestCheckout, requestCommitOp, requestOperation, requestSync, requestTagStatus, toApiError } from './lib/api.js'
 import { readUiState, writeUiState } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
-import type { Branch, Commit, Selection, TagStatusPayload, Translate } from './types.js'
+import type { Branch, Commit, OperationPayload, Selection, TagStatusPayload, Translate } from './types.js'
 
 export interface GitLogPanelProps {
   t: Translate
@@ -91,6 +93,8 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [branchActionError, setBranchActionError] = useState<string | null>(null)
   const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
   const [stashMenu, setStashMenu] = useState<StashMenuState | null>(null)
+  const [operation, setOperation] = useState<OperationPayload | null>(null)
+  const [conflictBusy, setConflictBusy] = useState(false)
   const [tagStatus, setTagStatus] = useState<TagStatusPayload | null>(null)
   const [addTagOpen, setAddTagOpen] = useState(false)
   const [tagEdit, setTagEdit] = useState<string | null>(null)
@@ -331,6 +335,66 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runTagCompare closes over the same values
   }, [view.repo?.repoRoot, upstreamRemote, tagsKey])
 
+  /** Which merge/rebase/pick is stopped by conflicts, and its unmerged files. */
+  const refreshOperation = async (signal?: AbortSignal): Promise<void> => {
+    const target = view.repo?.repoRoot ?? view.pathInput.trim()
+    if (target === '') {
+      setOperation(null)
+      return
+    }
+    try {
+      setOperation(await requestOperation({ path: target }, signal))
+    } catch {
+      setOperation(null)
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void refreshOperation(controller.signal)
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the repository matters here
+  }, [view.repo?.repoRoot])
+
+  // A pull can end in a conflicted merge; re-read the state once syncing settles.
+  useEffect(() => {
+    if (ws.syncState !== 'idle') return
+    void refreshOperation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshOperation reads the current repo
+  }, [ws.syncState])
+
+  const conflictAction = async (action: 'continue' | 'skip' | 'abort'): Promise<void> => {
+    if (conflictBusy) return
+    setConflictBusy(true)
+    try {
+      await requestCommitOp({ path: view.repo?.repoRoot ?? view.pathInput.trim(), action })
+      toast(action === 'continue' ? t('conflictContinued') : action === 'skip' ? t('conflictSkipped') : t('conflictAborted'))
+      view.refresh()
+      ws.refresh()
+    } catch (error) {
+      const failure = toApiError(error)
+      toast(failure.code === 'operation-conflict' ? t('conflictStillBlocked') : failure.message, 'error')
+    } finally {
+      setConflictBusy(false)
+      void refreshOperation()
+    }
+  }
+
+  const resolveConflict = async (file: string, side: 'ours' | 'theirs'): Promise<void> => {
+    if (conflictBusy) return
+    setConflictBusy(true)
+    try {
+      await requestCommitOp({ path: view.repo?.repoRoot ?? view.pathInput.trim(), action: 'resolve', file, side })
+      toast(t('conflictResolvedFile').replace('{file}', file))
+      ws.refresh()
+    } catch (error) {
+      toast(toApiError(error).message, 'error')
+    } finally {
+      setConflictBusy(false)
+      void refreshOperation()
+    }
+  }
+
   /** Push one tag to the upstream remote; `force` overwrites a moved remote tag. */
   const pushTag = async (tag: TagSelection, force: boolean): Promise<void> => {
     const path = view.repo?.repoRoot ?? view.pathInput.trim()
@@ -542,6 +606,19 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onModeChange={setViewMode}
         t={t}
       />
+      {operation === null
+        ? null
+        : (
+            <ConflictBanner
+              operation={operation}
+              busy={conflictBusy}
+              t={t}
+              onContinue={() => { void conflictAction('continue') }}
+              onSkip={() => { void conflictAction('skip') }}
+              onAbort={() => { void conflictAction('abort') }}
+              onResolve={(file, side) => { void resolveConflict(file.path, side) }}
+            />
+          )}
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}
       {branchActionError !== null ? <p className="dsh-gitlog-note" role="alert">{branchActionError}</p> : null}
       {tagActionError !== null ? <p className="dsh-gitlog-note" role="alert">{tagActionError}</p> : null}
@@ -566,7 +643,10 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         context={commitMenu}
         t={t}
         onClose={() => setCommitMenu(null)}
-        onChanged={() => ws.refresh()}
+        onChanged={() => {
+          ws.refresh()
+          void refreshOperation()
+        }}
       />
       <StashMenu
         view={view}

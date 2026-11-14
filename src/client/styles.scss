@@ -1656,6 +1656,63 @@ $brand: var(--dsw-alias-brand-primary);
     white-space: pre;
   }
 
+  &-conflict {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--dsw-alias-state-warn-primary);
+    background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
+  }
+
+  &-conflict-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    font-size: $font-meta;
+  }
+
+  &-conflict-count {
+    color: $label-secondary;
+  }
+
+  &-conflict-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  &-conflict-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 132px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+    overscroll-behavior: contain;
+  }
+
+  &-conflict-file {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  &-conflict-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: $label-primary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   &-note {
     color: $label-secondary;
     font-size: $font-meta;

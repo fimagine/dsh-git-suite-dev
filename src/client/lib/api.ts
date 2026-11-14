@@ -19,6 +19,7 @@ import type {
   TagStatusPayload,
   CommitOpPayload,
   ReflogPayload,
+  OperationPayload,
   StashPayload,
   VersionPayload,
 } from '../types.js'
@@ -44,7 +45,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -334,6 +335,14 @@ export async function requestVersionCheck(signal?: AbortSignal): Promise<Version
   return requestJson<VersionPayload>({ mode: 'version' }, signal)
 }
 
+/** GET /git-suite?mode=operation: an in-progress merge/rebase/pick plus its conflicts. */
+export async function requestOperation(
+  params: { path: string },
+  signal?: AbortSignal,
+): Promise<OperationPayload> {
+  return requestJson<OperationPayload>({ mode: 'operation', path: params.path }, signal)
+}
+
 /** GET /git-suite?mode=reflog: recent HEAD movements for recovery. */
 export async function requestReflog(
   params: { path: string; limit?: number },
@@ -348,9 +357,12 @@ export async function requestReflog(
 
 export interface CommitOpRequest {
   path: string
-  action: 'cherry-pick' | 'revert' | 'reset' | 'abort'
+  action: 'cherry-pick' | 'revert' | 'reset' | 'abort' | 'continue' | 'skip' | 'resolve'
   hash?: string
   mode?: 'soft' | 'mixed' | 'hard'
+  /** `resolve` only: repository-relative file to mark resolved. */
+  file?: string
+  side?: 'ours' | 'theirs'
 }
 
 /** POST /git-suite/commit-op: cherry-pick, revert, reset, or abort. */

@@ -1,9 +1,10 @@
-import { access } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { isAbsolute, relative, resolve } from 'node:path'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
+import { detectOperation } from './routes/operation.js'
 import type { RouteContext } from './types.js'
 
 interface CommitOpBody {
@@ -11,6 +12,8 @@ interface CommitOpBody {
   action?: unknown
   hash?: unknown
   mode?: unknown
+  file?: unknown
+  side?: unknown
 }
 
 type Operation = 'merge' | 'rebase' | 'cherry-pick' | 'revert'
@@ -49,30 +52,24 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
   res.end(Buffer.from(await response.arrayBuffer()))
 }
 
-/** Which multi-step git operation currently holds the repository. */
-async function detectOperation(root: string, signal: AbortSignal): Promise<Operation | null> {
-  const gitDir = (await runGit(root, ['rev-parse', '--absolute-git-dir'], signal)).trim()
-  const exists = async (name: string): Promise<boolean> => {
-    try {
-      await access(`${gitDir}/${name}`)
-      return true
-    } catch {
-      return false
-    }
-  }
-  if (await exists('rebase-merge')) return 'rebase'
-  if (await exists('rebase-apply')) return 'rebase'
-  if (await exists('MERGE_HEAD')) return 'merge'
-  if (await exists('CHERRY_PICK_HEAD')) return 'cherry-pick'
-  if (await exists('REVERT_HEAD')) return 'revert'
-  return null
-}
-
 const abortArgs: Record<Operation, string[]> = {
   merge: ['merge', '--abort'],
   rebase: ['rebase', '--abort'],
   'cherry-pick': ['cherry-pick', '--abort'],
   revert: ['revert', '--abort'],
+}
+
+const continueArgs: Record<Operation, string[]> = {
+  merge: ['commit', '--no-edit'],
+  rebase: ['-c', 'core.editor=true', 'rebase', '--continue'],
+  'cherry-pick': ['cherry-pick', '--continue', '--no-edit'],
+  revert: ['revert', '--continue', '--no-edit'],
+}
+
+const skipArgs: Partial<Record<Operation, string[]>> = {
+  rebase: ['rebase', '--skip'],
+  'cherry-pick': ['cherry-pick', '--skip'],
+  revert: ['revert', '--skip'],
 }
 
 /**
@@ -104,17 +101,61 @@ export function createCommitOpsHandler(context: RouteContext): (req: IncomingMes
       const action = typeof body.action === 'string' ? body.action : ''
       const repo = await resolveRepository(context, typeof body.path === 'string' ? body.path : '', controller.signal)
 
-      if (action === 'abort') {
+      if (action === 'abort' || action === 'continue' || action === 'skip') {
         const operation = await detectOperation(repo.root, controller.signal)
         if (operation === null) {
-          throw new RouteError(409, 'nothing-in-progress', 'There is no merge, rebase, cherry-pick, or revert to abort.')
+          throw new RouteError(409, 'nothing-in-progress', 'There is no merge, rebase, cherry-pick, or revert in progress.')
+        }
+        const args = action === 'abort'
+          ? abortArgs[operation]
+          : action === 'continue' ? continueArgs[operation] : skipArgs[operation]
+        if (args === undefined) {
+          throw new RouteError(400, 'skip-unsupported', 'A merge cannot be skipped; resolve it or abort.')
         }
         try {
-          await runGit(repo.root, abortArgs[operation], controller.signal)
+          await runGit(repo.root, args, controller.signal)
+        } catch (error) {
+          const remaining = await detectOperation(repo.root, controller.signal)
+          if (remaining !== null) {
+            throw new RouteError(409, 'operation-conflict', 'The operation is still blocked by conflicts.', {
+              operation: remaining,
+              detail: error instanceof Error ? error.message : String(error),
+            })
+          }
+          throw gitFailure(error)
+        }
+        let head = ''
+        try {
+          head = (await runGit(repo.root, ['rev-parse', 'HEAD'], controller.signal)).trim()
+        } catch {
+          head = ''
+        }
+        await send(res, json({ ok: true, action, operation, head }))
+        return
+      }
+
+      if (action === 'resolve') {
+        const operation = await detectOperation(repo.root, controller.signal)
+        if (operation === null) {
+          throw new RouteError(409, 'nothing-in-progress', 'There are no conflicts to resolve.')
+        }
+        const file = typeof body.file === 'string' ? body.file.trim() : ''
+        const side = body.side === 'ours' || body.side === 'theirs' ? body.side : null
+        if (file === '' || side === null) {
+          throw new RouteError(400, 'invalid-resolve', 'Choose a file and a side to keep.', { file })
+        }
+        const absolute = resolve(repo.root, file)
+        const inside = relative(repo.root, absolute)
+        if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) {
+          throw new RouteError(400, 'invalid-path', 'That file is outside the repository.', { file })
+        }
+        try {
+          await runGit(repo.root, ['checkout', `--${side}`, '--', inside], controller.signal)
+          await runGit(repo.root, ['add', '--', inside], controller.signal)
         } catch (error) {
           throw gitFailure(error)
         }
-        await send(res, json({ ok: true, action, operation }))
+        await send(res, json({ ok: true, action, operation, file: inside, side }))
         return
       }
 

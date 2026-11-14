@@ -324,6 +324,19 @@ export interface StashPayload {
   hash?: string
 }
 
+/** One unmerged path while a merge/rebase/cherry-pick/revert is in progress. */
+export interface ConflictFile {
+  path: string
+  ours: boolean
+  theirs: boolean
+}
+
+export interface OperationPayload {
+  ok: true
+  operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | null
+  conflicts: ConflictFile[]
+}
+
 export interface RevealPayload {
   ok: true
   file: string

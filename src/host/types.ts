@@ -100,6 +100,21 @@ export interface ReflogPayload {
   entries: ReflogEntry[]
 }
 
+/** One unmerged path while a merge/rebase/cherry-pick/revert is in progress. */
+export interface ConflictFile {
+  path: string
+  /** Stage 2 exists: the current branch's version is available. */
+  ours: boolean
+  /** Stage 3 exists: the incoming version is available. */
+  theirs: boolean
+}
+
+export interface OperationPayload {
+  ok: true
+  operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | null
+  conflicts: ConflictFile[]
+}
+
 /** One local tag with the commit it points at and its annotation message. */
 export interface TagInfoPayload {
   ok: true

@@ -131,7 +131,8 @@ LICENSE
 | `host/workspace-action.ts` | Node handler for stage/unstage, discard one file's unstaged changes (`checkout --`), delete one untracked file, append an ignore pattern to `.gitignore`, commit (optionally amend), and the optional push |
 | `host/clone-handler.ts` | Node handler that validates the remote URL and destination, clones into a staging directory beside the destination, and renames it into place |
 | `host/commit-actions.ts` | Validates names, creates tags and branches (at a commit hash or a ref), and checks out a local branch, a commit hash, or any ref as a detached HEAD (never forced) |
-| `host/commit-ops.ts` | `POST /git-suite/commit-op`: cherry-pick or revert one commit, reset the current branch (soft/mixed/hard) to a commit, and abort a stopped merge/rebase/cherry-pick/revert (`409 operation-conflict` reports which operation is pending) |
+| `host/commit-ops.ts` | `POST /git-suite/commit-op`: cherry-pick or revert one commit, reset the current branch (soft/mixed/hard) to a commit, continue/skip/abort a stopped merge/rebase/cherry-pick/revert (`409 operation-conflict` reports which operation is pending), and resolve one unmerged file with `--ours`/`--theirs` |
+| `host/routes/operation.ts` | `mode=operation`: the in-progress merge/rebase/cherry-pick/revert (or null) plus each unmerged path with which stages still exist |
 | `host/routes/reflog.ts` | `mode=reflog`: the last 80 HEAD movements (hash, selector, action, author, date) for recovering lost commits |
 | `host/stash-handler.ts` | `POST /git-suite/stash`: `save` (`stash push`, optional `--include-untracked` and `-m`), `apply`, `pop`, `drop`; only `stash@{n}` refs are accepted |
 | `host/generate-handler.ts` | Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
@@ -242,6 +243,17 @@ Right-clicking a commit row opens the **Tag / Branch / Checkout** menu (`CommitA
 - Tag/branch/checkout refresh the log and refs tree; checkout resets the selection to HEAD.
 - Right-clicking a branch or tag **chip** inside a commit row opens the same menu the refs tree uses (local branch menu, remote-tracking branch menu, or tag menu with its checkout/edit/push/replace/delete entries); unrelated refs fall back to the commit menu.
 - All of these routes are POST + same-origin + the private request header.
+
+## Conflicts
+
+While a merge, rebase, cherry-pick, or revert is stopped, `mode=operation` reports it with the unmerged files, and the panel shows a warning banner under the action row:
+
+- **Continue** runs the matching `--continue` (a merge continues with `git commit --no-edit`; rebase uses `-c core.editor=true` so the editor never opens).
+- **Skip** runs `--skip` for rebase/cherry-pick/revert; a merge has no skip (`400 skip-unsupported`).
+- **Abort** restores the state before the operation.
+- Each conflicted file offers **Take ours** / **Take theirs** (`git checkout --ours|--theirs` + `git add`); during a rebase the sides are relative to the commit being applied, which is git's own convention.
+
+The banner refreshes when the repository changes, when a sync finishes, and after every conflict action.
 
 ## Right-sidebar tab
 
