@@ -87,6 +87,25 @@ export function CompareIcon({ size = 14 }: { size?: number }): React.ReactElemen
   )
 }
 
+/** Minus glyph for removing a file from the staged set. */
+export function MinusIcon({ size = 16 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M3.2 8h9.6" />
+    </svg>
+  )
+}
+
 /** Upload arrow: this tag exists only in the local repository. */
 export function TagLocalIcon({ size = 12 }: { size?: number }): React.ReactElement {
   return (

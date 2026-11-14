@@ -70,9 +70,11 @@ src/
       EditTagDialog.tsx
       ForcePushTagDialog.tsx
       FetchTagDialog.tsx
+      FileActionDialog.tsx
       ErrorState.tsx
       FetchDialog.tsx
       GitLogIcon.tsx
+      IgnoreFileDialog.tsx
       PanelControls.tsx
       PushDialog.tsx
       Refs.tsx
@@ -126,7 +128,7 @@ LICENSE
 | `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, and branch actions |
 | `host/resource.ts` | Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
-| `host/workspace-action.ts` | Node handler for stage/unstage, commit (optionally amend), and the optional push |
+| `host/workspace-action.ts` | Node handler for stage/unstage, discard one file's unstaged changes (`checkout --`), delete one untracked file, append an ignore pattern to `.gitignore`, commit (optionally amend), and the optional push |
 | `host/clone-handler.ts` | Node handler that validates the remote URL and destination, clones into a staging directory beside the destination, and renames it into place |
 | `host/commit-actions.ts` | Validates names, creates tags and branches (at a commit hash or a ref), and checks out a local branch, a commit hash, or any ref as a detached HEAD (never forced) |
 | `host/generate-handler.ts` | Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
@@ -215,9 +217,10 @@ The second row's **History / Commit** switch changes between history and the com
 - `POST /git-suite/action` (a Node handler, because DSH resource routes are GET/HEAD only) accepts JSON:
   - `stage` / `unstage` with `paths` or `all`, running `git add -A` / `git reset -q HEAD`.
   - `commit` with `message`, `amend`, and `push`, running `git commit -m` (optionally `--amend`) and optionally `git push` to the configured upstream.
-- Staging is file-level (hunk-level staging is not available yet); a successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
+- Staging is file-level (hunk-level staging is not available yet); each file row ends with a **+** (stage this file) or **−** (unstage it) button, and double-clicking a row flips it between staged and unstaged (its text is `user-select: none` so the double-click never selects the label). A successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
 - **Generate with AI** beside the commit message POSTs to `/git-suite/generate-message`, which reads the staged (otherwise unstaged) diff and calls `ctx.llm.stream()` with the provider/model from `ctx.agentDefaultModel.currentSelection()`; the file list and diff are sent to the configured model provider, and the generated text only fills the input. Missing default model, no changes, and model failures return explicit errors.
 - The **+** menu beside the repository/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned repositories, and a manual path; **Open** only opens the repository in this panel. Use DSH's own Workspaces add flow to register a DSH workspace. A non-native picker asks for a typed path.
+- Right-clicking a changed file opens **Open in file explorer** plus one destructive entry: **Discard changes** for an unstaged modification (`git checkout --`, warning dialog) and **Delete file** for an untracked file (warning dialog; the host refuses tracked paths with `409 tracked-file`). Untracked files also offer **Ignore**, which appends one pattern to `.gitignore`: the exact path, the bare file name (matches at any depth), or `*.ext` for the extension. Staged files only offer the reveal action.
 - Right-clicking a changed file opens a menu with **Open in file explorer** (`POST /git-suite/reveal`): the host refuses paths outside the repository, answers `404 file-missing` when the file is gone, and otherwise opens the OS browser with the file selected (`explorer /select,`, `open -R`, `xdg-open`). A missing file shows a toast instead of an inline error.
 - Every write remains POST + same-origin + private request header; errors return as JSON and render in the workspace.
 

@@ -544,6 +544,10 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-file-menu {
     min-width: 200px;
+
+    .danger {
+      color: var(--dsw-alias-state-error-primary);
+    }
   }
 
   &-toast {
@@ -1992,6 +1996,32 @@ $brand: var(--dsw-alias-brand-primary);
     border-right: 1px solid $border-l1;
   }
 
+  &-workspace-file-action {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-secondary;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+  }
+
   &-workspace-section {
     display: flex;
     flex: 1 1 0;
@@ -2061,6 +2091,8 @@ $brand: var(--dsw-alias-brand-primary);
     border-radius: 6px;
     color: $label-primary;
     cursor: pointer;
+    // Double-click toggles staging, so the label must not be selectable.
+    user-select: none;
 
     &:hover {
       background: $bg-layer-2;

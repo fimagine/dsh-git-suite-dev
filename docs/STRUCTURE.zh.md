@@ -70,9 +70,11 @@ src/
       EditTagDialog.tsx
       ForcePushTagDialog.tsx
       FetchTagDialog.tsx
+      FileActionDialog.tsx
       ErrorState.tsx
       FetchDialog.tsx
       GitLogIcon.tsx
+      IgnoreFileDialog.tsx
       PanelControls.tsx
       PushDialog.tsx
       Refs.tsx
@@ -126,7 +128,7 @@ LICENSE
 | `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
-| `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、提交（可 amend）、可选 push 的 Node handler |
+| `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
 | `host/clone-handler.ts` | POST `/git-suite/clone`：校验远端 URL 与目标目录后，先克隆到目标同级的临时目录，成功后改名到目标目录 |
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支（可指定提交或任意引用作为起点），检出本地分支、指定提交或任意引用（分离 HEAD，不 force） |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
@@ -215,9 +217,10 @@ LICENSE
 - `POST /git-suite/action`（Node handler，因为 DSH resource 路由只接受 GET/HEAD）接受 JSON：
   - `stage` / `unstage`，带 `paths` 或 `all`，分别执行 `git add -A` / `git reset -q HEAD`。
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
-- 暂存以文件为单位（暂不提供 hunk/区块级暂存）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
+- 暂存以文件为单位（暂不提供 hunk/区块级暂存）；每个文件行最右侧有 **+**（暂存该文件）或 **−**（取消暂存）按钮，双击文件行也会在已暂存/未暂存之间切换（行文字 `user-select: none`，双击不会选中文本）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
 - 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径；点「打开」只在当前面板打开仓库。如需加入 DSH 工作区，请使用 DSH 自带的 Workspaces 添加入口。目录选择器不是 native 时提示手动输入路径。
+- 改动文件右键菜单在「在文件资源管理器中显示」之外多一项危险操作：未暂存的已修改文件是「重置更改」（`git checkout --`，带警告确认），未跟踪文件是「删除文件」（带警告确认；宿主对已跟踪路径返回 `409 tracked-file`）。未跟踪文件还提供「忽略」：向 `.gitignore` 追加一条规则，可选仅该路径、仅同名文件（任意目录）、或 `*.后缀`；已暂存文件只提供定位。
 - 改动文件右键打开菜单，提供「在文件资源管理器中显示」（`POST /git-suite/reveal`）：宿主拒绝仓库外路径，文件不存在时返回 `404 file-missing`，否则用系统文件浏览器选中该文件（`explorer /select,`、`open -R`、`xdg-open`）。文件缺失时以 toast 提示，不占用行内错误区。
 - 所有写入仍是 POST + 同源 + 私有请求头；错误以 JSON 返回并在工作区显示。
 

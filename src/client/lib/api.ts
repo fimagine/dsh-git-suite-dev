@@ -100,12 +100,14 @@ export function isAbortError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError'
 }
 
-export type WorkspaceAction = 'stage' | 'unstage' | 'commit'
+export type WorkspaceAction = 'stage' | 'unstage' | 'commit' | 'discard' | 'delete' | 'ignore'
 
 export interface WorkspaceActionRequest {
   action: WorkspaceAction
   path: string
   paths?: string[]
+  /** `ignore` only: which pattern to append to `.gitignore`. */
+  mode?: 'file' | 'name' | 'extension'
   all?: boolean
   message?: string
   amend?: boolean

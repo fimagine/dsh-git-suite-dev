@@ -3,9 +3,12 @@ import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestRevealFile, toApiError } from '../lib/api.js'
-import { RefreshIcon, SparkleIcon } from './GitLogIcon.js'
+import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
 import { useToast } from './Toast.js'
+import { useTooltip } from './Tooltip.js'
+import { FileActionDialog } from './FileActionDialog.js'
+import { IgnoreFileDialog } from './IgnoreFileDialog.js'
 import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
@@ -18,8 +21,11 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
   const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
+  const [fileAction, setFileAction] = useState<{ kind: 'discard' | 'delete'; file: string } | null>(null)
+  const [ignoreFile, setIgnoreFile] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const toast = useToast()
+  const tooltip = useTooltip()
   const status = ws.status
   const staged = status?.staged ?? []
   const unstaged = status?.unstaged ?? []
@@ -60,6 +66,12 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
     }
   }
 
+  /** Double-click flips one file between staged and unstaged. */
+  const toggleStage = (file: WorkspaceFile, scope: WorkspaceScope): void => {
+    if (scope === 'staged') ws.unstage([file.path])
+    else ws.stage([file.path])
+  }
+
   const fileRow = (file: WorkspaceFile): React.ReactElement => {
     const scope = scopeOf(file)
     const selected = ws.selected?.path === file.path && ws.selected.scope === scope
@@ -70,6 +82,7 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
         key={`${scope}:${file.path}`}
         className={`dsh-gitlog-workspace-file${selected ? ' is-selected' : ''}`}
         onClick={() => ws.selectFile(file.path, scope)}
+        onDoubleClick={() => toggleStage(file, scope)}
         onContextMenu={event => {
           event.preventDefault()
           setFileMenu({ file, x: event.clientX, y: event.clientY })
@@ -79,6 +92,7 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
           type="checkbox"
           checked={isChecked}
           onClick={event => event.stopPropagation()}
+          onDoubleClick={event => event.stopPropagation()}
           onChange={() => toggleCheck(group, file.path)}
           aria-label={file.path}
         />
@@ -97,6 +111,24 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
                 {file.deletions === null ? null : <span className="dsh-gitlog-del">{`-${file.deletions}`}</span>}
               </span>
             )}
+        <button
+          type="button"
+          className="dsh-gitlog-workspace-file-action"
+          title={scope === 'staged' ? t('unstageFile') : t('stageFile')}
+          aria-label={scope === 'staged' ? t('unstageFile') : t('stageFile')}
+          onClick={event => {
+            event.stopPropagation()
+            toggleStage(file, scope)
+          }}
+          onDoubleClick={event => event.stopPropagation()}
+          onMouseEnter={event => tooltip.show(
+            scope === 'staged' ? t('unstageFile') : t('stageFile'),
+            event.currentTarget.getBoundingClientRect(),
+          )}
+          onMouseLeave={tooltip.hide}
+        >
+          {scope === 'staged' ? <MinusIcon size={14} /> : <PlusIcon size={14} />}
+        </button>
       </div>
     )
   }
@@ -315,9 +347,65 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
               >
                 {t('revealInExplorer')}
               </button>
+              {fileMenu.file.staged
+                ? null
+                : (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      onClick={() => {
+                        setFileAction({
+                          kind: fileMenu.file.untracked ? 'delete' : 'discard',
+                          file: fileMenu.file.path,
+                        })
+                        setFileMenu(null)
+                      }}
+                    >
+                      {fileMenu.file.untracked ? t('deleteFileMenu') : t('discardMenu')}
+                    </button>
+                  )}
+              {fileMenu.file.staged || !fileMenu.file.untracked
+                ? null
+                : (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setIgnoreFile(fileMenu.file.path)
+                        setFileMenu(null)
+                      }}
+                    >
+                      {t('ignoreMenu')}
+                    </button>
+                  )}
             </div>
           )}
+      {fileAction === null
+        ? null
+        : (
+            <FileActionDialog
+              view={view}
+              file={fileAction.file}
+              action={fileAction.kind}
+              t={t}
+              onDone={() => ws.refresh()}
+              onClose={() => setFileAction(null)}
+            />
+          )}
+      {ignoreFile === null
+        ? null
+        : (
+            <IgnoreFileDialog
+              view={view}
+              file={ignoreFile}
+              t={t}
+              onDone={() => ws.refresh()}
+              onClose={() => setIgnoreFile(null)}
+            />
+          )}
       {toast.node}
+      {tooltip.node}
     </div>
   )
 }

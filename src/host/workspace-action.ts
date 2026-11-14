@@ -1,4 +1,6 @@
+import { readFile, rm, stat, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { RouteError } from './errors.js'
 import { gitFailure, runGit } from './git.js'
 import { admitHeaders, failure, json } from './http.js'
@@ -13,6 +15,7 @@ interface ActionBody {
   message?: unknown
   amend?: unknown
   push?: unknown
+  mode?: unknown
 }
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -132,6 +135,89 @@ export function createWorkspaceActionHandler(context: RouteContext): (req: Incom
           await runGit(repo.root, args, controller.signal)
         }
         await send(res, json({ ok: true, action }))
+        return
+      }
+
+      if (action === 'discard' || action === 'delete') {
+        const paths = parsePaths(body.paths)
+        if (paths.length === 0) throw new RouteError(400, 'no-paths', 'Select at least one file.')
+        const targets = paths.map(path => {
+          const absolute = resolve(repo.root, path)
+          const inside = relative(repo.root, absolute)
+          if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) {
+            throw new RouteError(400, 'invalid-path', 'That file is outside the repository.', { path })
+          }
+          return { rel: inside, abs: absolute }
+        })
+        if (action === 'discard') {
+          try {
+            await runGit(repo.root, ['checkout', '--', ...targets.map(target => target.rel)], controller.signal)
+          } catch (error) {
+            throw gitFailure(error)
+          }
+        } else {
+          for (const target of targets) {
+            let tracked = true
+            try {
+              await runGit(repo.root, ['ls-files', '--error-unmatch', '--', target.rel], controller.signal)
+            } catch {
+              tracked = false
+            }
+            if (tracked) {
+              throw new RouteError(409, 'tracked-file', 'That file is tracked; delete only applies to untracked files.', { file: target.rel })
+            }
+            try {
+              await stat(target.abs)
+            } catch {
+              throw new RouteError(404, 'file-missing', 'That file does not exist on disk.', { file: target.rel })
+            }
+            await rm(target.abs, { force: true })
+          }
+        }
+        await send(res, json({ ok: true, action }))
+        return
+      }
+
+      if (action === 'ignore') {
+        const mode = body.mode === 'name' || body.mode === 'extension' ? body.mode : 'file'
+        const paths = parsePaths(body.paths)
+        const target = paths[0]
+        if (target === undefined) throw new RouteError(400, 'no-paths', 'Select at least one file.')
+        const absolute = resolve(repo.root, target)
+        const inside = relative(repo.root, absolute)
+        if (inside === '' || inside.startsWith('..') || isAbsolute(inside)) {
+          throw new RouteError(400, 'invalid-path', 'That file is outside the repository.', { path: target })
+        }
+        let tracked = true
+        try {
+          await runGit(repo.root, ['ls-files', '--error-unmatch', '--', inside], controller.signal)
+        } catch {
+          tracked = false
+        }
+        if (tracked) {
+          throw new RouteError(409, 'tracked-file', 'That file is tracked; ignoring it has no effect.', { file: inside })
+        }
+        const posix = inside.split(sep).join('/')
+        const base = posix.split('/').pop() ?? posix
+        const dot = base.lastIndexOf('.')
+        const extension = dot > 0 ? base.slice(dot + 1) : ''
+        const pattern = mode === 'name' ? base : mode === 'extension' ? (extension === '' ? '' : `*.${extension}`) : posix
+        if (pattern === '') {
+          throw new RouteError(400, 'no-extension', 'That file has no extension to ignore.', { file: inside })
+        }
+        const ignorePath = join(repo.root, '.gitignore')
+        let existing = ''
+        try {
+          existing = await readFile(ignorePath, 'utf8')
+        } catch {
+          existing = ''
+        }
+        const lines = existing.split(/\r?\n/).map(line => line.trim())
+        if (!lines.includes(pattern)) {
+          const next = existing.trim() === '' ? `${pattern}\n` : `${existing.replace(/[\s\r\n]+$/, '')}\n${pattern}\n`
+          await writeFile(ignorePath, next, 'utf8')
+        }
+        await send(res, json({ ok: true, action, pattern }))
         return
       }
 
