@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { RouteError } from './errors.js'
 
 const GIT_TIMEOUT_MS = 60_000
@@ -55,6 +55,12 @@ export function gitFailure(error: unknown): RouteError {
   const stderr = String(failed.stderr ?? '').trim()
   const detail = stderr.slice(0, 1200) || String(failed.message ?? 'Git failed')
 
+  if (/could not read (Username|Password)|terminal prompts disabled|Authentication failed|Invalid username or password|401 Unauthorized|remote: (Invalid|Bad) credentials/i.test(stderr)) {
+    return new RouteError(401, 'auth-required', 'This remote needs credentials.', { detail, scheme: 'https' })
+  }
+  if (/Permission denied \(publickey\)|Host key verification failed/i.test(stderr)) {
+    return new RouteError(401, 'auth-required', 'SSH authentication failed for this remote.', { detail, scheme: 'ssh' })
+  }
   if (failed.code === 'ENOENT') {
     return new RouteError(500, 'git-missing', 'Git is not installed or is not available on PATH.', { detail })
   }
@@ -75,3 +81,42 @@ export function gitFailure(error: unknown): RouteError {
   }
   return new RouteError(500, 'git-failed', detail, { detail })
 }
+
+/** Run one git command with text on stdin (used for `git credential approve`). */
+export function runGitWithInput(
+  cwd: string,
+  args: readonly string[],
+  input: string,
+  signal?: AbortSignal,
+  timeoutMs = GIT_TIMEOUT_MS,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['--no-pager', '-c', 'core.quotepath=false', '-C', cwd, ...args], {
+      cwd,
+      env: gitEnvironment(),
+      windowsHide: true,
+      signal,
+    })
+    let stdout = ''
+    let stderr = ''
+    const timer = setTimeout(() => {
+      child.kill()
+      reject(Object.assign(new Error('git timed out'), { code: 'ETIMEDOUT', stderr }))
+    }, timeoutMs)
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => { stdout += chunk })
+    child.stderr.on('data', (chunk: string) => { stderr += chunk })
+    child.on('error', error => {
+      clearTimeout(timer)
+      reject(Object.assign(error, { stderr }))
+    })
+    child.on('close', code => {
+      clearTimeout(timer)
+      if (code === 0) resolve(stdout)
+      else reject(Object.assign(new Error('git failed'), { code: code ?? 1, stdout, stderr }))
+    })
+    child.stdin.end(input)
+  })
+}
+

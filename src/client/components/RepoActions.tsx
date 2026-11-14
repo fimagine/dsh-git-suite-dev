@@ -1,12 +1,14 @@
 import type * as React from 'react'
-import { h, useEffect, useState } from '../runtime.js'
+import { h, useCallback, useEffect, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestApps, requestOpenApp, toApiError } from '../lib/api.js'
+import { fileManagerName } from '../lib/platform.js'
 import type { Translate } from '../types.js'
 import { Button } from './Button.js'
 import { Switch } from './Switch.js'
-import { VscodeIcon, FetchIcon, FolderIcon, PullIcon, PushIcon, TerminalIcon } from './GitLogIcon.js'
+import { FetchIcon, FolderIcon, PullIcon, PushIcon, TerminalIcon } from './GitLogIcon.js'
+import { EditorGlyph } from './EditorIcons.js'
 import { FetchDialog } from './FetchDialog.js'
 import { PushDialog } from './PushDialog.js'
 import { SyncDialog } from './SyncDialog.js'
@@ -28,21 +30,38 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
   const [fetchOpen, setFetchOpen] = useState(false)
   const [pushOpen, setPushOpen] = useState(false)
   const [openError, setOpenError] = useState<string | null>(null)
-  const [vscode, setVscode] = useState(false)
+  const [editors, setEditors] = useState<Array<{ id: string; name: string }>>([])
 
-  useEffect(() => {
-    const controller = new AbortController()
-    requestApps(controller.signal)
+  const reloadEditors = useCallback((signal?: AbortSignal): void => {
+    // Hide the editor button until this repository's host answers.
+    setEditors([])
+    requestApps(signal)
       .then(payload => {
-        if (controller.signal.aborted) return
-        setVscode(payload.vscode)
+        if (signal?.aborted === true) return
+        setEditors(Array.isArray(payload.editors) ? payload.editors : [])
       })
       .catch(() => {
         // Detection is best effort: hide the editor button when it fails.
-        if (!controller.signal.aborted) setVscode(false)
+        if (signal?.aborted !== true) setEditors([])
       })
-    return () => controller.abort()
   }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    reloadEditors(controller.signal)
+    return () => controller.abort()
+  }, [reloadEditors, view.repo?.repoRoot])
+
+  const openEditor = async (id: string): Promise<void> => {
+    if (path === '' || id === '') return
+    setOpenError(null)
+    try {
+      await requestOpenApp({ path, target: 'editor', editor: id })
+    } catch (error) {
+      void reloadEditors()
+      setOpenError(toApiError(error).message)
+    }
+  }
 
   const syncLabel = (action: 'pull' | 'push' | 'fetch'): string => {
     if (syncBusy && ws.syncAction === action) {
@@ -51,7 +70,7 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
     return t(action)
   }
 
-  const openApp = async (target: 'terminal' | 'explorer' | 'vscode'): Promise<void> => {
+  const openApp = async (target: 'terminal' | 'explorer'): Promise<void> => {
     if (path === '') return
     setOpenError(null)
     try {
@@ -62,12 +81,7 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
   }
 
   // The OS file manager has a different name on every platform.
-  const explorerLabel = ((): string => {
-    const agent = typeof navigator === 'undefined' ? '' : navigator.userAgent
-    if (/Mac|iPhone|iPad/i.test(agent)) return t('finder')
-    if (/Windows/i.test(agent)) return t('fileExplorer')
-    return t('fileManager')
-  })()
+  const explorerLabel = fileManagerName(t)
 
   return (
     <div className="dsh-gitlog-repo-actions">
@@ -120,18 +134,17 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
         disabled={path === ''}
         onClick={() => { void openApp('explorer') }}
       />
-      {vscode
-        ? (
-            <Button
-              variant="ghost"
-              iconOnly
-              title={t('openInVscode')}
-              icon={<VscodeIcon />}
-              disabled={path === ''}
-              onClick={() => { void openApp('vscode') }}
-            />
-          )
-        : null}
+      {editors.map(editor => (
+        <Button
+          key={editor.id}
+          variant="ghost"
+          iconOnly
+          title={t('openInEditorName').replace('{name}', editor.name)}
+          icon={<EditorGlyph id={editor.id} />}
+          disabled={path === ''}
+          onClick={() => { void openEditor(editor.id) }}
+        />
+      ))}
       {ws.syncNote !== null ? <p className="dsh-gitlog-note" role="status">{ws.syncNote}</p> : null}
       {ws.syncError !== null ? <p className="dsh-gitlog-note" role="alert">{ws.syncError.message}</p> : null}
       {openError === null ? null : <p className="dsh-gitlog-note" role="alert">{openError}</p>}
@@ -155,6 +168,13 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
     </div>
   )
 }
+
+
+
+
+
+
+
 
 
 

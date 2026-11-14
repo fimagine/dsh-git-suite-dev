@@ -139,7 +139,7 @@ LICENSE
 | `host/stash-handler.ts` | `POST /git-suite/stash`：`save`（`stash push`，可选 `--include-untracked` 与 `-m`）、`apply`、`pop`、`drop`；只接受 `stash@{n}` 形式的引用 |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 |
-| `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，支持单个标签（`tagRefs`）、全部标签（`tags`）与 `force`；`fetch-tag` 用远端覆盖单个本地标签 |
+| `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，支持单个标签（`tagRefs`）、全部标签（`tags`）与 `force`；`fetch-tag` 用远端覆盖单个本地标签；认证失败返回 `401 auth-required`，附带远端名、URL 协议与已配置的凭据助手 |
 | `host/remote-handler.ts` | `POST /git-suite/remote`：新增（`action: 'add'`）、改名和/或修改地址（`action: 'set-url'`）或删除（`action: 'remove'`）指定远端，会校验名称、地址格式以及是否已存在 |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；把当前分支变基到任意引用（`rebase-onto`，目标用 `rev-parse --verify` 解析，遇到冲突返回 `409 operation-conflict`）；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` |
@@ -148,9 +148,12 @@ LICENSE
 | `host/repository.ts` | 校验路径并用 `rev-parse` 解析仓库根目录 |
 | `host/remote-url.ts` | 接受 https/ssh/git/file 与绝对本地路径，拒绝 `ext::` 之类的命令型传输 |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`：校验路径在仓库内、文件存在，然后在系统文件浏览器中选中该文件 |
-| `host/open-handler.ts` | `POST /git-suite/open`：在仓库根目录打开命令行（`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`）、系统文件管理器（`explorer.exe`/`open`/`xdg-open`）或 VS Code；Windows 上由 `host/vscode.ts` 直接启动 `Code.exe`，因为 `code` 的 `.cmd` shim 必须经过 cmd.exe，会闪一个控制台窗口 |
+| `host/open-handler.ts` | `POST /git-suite/open`：在仓库根目录打开命令行（`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`）、系统文件管理器（`explorer.exe`/`open`/`xdg-open`）或 VS Code；Windows 上由 `host/vscode.ts` 直接启动 `Code.exe`，因为 `code` 的 `.cmd` shim 必须经过 cmd.exe，会闪一个控制台窗口；macOS 上打开检测到的 .app（`/Applications` 或 `~/Applications`，含 Insiders），非标准安装也能启动 |
 | `host/routes/commit-messages.ts` | `mode=commit-messages`：最近 40 条不重复的提交信息（`git log -n 120 --format=%B`），供提交框的 ArrowUp 历史使用 |
-| `host/routes/apps.ts` | `mode=apps`：报告 VS Code 是否可用（Windows 检查 GUI 可执行文件是否存在、macOS 检查 .app、Linux 跑 `code --version`），因此只有真正能打开时才显示按钮 |
+| `host/registry.ts` | 编辑器探测用的 Windows 注册表视图：`App Paths`（`Code.exe`、`devenv.exe`、`studio64.exe`、JetBrains 的 `*64.exe` 等）、卸载项里的 `DisplayIcon`/`InstallLocation`、Android Studio 的安装键，以及 Visual Studio 的 `vswhere`；卸载树缓存 10 分钟 |
+| `host/editors.ts` | 支持的编辑器表（VS Code、Insiders、Cursor、Windsurf、VSCodium、Zed、Sublime Text、TextMate、IntelliJ IDEA、WebStorm、PyCharm、GoLand、Visual Studio、Android Studio）：按平台探测（Windows 先查注册表，再查标准安装路径与 JetBrains Toolbox；macOS 的 `/Applications` 与 `~/Applications` 应用包；Linux 的 `PATH` 命令）并启动（可执行文件、`open -a` 或命令） |
+| `host/routes/apps.ts` | `mode=apps`：返回 `host/editors.ts` 探测到的编辑器（id + 显示名，按优先级）以及旧客户端读取的 `vscode` 布尔值；客户端只显示一个编辑器按钮，装了多个时点开是菜单，切换仓库时重新探测 |
+| `host/credential-handler.ts` | `POST /git-suite/credential`：把 HTTPS 的用户名/令牌交给仓库配置的凭据助手保存（`git credential approve`，密码只走 stdin），保存前校验远端为 HTTPS 且存在 helper（否则 `409 no-credential-helper`）；接口从不回传密码 |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
 | `host/routes/` | 分支、引用树、日志分页、提交详情、文件状态/diff 读取，以及本地分支切换 |
@@ -293,6 +296,17 @@ DSH 每个包只通过 `exports["./client"]` 加载一个惰性工厂（`window.
 - `dist/` 和 `src/client/styles.generated.css` 都是构建产物，已被 Git 忽略；克隆后先 `pnpm install && pnpm build`，DSH 插件管理器不会替你构建。
 - `pnpm watch:client` 监听 `src/client/` 与 `styles.scss`，SCSS 改动会重新编译并触发 esbuild 重建；DSH HMR 监听 `dist/client.js`，重建后页面会重新加载该插件。
 - 修改 `package.json` 的入口路径后，需要重启 DSH（或在插件页禁用再启用该插件），因为运行中的 Host 会缓存插件清单。
+
+
+
+
+
+
+
+
+
+
+
 
 
 

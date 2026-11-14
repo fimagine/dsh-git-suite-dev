@@ -20,6 +20,7 @@ import { AddTagDialog } from './components/AddTagDialog.js'
 import { DeleteTagDialog } from './components/DeleteTagDialog.js'
 import { ForcePushTagDialog } from './components/ForcePushTagDialog.js'
 import { RebaseDialog } from './components/RebaseDialog.js'
+import { CredentialDialog } from './components/CredentialDialog.js'
 import { FetchTagDialog } from './components/FetchTagDialog.js'
 import { StashMenu, type StashMenuState } from './components/StashMenu.js'
 import { ConflictBanner } from './components/ConflictBanner.js'
@@ -686,6 +687,18 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
         }}
         onRebaseOnto={target => setRebaseTarget(target)}
       />
+      {ws.authPrompt === null
+        ? null
+        : (
+            <CredentialDialog
+              prompt={ws.authPrompt}
+              busy={ws.authBusy}
+              error={ws.authError}
+              t={t}
+              onSubmit={(username, password) => { void ws.submitCredential(username, password) }}
+              onClose={ws.dismissCredential}
+            />
+          )}
       {rebaseTarget === null
         ? null
         : (
@@ -859,6 +872,7 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
     </div>
   )
 }
+
 
 
 

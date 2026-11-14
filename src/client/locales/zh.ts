@@ -15,6 +15,15 @@ export const zh: Record<LocaleKey, string> = {
   guideDescription: '浏览与操作本地 Git 仓库。',
   close: '关闭',
   cancel: '取消',
+  credentialTitle: '保存远端凭据',
+  credentialBody: '{remote} 需要账号认证，保存后会自动重试刚才的操作。',
+  credentialUser: '用户名',
+  credentialSecret: '密码或访问令牌',
+  credentialStoreHint: '凭据通过 git credential helper 写入系统凭据管理器（macOS 钥匙串、Windows 凭据管理器），插件本身不保存密码。',
+  credentialSsh: 'SSH 远端无法在这里保存凭据：请先在本机配置密钥（ssh-add），或改用 HTTPS 远端。',
+  credentialNoHelper: '该仓库没有配置 credential.helper，凭据无处可存。可以先在本机终端成功推送一次，让系统记住凭据。',
+  credentialSave: '保存并重试',
+  credentialBusy: '保存中…',
   open: '打开',
   addRepository: '添加仓库',
   cloneRemote: '克隆远端仓库',
@@ -171,7 +180,8 @@ export const zh: Record<LocaleKey, string> = {
   fetch: '获取',
   terminal: '命令行',
   openTerminal: '在命令行中打开仓库',
-  openInVscode: '在 VS Code 中打开',
+  openInEditor: '在编辑器中打开',
+  openInEditorName: '在{name}中打开',
   fileExplorer: '文件资源管理器',
   finder: '访达',
   fileManager: '文件管理器',
@@ -264,7 +274,7 @@ export const zh: Record<LocaleKey, string> = {
   notConfigured: '未配置 Git 用户',
   selectFileToViewDiff: '选择文件查看 diff',
   fileMenu: '文件操作',
-  revealInExplorer: '在文件资源管理器中显示',
+  revealIn: '在{name}中显示',
   fileMissing: '文件不存在：{file}',
   discardMenu: '重置更改',
   discardTitle: '重置更改',
@@ -406,6 +416,11 @@ export const zh: Record<LocaleKey, string> = {
   detached: '分离头指针',
   merge: '合并',
 }
+
+
+
+
+
 
 
 

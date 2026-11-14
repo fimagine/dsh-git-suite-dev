@@ -77,9 +77,11 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 1 1 auto;
   }
 
+
   &-repo-actions {
     display: flex;
     flex: 0 0 auto;
+    flex-wrap: wrap;
     align-items: center;
     gap: 2px;
     padding: 1px 0;
@@ -127,6 +129,13 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: flex-end;
     gap: 10px 12px;
     min-width: 0;
+  }
+
+  // Credential dialog: two stacked fields above the storage hint.
+  &-credential {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
   &-field-hint {
@@ -2951,6 +2960,10 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
+
+
+
 
 
 

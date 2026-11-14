@@ -1,6 +1,7 @@
 import type { HostContext, SessionStoreLike, WorkspaceRegistry, WorkspaceRegistryEntry } from './dsh.js'
 import { createCloneHandler } from './clone-handler.js'
 import { createBranchActionHandler } from './branch-action-handler.js'
+import { createCredentialHandler } from './credential-handler.js'
 import { createBranchHandler, createCheckoutHandler, createTagHandler } from './commit-actions.js'
 import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
@@ -31,6 +32,7 @@ const OPEN_PATH = '/git-suite/open'
 const COMMIT_OP_PATH = '/git-suite/commit-op'
 const STASH_PATH = '/git-suite/stash'
 const BRANCH_ACTION_PATH = '/git-suite/branch-action'
+const CREDENTIAL_PATH = '/git-suite/credential'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
 
@@ -153,8 +155,14 @@ export function apply(ctx: HostContext): void {
   }), 'git-suite: stash route')
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
+    path: CREDENTIAL_PATH,
+    handler: createCredentialHandler(context),
+  }), 'git-suite: credential route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
     path: BRANCH_ACTION_PATH,
     handler: createBranchActionHandler(context),
   }), 'git-suite: branch action route')
 }
+
 

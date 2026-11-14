@@ -13,6 +13,15 @@ export const en = {
   guideDescription: 'Browse and operate a local Git repository.',
   close: 'Close',
   cancel: 'Cancel',
+  credentialTitle: 'Save remote credentials',
+  credentialBody: '{remote} needs authentication; the last action retries once it is saved.',
+  credentialUser: 'Username',
+  credentialSecret: 'Password or access token',
+  credentialStoreHint: 'The credential is written through the git credential helper into the system store (macOS Keychain, Windows Credential Manager); the plugin never keeps the password.',
+  credentialSsh: 'SSH remotes cannot store a credential here: configure a key (ssh-add) on this machine or switch the remote to HTTPS.',
+  credentialNoHelper: 'This repository configures no credential.helper, so there is nowhere to store it. Push once from a terminal so the system remembers it instead.',
+  credentialSave: 'Save and retry',
+  credentialBusy: 'Saving…',
   open: 'Open',
   addRepository: 'Add repository',
   cloneRemote: 'Clone remote repository',
@@ -169,7 +178,8 @@ export const en = {
   fetch: 'Fetch',
   terminal: 'Terminal',
   openTerminal: 'Open a terminal at the repository',
-  openInVscode: 'Open in VS Code',
+  openInEditor: 'Open in editor',
+  openInEditorName: 'Open in {name}',
   fileExplorer: 'File Explorer',
   finder: 'Finder',
   fileManager: 'File Manager',
@@ -262,7 +272,7 @@ export const en = {
   notConfigured: 'Git user not configured',
   selectFileToViewDiff: 'Select a file to view the diff',
   fileMenu: 'File actions',
-  revealInExplorer: 'Open in file explorer',
+  revealIn: 'Reveal in {name}',
   fileMissing: 'File not found: {file}',
   discardMenu: 'Discard changes',
   discardTitle: 'Discard changes',
@@ -406,6 +416,11 @@ export const en = {
 } as const
 
 export type LocaleKey = keyof typeof en
+
+
+
+
+
 
 
 

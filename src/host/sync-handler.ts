@@ -58,6 +58,41 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+/** Strip any userinfo a remote URL may embed before it reaches the UI. */
+function safeUrl(url: string): string {
+  return url.replace(/\/\/[^@/]+@/, '//')
+}
+
+/**
+ * A push/pull that failed on authentication gets the remote, its URL scheme,
+ * and the configured credential helper, so the client can offer to store a
+ * token instead of only printing git's stderr.
+ */
+async function annotateAuthFailure(
+  repoRoot: string,
+  error: unknown,
+  remote: string,
+  signal: AbortSignal,
+): Promise<RouteError> {
+  const failure = gitFailure(error)
+  if (failure.code !== 'auth-required') return failure
+  let url = ''
+  try {
+    url = (await runGit(repoRoot, ['remote', 'get-url', remote], signal)).trim()
+  } catch {
+    url = ''
+  }
+  const scheme = /^https?:/i.test(url) ? 'https' : /^ssh:|^[^/]+@[^:]+:/.test(url) ? 'ssh' : 'other'
+  let helper: string | null = null
+  try {
+    const value = (await runGit(repoRoot, ['config', '--get-all', 'credential.helper'], signal)).trim()
+    helper = value === '' ? null : value.split(/\r?\n/).join(', ')
+  } catch {
+    helper = null
+  }
+  return failure.withDetails({ remote, scheme, helper, ...(url === '' ? {} : { url: safeUrl(url) }) })
+}
+
 /** POST /git-suite/sync: fetch all remotes, or pull/push one remote branch. */
 export function createSyncHandler(context: RouteContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
@@ -104,7 +139,11 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
           ...(body.tags === true ? ['--tags'] : []),
           ...(body.forceTags === true ? ['--force'] : []),
         )
-        await runGit(repo.root, args, controller.signal)
+        try {
+          await runGit(repo.root, args, controller.signal)
+        } catch (error) {
+          throw await annotateAuthFailure(repo.root, error, remote, controller.signal)
+        }
         await send(res, json({ ok: true, action, ...(remote === '' ? {} : { remote }) }))
         return
       }
@@ -134,7 +173,7 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
         try {
           await runGit(repo.root, ['fetch', '--force', remote, `refs/tags/${name}:refs/tags/${name}`], controller.signal)
         } catch (error) {
-          throw gitFailure(error).withDetails({ remote, tag: name })
+          throw await annotateAuthFailure(repo.root, error, remote, controller.signal).then(failure => failure.withDetails({ tag: name }))
         }
         await send(res, json({ ok: true, action, remote, tag: name }))
         return
@@ -153,7 +192,7 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
         try {
           await runGit(repo.root, ['pull', remote, branch], controller.signal)
         } catch (error) {
-          throw gitFailure(error)
+          throw await annotateAuthFailure(repo.root, error, remote, controller.signal)
         }
         await send(res, json({ ok: true, action, remote, branch }))
         return
@@ -217,7 +256,7 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
           await runGit(repo.root, ['push', ...(force ? ['--force'] : []), remote, '--tags'], controller.signal)
         }
       } catch (error) {
-        throw gitFailure(error)
+        throw await annotateAuthFailure(repo.root, error, remote, controller.signal)
       }
       await send(res, json({ ok: true, action, remote }))
     } catch (error) {
@@ -227,3 +266,4 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
     }
   }
 }
+

@@ -191,7 +191,9 @@ export async function requestClone(body: CloneRequest, signal?: AbortSignal): Pr
 
 export interface OpenAppRequest {
   path: string
-  target: 'terminal' | 'explorer' | 'vscode'
+  target: 'terminal' | 'explorer' | 'vscode' | 'editor'
+  /** Editor id when `target` is `editor`. */
+  editor?: string
 }
 
 /** GET /git-suite?mode=apps: which external editors are installed. */
@@ -209,6 +211,25 @@ export interface SessionRepoPayload {
 /** GET /git-suite?mode=session-repo: the Git repository of one Session's working directory. */
 export async function requestSessionRepo(sessionId: string, signal?: AbortSignal): Promise<SessionRepoPayload> {
   return requestJson<SessionRepoPayload>({ mode: 'session-repo', session: sessionId }, signal)
+}
+
+/** Store an HTTPS credential through the repository's credential helper. */
+export interface CredentialRequest {
+  path: string
+  remote: string
+  username: string
+  password: string
+}
+
+export interface CredentialPayload {
+  ok: true
+  remote: string
+  helper: string
+  host: string
+}
+
+export async function requestCredential(body: CredentialRequest, signal?: AbortSignal): Promise<CredentialPayload> {
+  return postCommitJson<CredentialPayload>('/git-suite/credential', body, signal)
 }
 
 /** POST /git-suite/open: open a terminal or the OS file manager at the repository root. */
@@ -519,6 +540,8 @@ export async function requestBranchAction(body: BranchActionRequest, signal?: Ab
 export function toApiError(error: unknown): ApiError {
   return error instanceof ApiError ? error : new ApiError(error instanceof Error ? error.message : String(error), 'internal')
 }
+
+
 
 
 

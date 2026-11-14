@@ -5,6 +5,7 @@ import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestAction, requestCommitMessages, requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
 import { useDiffMode } from '../lib/use-diff-mode.js'
 import { useSplitSize } from '../lib/use-split-size.js'
+import { fileManagerName } from '../lib/platform.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
@@ -758,7 +759,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                   setFileMenu(null)
                 }}
               >
-                {t('revealInExplorer')}
+                {t('revealIn').replace('{name}', fileManagerName(t))}
               </button>
               {fileMenu.file.unmerged !== true ? null : (
                 <button
@@ -876,6 +877,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
 
 
 

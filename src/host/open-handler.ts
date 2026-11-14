@@ -4,11 +4,14 @@ import { RouteError } from './errors.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
 import type { RouteContext } from './types.js'
-import { findCodeExecutable } from './vscode.js'
+import { launchEditor } from './editors.js'
+import { findCodeExecutable, findMacApp } from './vscode.js'
 
 interface OpenBody {
   path?: unknown
   target?: unknown
+  /** Editor id for 	arget: 'editor'. */
+  editor?: unknown
 }
 
 const MAX_BODY_BYTES = 16 * 1024
@@ -62,8 +65,10 @@ function launch(target: 'terminal' | 'explorer' | 'vscode', root: string): void 
         command = executable
       }
     } else if (process.platform === 'darwin') {
+      // `-a` by name only finds the standard bundle; use the path when found.
+      const app = findMacApp()
       command = 'open'
-      args = ['-a', 'Visual Studio Code', root]
+      args = app === undefined ? ['-a', 'Visual Studio Code', root] : ['-a', app, root]
     }
     try {
       const child = spawn(command, args, options)
@@ -121,13 +126,24 @@ export function createOpenHandler(context: RouteContext): (req: IncomingMessage,
 
     try {
       const body = await readJson(req)
+      const editor = typeof body.editor === 'string' ? body.editor.trim() : ''
       const target = body.target === 'terminal'
         ? 'terminal' as const
         : body.target === 'explorer'
           ? 'explorer' as const
-          : body.target === 'vscode' ? 'vscode' as const : null
-      if (target === null) throw new RouteError(400, 'invalid-target', 'Choose a terminal, the file manager, or VS Code.')
+          : body.target === 'vscode'
+            ? 'vscode' as const
+            : body.target === 'editor' ? 'editor' as const : null
+      if (target === null) throw new RouteError(400, 'invalid-target', 'Choose a terminal, the file manager, or an editor.')
       const repo = await resolveRepository(context, typeof body.path === 'string' ? body.path : '')
+      if (target === 'editor') {
+        if (editor === '') throw new RouteError(400, 'editor-required', 'Choose an editor.')
+        if (!(await launchEditor(editor, repo.root))) {
+          throw new RouteError(400, 'unknown-editor', 'That editor is not installed on this host.', { editor })
+        }
+        await send(res, json({ ok: true, target, editor, path: repo.root }))
+        return
+      }
       launch(target, repo.root)
       await send(res, json({ ok: true, target, path: repo.root }))
     } catch (error) {
@@ -135,4 +151,7 @@ export function createOpenHandler(context: RouteContext): (req: IncomingMessage,
     }
   }
 }
+
+
+
 

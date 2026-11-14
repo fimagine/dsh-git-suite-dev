@@ -139,7 +139,7 @@ LICENSE
 | `host/stash-handler.ts` | `POST /git-suite/stash`: `save` (`stash push`, optional `--include-untracked` and `-m`), `apply`, `pop`, `drop`; only `stash@{n}` refs are accepted |
 | `host/generate-handler.ts` | Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
 | `host/pick-handler.ts` | Opens the native `ctx.directoryPicker`; `mode: 'repo'` (default) resolves the Git root and checks the DSH workspace, while `mode: 'directory'` returns a plain directory for clone destinations |
-| `host/sync-handler.ts` | `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, push per-ref local→remote mappings with optional tracking, single tags (`tagRefs`), all tags, and force; `fetch-tag` force-replaces one local tag from the remote |
+| `host/sync-handler.ts` | `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, push per-ref local→remote mappings with optional tracking, single tags (`tagRefs`), all tags, and force; `fetch-tag` force-replaces one local tag from the remote; an authentication failure becomes `401 auth-required` annotated with the remote, its URL scheme, and the configured credential helper |
 | `host/remote-handler.ts` | `POST /git-suite/remote`: add (`action: 'add'`), rename and/or replace the URL (`action: 'set-url'`), or remove (`action: 'remove'`) one configured remote after validating the names, the URL, and whether they already exist |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`: merge, rebase, rename, or delete a local branch; rebase the current branch onto any ref (`rebase-onto`, target resolved with `rev-parse --verify`, `409 operation-conflict` when it stops on conflicts); check out a remote-tracking branch as a new tracking branch (`track`); delete a branch on a remote (`delete-remote`, `push --delete`); with validation and git error details |
 | `host/dsh.ts` | Local DSH host types, including `webServer`, workspaces, `directoryPicker`, `llm`, and `agentDefaultModel` |
@@ -148,9 +148,12 @@ LICENSE
 | `host/repository.ts` | Validates paths and resolves the repository root with `rev-parse` |
 | `host/remote-url.ts` | Accepts https/ssh/git/file and absolute local remotes; rejects `ext::`-style transports |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`: keeps the path inside the repository, reports `file-missing`, and opens the OS file browser with the file selected |
-| `host/open-handler.ts` | `POST /git-suite/open`: opens a terminal (`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`), the OS file manager (`explorer.exe`/`open`/`xdg-open`), or VS Code at the repository root; on Windows it launches `Code.exe` from `host/vscode.ts` directly, because the `code` `.cmd` shim needs cmd.exe and flashes a console window |
+| `host/open-handler.ts` | `POST /git-suite/open`: opens a terminal (`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`), the OS file manager (`explorer.exe`/`open`/`xdg-open`), or VS Code at the repository root; on Windows it launches `Code.exe` from `host/vscode.ts` directly, because the `code` `.cmd` shim needs cmd.exe and flashes a console window; on macOS it opens the detected app bundle (`/Applications` or `~/Applications`, regular or Insiders), so a non-standard install still launches |
 | `host/routes/commit-messages.ts` | `mode=commit-messages`: the 40 newest distinct commit messages (`git log -n 120 --format=%B`), used by the ArrowUp history in the commit box |
-| `host/routes/apps.ts` | `mode=apps`: reports whether VS Code can be launched (Windows: the GUI executable exists on disk; macOS: the app bundle; Linux: `code --version`), so the UI only shows the button when it can actually open |
+| `host/registry.ts` | Windows registry view used by editor detection: `App Paths` (`Code.exe`, `devenv.exe`, `studio64.exe`, the JetBrains `*64.exe` shims …), uninstall entries via `DisplayIcon`/`InstallLocation`, the Android Studio installer key, and `vswhere` for Visual Studio; the uninstall subtree is cached for ten minutes |
+| `host/editors.ts` | One table of supported editors (VS Code, Insiders, Cursor, Windsurf, VSCodium, Zed, Sublime Text, TextMate, IntelliJ IDEA, WebStorm, PyCharm, GoLand, Visual Studio, Android Studio): per-platform detection (Windows install paths incl. JetBrains Toolbox, macOS app bundles in `/Applications` and `~/Applications`, Linux commands on `PATH`) and launch (executable, `open -a`, or the command) |
+| `host/routes/apps.ts` | `mode=apps`: lists the editors `host/editors.ts` detects (id + name, priority order) plus the `vscode` flag older clients read; the client shows one editor button that becomes a menu when several are installed, and re-detects on every repository change |
+| `host/credential-handler.ts` | `POST /git-suite/credential`: stores an HTTPS username/token through the repository's credential helper (`git credential approve`, secret only on stdin), after checking the remote is HTTPS and a helper is configured (`409 no-credential-helper` otherwise); never returns the secret |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
 | `host/parsers.ts` | Parses log output, commit headers, numstat, and refs |
 | `host/routes/` | Readers for branches, the refs tree, paged log, commit detail, working-tree status/diff, plus local branch switching |
@@ -293,6 +296,17 @@ DSH loads exactly one lazy factory per package through `exports["./client"]` (`w
 - `dist/` and `src/client/styles.generated.css` are build artifacts and are ignored by Git. After cloning, run `pnpm install && pnpm build` first; DSH Plugin Manager does not build a local directory for you.
 - `pnpm watch:client` watches `src/client/` and `styles.scss`; a SCSS change recompiles it and triggers an esbuild rebuild, and DSH HMR watches `dist/client.js` to reload the plugin on the page.
 - Changing entry paths in `package.json` requires restarting DSH (or disabling and re-enabling the plugin row), because the running Host caches the plugin manifest.
+
+
+
+
+
+
+
+
+
+
+
 
 
 

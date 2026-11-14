@@ -289,6 +289,8 @@ export interface OpenAppPayload {
 export interface AppsPayload {
   ok: true
   vscode: boolean
+  /** Editors this host can launch, in priority order. */
+  editors: Array<{ id: string; name: string }>
 }
 
 /** Installed version versus the latest one published on npm. */
@@ -424,6 +426,7 @@ export interface CheckoutPayload {
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 export type DetailStatus = 'idle' | LoadStatus
+
 
 
 

@@ -1,36 +1,25 @@
-import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { RouteError } from '../errors.js'
+import { installedEditors } from '../editors.js'
 import type { AppsPayload } from '../types.js'
-import { findCodeExecutable } from '../vscode.js'
 
-const CHECK_TIMEOUT_MS = 5000
-const MAC_APP = '/Applications/Visual Studio Code.app'
-
-let cached: Promise<boolean> | null = null
-
-/** Whether VS Code can be launched: the GUI app on Windows/macOS, `code` elsewhere. */
-function detectVscode(): Promise<boolean> {
-  if (process.platform === 'win32') return Promise.resolve(findCodeExecutable() !== undefined)
-  if (process.platform === 'darwin') return Promise.resolve(existsSync(MAC_APP))
-  if (cached === null) {
-    cached = new Promise<boolean>(resolve => {
-      const child = execFile('code', ['--version'], { timeout: CHECK_TIMEOUT_MS, windowsHide: true }, error => {
-        resolve(error === null)
-      })
-      child.on('error', () => resolve(false))
-    })
-  }
-  return cached
-}
-
-/** `mode=apps`: which external editors are available for the "open with" actions. */
+/**
+ * `mode=apps`: which external editors this host can open the repository in.
+ * Detection reads the filesystem (Windows/macOS) or `PATH` (Linux), so an editor
+ * installed or removed while the host runs is picked up on the next request.
+ */
 export async function readApps(): Promise<AppsPayload> {
   try {
-    return { ok: true, vscode: await detectVscode() }
+    const editors = await installedEditors()
+    return {
+      ok: true,
+      vscode: editors.some(editor => editor.id === 'vscode' || editor.id === 'vscode-insiders'),
+      editors: editors.map(editor => ({ id: editor.id, name: editor.name })),
+    }
   } catch (error) {
     throw new RouteError(500, 'apps-unavailable', 'Could not detect installed editors.', {
       detail: error instanceof Error ? error.message : String(error),
     })
   }
 }
+
+

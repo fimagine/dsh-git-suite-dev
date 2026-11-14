@@ -126,7 +126,10 @@ export interface CommitMessagesPayload {
 /** External editors the host could launch, for the "open with" actions. */
 export interface AppsPayload {
   ok: true
+  /** True when any VS Code-compatible build is installed (kept for older clients). */
   vscode: boolean
+  /** Editors this host can launch, in priority order, with display names. */
+  editors: Array<{ id: string; name: string }>
 }
 
 /** One local tag with the commit it points at and its annotation message. */
@@ -186,6 +189,8 @@ export interface RouteContext {
   /** Working directory of one Session, when the host keeps a record of it. */
   sessionDirectory?(sessionId: string): string | null
 }
+
+
 
 
 

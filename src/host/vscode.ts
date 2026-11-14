@@ -28,3 +28,29 @@ export function codeExecutableCandidates(): string[] {
 export function findCodeExecutable(): string | undefined {
   return codeExecutableCandidates().find(candidate => existsSync(candidate))
 }
+
+/**
+ * macOS install locations of the VS Code app bundle. `open -a "Visual Studio
+ * Code"` only resolves the standard "Visual Studio Code" bundle, so Insiders or
+ * a user-level install need the bundle path instead.
+ */
+export function macAppCandidates(): string[] {
+  const home = process.env.HOME
+  const candidates = [
+    '/Applications/Visual Studio Code.app',
+    '/Applications/Visual Studio Code - Insiders.app',
+    home === undefined ? '' : join(home, 'Applications', 'Visual Studio Code.app'),
+    home === undefined ? '' : join(home, 'Applications', 'Visual Studio Code - Insiders.app'),
+  ]
+  return candidates.filter(candidate => candidate !== '')
+}
+
+/** A bundle only counts when the executable inside it exists (stale folders do not). */
+function isMacApp(bundle: string): boolean {
+  return existsSync(join(bundle, 'Contents', 'MacOS', 'Electron'))
+}
+
+/** The macOS app bundle to launch, or `undefined` when VS Code is not installed. */
+export function findMacApp(): string | undefined {
+  return macAppCandidates().find(candidate => isMacApp(candidate))
+}

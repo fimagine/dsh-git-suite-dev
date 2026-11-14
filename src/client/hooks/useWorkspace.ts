@@ -10,6 +10,7 @@ import {
   type WorkspaceActionRequest,
 } from '../lib/api.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
+import { requestCredential } from '../lib/api.js'
 import type {
   FetchOptions,
   LoadStatus,
@@ -23,6 +24,13 @@ import type {
   WorkspaceStatus,
   WorkspaceStatusPayload,
 } from '../types.js'
+
+export interface AuthPrompt {
+  remote: string
+  action: SyncAction
+  scheme: 'https' | 'ssh' | 'other'
+  helper: string | null
+}
 
 export interface WorkspaceSelection {
   path: string
@@ -55,6 +63,12 @@ export interface WorkspaceView {
   refresh(): void
   sync(action: SyncAction, target?: { remote: string; branch: string }, fetchOptions?: FetchOptions): void
   pushBranches(options: PushOptions): void
+  /** Set when a push/pull failed on authentication; the dialog retries after storing. */
+  authPrompt: AuthPrompt | null
+  authBusy: boolean
+  authError: string | null
+  submitCredential(username: string, password: string): Promise<void>
+  dismissCredential(): void
   selectFile(path: string, scope: WorkspaceScope): void
   setMessage(value: string): void
   setAmend(value: boolean): void
@@ -99,6 +113,10 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
   const [syncAction, setSyncAction] = useState<SyncAction | null>(null)
   const [syncError, setSyncError] = useState<ApiError | null>(null)
   const [syncNote, setSyncNote] = useState<string | null>(null)
+  const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const lastSync = useRef<{ action: SyncAction; target?: { remote: string; branch: string }; fetchOptions?: FetchOptions } | null>(null)
   const actionAbort = useRef<AbortController | null>(null)
   const generateAbort = useRef<AbortController | null>(null)
   const syncAbort = useRef<AbortController | null>(null)
@@ -265,7 +283,18 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
         return loadStatus(controller.signal)
       })
       .catch(error => {
-        if (!isAbortError(error)) setSyncError(toApiError(error))
+        if (isAbortError(error)) return
+        const apiError = toApiError(error)
+        setSyncError(apiError)
+        if (apiError.code !== 'auth-required') return
+        const details = apiError.details ?? {}
+        setAuthError(null)
+        setAuthPrompt({
+          remote: typeof details.remote === 'string' && details.remote !== '' ? details.remote : target?.remote ?? 'origin',
+          action,
+          scheme: details.scheme === 'ssh' ? 'ssh' : details.scheme === 'https' ? 'https' : 'other',
+          helper: typeof details.helper === 'string' ? details.helper : null,
+        })
       })
       .finally(() => {
         if (syncAbort.current === controller) {
@@ -275,6 +304,29 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
         }
       })
   }, [path, loadStatus, t])
+
+  /** Store the credential through the host and retry the failed sync once. */
+  const submitCredential = useCallback(async (username: string, password: string): Promise<void> => {
+    const prompt = authPrompt
+    const pending = lastSync.current
+    if (prompt === null || pending === null || authBusy) return
+    setAuthBusy(true)
+    setAuthError(null)
+    try {
+      await requestCredential({ path, remote: prompt.remote, username, password })
+      setAuthPrompt(null)
+      sync(pending.action, pending.target, pending.fetchOptions)
+    } catch (error) {
+      setAuthError(toApiError(error).message)
+    } finally {
+      setAuthBusy(false)
+    }
+  }, [authPrompt, authBusy, path, sync])
+
+  const dismissCredential = useCallback((): void => {
+    setAuthPrompt(null)
+    setAuthError(null)
+  }, [])
 
   const pushBranches = useCallback((options: PushOptions): void => {
     if (path.trim() === '') return
@@ -301,7 +353,18 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
         return loadStatus(controller.signal)
       })
       .catch(error => {
-        if (!isAbortError(error)) setSyncError(toApiError(error))
+        if (isAbortError(error)) return
+        const apiError = toApiError(error)
+        setSyncError(apiError)
+        if (apiError.code !== 'auth-required') return
+        const details = apiError.details ?? {}
+        setAuthError(null)
+        setAuthPrompt({
+          remote: typeof details.remote === 'string' && details.remote !== '' ? details.remote : options.remote,
+          action: 'push',
+          scheme: details.scheme === 'ssh' ? 'ssh' : details.scheme === 'https' ? 'https' : 'other',
+          helper: typeof details.helper === 'string' ? details.helper : null,
+        })
       })
       .finally(() => {
         if (syncAbort.current === controller) {
@@ -356,6 +419,11 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
     refresh,
     sync,
     pushBranches,
+    authPrompt,
+    authBusy,
+    authError,
+    submitCredential,
+    dismissCredential,
     selectFile,
     setMessage,
     setAmend,
@@ -367,6 +435,9 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
     commit,
   }
 }
+
+
+
 
 
 
