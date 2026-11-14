@@ -1843,6 +1843,15 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   // Icon-only toggle between the unified and side-by-side diff layouts.
+  // A selected split row tints both of its cells.
+  &-diff-split-row.is-selected .dsh-gitlog-diff-cell {
+    background: color-mix(in srgb, $brand 22%, transparent);
+  }
+
+  &-diff-split-row.is-selected {
+    cursor: pointer;
+  }
+
   &-diff-mode {
     display: inline-flex;
     flex: 0 0 auto;
@@ -2942,6 +2951,7 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
 
 
 

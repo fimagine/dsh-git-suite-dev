@@ -2,6 +2,8 @@
 export type DiffLineKind = 'meta' | 'file' | 'hunk' | 'add' | 'del' | 'context' | 'note'
 
 export interface DiffLine {
+  /** Position of this line inside the parsed patch. */
+  index: number
   kind: DiffLineKind
   /** The line exactly as git printed it, including the `+`, `-`, or space marker. */
   raw: string
@@ -59,8 +61,9 @@ export function parseDiff(patch: string): ParsedDiff {
   let deletions = 0
 
   for (const raw of patch.split(/\r?\n/)) {
+    const index = lines.length
     if (FILE_PREFIXES.some(prefix => raw.startsWith(prefix))) {
-      lines.push({ kind: 'file', raw, content: raw, oldLine: null, newLine: null, hunk })
+      lines.push({ index, kind: 'file', raw, content: raw, oldLine: null, newLine: null, hunk })
       continue
     }
     const header = HUNK.exec(raw)
@@ -68,32 +71,32 @@ export function parseDiff(patch: string): ParsedDiff {
       hunk += 1
       oldLine = number(header[1])
       newLine = number(header[3])
-      lines.push({ kind: 'hunk', raw, content: raw, oldLine: null, newLine: null, hunk })
+      lines.push({ index, kind: 'hunk', raw, content: raw, oldLine: null, newLine: null, hunk })
       continue
     }
     if (raw.startsWith('\\')) {
-      lines.push({ kind: 'note', raw, content: raw, oldLine: null, newLine: null, hunk })
+      lines.push({ index, kind: 'note', raw, content: raw, oldLine: null, newLine: null, hunk })
       continue
     }
     if (raw.startsWith('+')) {
       additions += 1
-      lines.push({ kind: 'add', raw, content: raw.slice(1), oldLine: null, newLine, hunk })
+      lines.push({ index, kind: 'add', raw, content: raw.slice(1), oldLine: null, newLine, hunk })
       newLine += 1
       continue
     }
     if (raw.startsWith('-')) {
       deletions += 1
-      lines.push({ kind: 'del', raw, content: raw.slice(1), oldLine, newLine: null, hunk })
+      lines.push({ index, kind: 'del', raw, content: raw.slice(1), oldLine, newLine: null, hunk })
       oldLine += 1
       continue
     }
     if (raw.startsWith(' ')) {
-      lines.push({ kind: 'context', raw, content: raw.slice(1), oldLine, newLine, hunk })
+      lines.push({ index, kind: 'context', raw, content: raw.slice(1), oldLine, newLine, hunk })
       oldLine += 1
       newLine += 1
       continue
     }
-    lines.push({ kind: 'meta', raw, content: raw, oldLine: null, newLine: null, hunk })
+    lines.push({ index, kind: 'meta', raw, content: raw, oldLine: null, newLine: null, hunk })
   }
 
   // A trailing newline in the patch produces one empty trailing line.
@@ -153,4 +156,41 @@ export function pairDiffLines(lines: readonly DiffLine[]): DiffSplitRow[] {
   }
   flush()
   return rows
+}
+
+
+/** Whether a line can be selected (and staged on its own). */
+export function isContentLine(line: DiffLine | null): line is DiffLine {
+  return line !== null && (line.kind === 'add' || line.kind === 'del' || line.kind === 'context')
+}
+
+/**
+ * Map a rendered row range onto the patch lines it covers. Unified rows are
+ * patch lines; a split row pairs one old line with one new line, so the result
+ * lists exactly those indexes instead of the range between them.
+ */
+export function patchLinesForRows(
+  rows: readonly DiffSplitRow[] | null,
+  lines: readonly DiffLine[],
+  start: number,
+  end: number,
+): { start: number; end: number; lines: number[] } | null {
+  const picked: number[] = []
+  if (rows === null) {
+    for (let row = start; row <= end; row += 1) {
+      const line = lines[row]
+      if (line !== undefined && isContentLine(line)) picked.push(line.index)
+    }
+  } else {
+    for (let row = start; row <= end; row += 1) {
+      const entry = rows[row]
+      if (entry === undefined) continue
+      for (const line of [entry.left, entry.right]) {
+        if (isContentLine(line)) picked.push(line.index)
+      }
+    }
+  }
+  if (picked.length === 0) return null
+  const unique = [...new Set(picked)].sort((a, b) => a - b)
+  return { start: unique[0] ?? 0, end: unique[unique.length - 1] ?? 0, lines: unique }
 }

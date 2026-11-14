@@ -59,7 +59,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
   const repoKey = view.repo?.repoRoot ?? ''
   const [checked, setChecked] = useState<{ staged: string[]; unstaged: string[] }>({ staged: [], unstaged: [] })
   const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
-  const [lineMenu, setLineMenu] = useState<{ start: number; end: number; x: number; y: number } | null>(null)
+  const [lineMenu, setLineMenu] = useState<{ lines: number[]; x: number; y: number } | null>(null)
   const [lineBusy, setLineBusy] = useState(false)
   const lineMenuRef = useRef<HTMLDivElement | null>(null)
   const [fileAction, setFileAction] = useState<{ kind: 'discard' | 'delete'; file: string } | null>(null)
@@ -130,11 +130,11 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
   }, [lineMenu])
 
   /** Stage or unstage the selected diff lines, then reload the diff. */
-  const stageLines = async (start: number, end: number): Promise<void> => {
+  const stageLines = async (lines: number[]): Promise<void> => {
     const current = ws.selected
     if (current === null || lineBusy) return
     const action = current.scope === 'staged' ? 'unstage-lines' : 'stage-lines'
-    const lines = Array.from({ length: end - start + 1 }, (_, offset) => start + offset)
+    if (lines.length === 0) return
     setLineBusy(true)
     setLineMenu(null)
     try {
@@ -615,8 +615,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                             }}
                         mode={diffMode.mode}
                         onLineContextMenu={(selection, event) => setLineMenu({
-                          start: selection.start,
-                          end: selection.end,
+                          lines: selection.lines,
                           x: event.clientX,
                           y: event.clientY,
                         })}
@@ -840,10 +839,10 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                 type="button"
                 role="menuitem"
                 disabled={lineBusy}
-                onClick={() => { void stageLines(lineMenu.start, lineMenu.end) }}
+                onClick={() => { void stageLines(lineMenu.lines) }}
               >
-                {(lineMenu.end - lineMenu.start + 1) > 1
-                  ? (ws.selected?.scope === 'staged' ? t('unstageLines') : t('stageLines')).replace('{count}', String(lineMenu.end - lineMenu.start + 1))
+                {lineMenu.lines.length > 1
+                  ? (ws.selected?.scope === 'staged' ? t('unstageLines') : t('stageLines')).replace('{count}', String(lineMenu.lines.length))
                   : (ws.selected?.scope === 'staged' ? t('unstageLine') : t('stageLine'))}
               </button>
             </div>
@@ -877,6 +876,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
 
 
 

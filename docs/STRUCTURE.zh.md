@@ -226,7 +226,7 @@ LICENSE
 历史列表把头部（筛选、列标题、列宽拖拽）放在滚动容器之外，滚动条只覆盖提交行。第二行的「历史 / 提交」在同一页内切换提交历史与提交/文件状态（`WorkspacePane` + `useWorkspace`），共用仓库/路径、引用树和分支切换：
 
 - `GET /git-suite?mode=status` 读取 `git status --porcelain=v2 -z --branch -uall`，加上 staged/unstaged numstat 和未跟踪文件行数，返回已暂存/未暂存列表、当前分支、上游、ahead/behind 与 Git 用户。
-- `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` 返回单个文件的 diff；未跟踪文件由宿主合成 `/dev/null → file` 补丁，单文件补丁上限 400k 字符。工作区差异与提交差异都通过 `DiffView` 渲染：增删行着色、横向滚动时新旧行号栏保持粘性、每次渲染 800 行并提供「显示剩余 N 行」按钮。diff 头部有图标按钮在统一视图（三条通栏）与分栏视图（左右两列）之间切换（持久化为 `diffMode`）：分栏模式把删除与新增左右配对、长行自动折行；行号拖选仍只在统一视图下可用。按下行号列即可选中该行，拖动可跨行选择（行号列是一条粘性轨道，选中行用强调色标注，靠近上下边缘时自动滚动）；选中后 **Ctrl/Cmd+C** 复制所选行；右键选中行可「暂存选中行 / 取消暂存选中行」（`POST /git-suite/action { action: 'stage-lines' | 'unstage-lines', paths: [file], lines: [diff 行号] }`，会重新计算 hunk 头并生成零上下文补丁）。工作区里每个 hunk 头带「暂存此块 / 取消暂存此块」按钮（`POST /git-suite/action { action: 'stage-hunks' | 'unstage-hunks', paths: [file], hunks: [index] }`）。
+- `GET /git-suite?mode=workspace-diff&file=…&scope=staged|unstaged|untracked` 返回单个文件的 diff；未跟踪文件由宿主合成 `/dev/null → file` 补丁，单文件补丁上限 400k 字符。工作区差异与提交差异都通过 `DiffView` 渲染：增删行着色、横向滚动时新旧行号栏保持粘性、每次渲染 800 行并提供「显示剩余 N 行」按钮。diff 头部有图标按钮在统一视图（三条通栏）与分栏视图（左右两列）之间切换（持久化为 `diffMode`）：分栏模式把删除与新增左右配对、长行自动折行。两种布局都能拖选：统一视图拖行号列、分栏视图拖整行；分栏的每一行只对应它配对的新旧两行，因此暂存一对不会带进相邻未配对的行，表头行不可选。按下行号列即可选中该行，拖动可跨行选择（行号列是一条粘性轨道，选中行用强调色标注，靠近上下边缘时自动滚动）；选中后 **Ctrl/Cmd+C** 复制所选行；右键选中行可「暂存选中行 / 取消暂存选中行」（`POST /git-suite/action { action: 'stage-lines' | 'unstage-lines', paths: [file], lines: [diff 行号] }`，会重新计算 hunk 头并生成零上下文补丁）。工作区里每个 hunk 头带「暂存此块 / 取消暂存此块」按钮（`POST /git-suite/action { action: 'stage-hunks' | 'unstage-hunks', paths: [file], hunks: [index] }`）。
 - `POST /git-suite/action`（Node handler，因为 DSH resource 路由只接受 GET/HEAD）接受 JSON：
   - `stage` / `unstage`，带 `paths` 或 `all`，分别执行 `git add -A` / `git reset -q HEAD`。
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
@@ -293,6 +293,7 @@ DSH 每个包只通过 `exports["./client"]` 加载一个惰性工厂（`window.
 - `dist/` 和 `src/client/styles.generated.css` 都是构建产物，已被 Git 忽略；克隆后先 `pnpm install && pnpm build`，DSH 插件管理器不会替你构建。
 - `pnpm watch:client` 监听 `src/client/` 与 `styles.scss`，SCSS 改动会重新编译并触发 esbuild 重建；DSH HMR 监听 `dist/client.js`，重建后页面会重新加载该插件。
 - 修改 `package.json` 的入口路径后，需要重启 DSH（或在插件页禁用再启用该插件），因为运行中的 Host 会缓存插件清单。
+
 
 
 

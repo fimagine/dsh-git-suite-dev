@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import { h, useEffect, useMemo, useRef, useState } from '../runtime.js'
-import { pairDiffLines, parseDiff } from '../lib/diff.js'
+import { isContentLine, pairDiffLines, parseDiff, patchLinesForRows } from '../lib/diff.js'
+import type { DiffLine } from '../lib/diff.js'
 import type { Translate } from '../types.js'
 
 export type DiffMode = 'unified' | 'split'
@@ -13,10 +14,12 @@ export interface DiffHunkAction {
 }
 
 export interface DiffSelection {
-  /** First selected row index inside the parsed lines. */
+  /** First selected patch line index. */
   start: number
-  /** Last selected row index, inclusive. */
+  /** Last selected patch line index, inclusive. */
   end: number
+  /** Every selected content line, so a side-by-side row maps to exactly its lines. */
+  lines: number[]
 }
 
 export interface DiffViewProps {
@@ -31,9 +34,9 @@ export interface DiffViewProps {
   mode?: DiffMode
   /** Optional per-hunk action, e.g. "stage this hunk". */
   hunkAction?: DiffHunkAction
-  /** Reports the selected row range, if the caller wants to act on it. */
+  /** Reports the selected patch line range, if the caller wants to act on it. */
   onSelectLines?(selection: DiffSelection | null): void
-  /** Right-click inside the selection (or on one row) with the rows to act on. */
+  /** Right-click inside the selection (or on one row) with the patch lines to act on. */
   onLineContextMenu?(selection: DiffSelection, event: React.MouseEvent): void
   className?: string
 }
@@ -44,7 +47,7 @@ const EDGE = 24
 /**
  * Unified or side-by-side diff renderer: coloured additions and deletions, a
  * sticky old/new gutter (unified mode), incremental rendering for huge patches,
- * gutter drag selection, and per-hunk actions.
+ * and a draggable line selection that works in both layouts.
  */
 export function DiffView({
   patch,
@@ -103,14 +106,20 @@ export function DiffView({
   }, [selecting])
 
   const unified = splitRows === null
-  const range = unified && anchor !== null && head !== null
+  /** Row range (unified rows or split rows); the two layouts number rows differently. */
+  const range = anchor !== null && head !== null
     ? { start: Math.min(anchor, head), end: Math.max(anchor, head) }
     : null
 
+  const lineIndexesOf = (start: number, end: number): DiffSelection | null =>
+    patchLinesForRows(splitRows, parsed.lines, start, end)
+
+  const lineRange = range === null ? null : lineIndexesOf(range.start, range.end)
+
   useEffect(() => {
-    onSelectLines?.(range)
+    onSelectLines?.(lineRange)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the range matters
-  }, [range?.start, range?.end])
+  }, [lineRange?.start, lineRange?.end])
 
   if (parsed.lines.length === 0) {
     return <p className="dsh-gitlog-note">{empty ?? t('fileNoPatch')}</p>
@@ -120,10 +129,9 @@ export function DiffView({
   const remaining = totalRows - Math.min(limit, totalRows)
 
   const copySelection = (): void => {
-    if (range === null) return
-    const text = parsed.lines
-      .slice(range.start, range.end + 1)
-      .map(line => line.raw)
+    if (lineRange === null) return
+    const text = lineRange.lines
+      .map(index => parsed.lines[index]?.raw ?? '')
       .join('\n')
     void navigator.clipboard?.writeText(text).catch(() => {})
   }
@@ -141,34 +149,41 @@ export function DiffView({
         </button>
       )
 
-  const unifiedLine = (line: typeof parsed.lines[number], index: number): React.ReactElement => {
-    const selected = range !== null && index >= range.start && index <= range.end
+  const startSelect = (row: number) => (event: React.PointerEvent): void => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    containerRef.current?.focus()
+    setAnchor(row)
+    setHead(row)
+    setSelecting(true)
+  }
+
+  const openMenu = (row: number) => (event: React.MouseEvent): void => {
+    if (onLineContextMenu === undefined) return
+    event.preventDefault()
+    const inside = range !== null && row >= range.start && row <= range.end
+    if (!inside) {
+      setAnchor(row)
+      setHead(row)
+    }
+    const rows = inside && range !== null ? range : { start: row, end: row }
+    const lines = lineIndexesOf(rows.start, rows.end)
+    if (lines !== null) onLineContextMenu(lines, event)
+  }
+
+  const unifiedLine = (line: DiffLine, row: number): React.ReactElement => {
+    const selected = range !== null && row >= range.start && row <= range.end
+    const selectable = isContentLine(line)
     return (
       <div
-        key={index}
-        data-diff-row={index}
+        key={row}
+        data-diff-row={row}
         className={`dsh-gitlog-diff-line is-${line.kind}${selected ? ' is-selected' : ''}`}
-        onContextMenu={event => {
-          if (onLineContextMenu === undefined) return
-          event.preventDefault()
-          const inside = range !== null && index >= range.start && index <= range.end
-          if (!inside) {
-            setAnchor(index)
-            setHead(index)
-          }
-          onLineContextMenu(inside && range !== null ? range : { start: index, end: index }, event)
-        }}
+        onContextMenu={selectable ? openMenu(row) : undefined}
       >
         <span
           className="dsh-gitlog-diff-gutter"
-          onPointerDown={event => {
-            if (event.button !== 0) return
-            event.preventDefault()
-            containerRef.current?.focus()
-            setAnchor(index)
-            setHead(index)
-            setSelecting(true)
-          }}
+          onPointerDown={selectable ? startSelect(row) : undefined}
         >
           <span className="dsh-gitlog-diff-num">{line.oldLine ?? ''}</span>
           <span className="dsh-gitlog-diff-num">{line.newLine ?? ''}</span>
@@ -179,6 +194,15 @@ export function DiffView({
     )
   }
 
+  const splitCell = (line: DiffLine | null, side: 'left' | 'right'): React.ReactElement => (
+    <div className={`dsh-gitlog-diff-cell${line === null ? ' is-empty' : ` is-${line.kind}`}`}>
+      <span className="dsh-gitlog-diff-num">
+        {line === null ? '' : side === 'left' ? line.oldLine ?? '' : line.newLine ?? ''}
+      </span>
+      <span className="dsh-gitlog-diff-code">{line === null ? '' : line.raw}</span>
+    </div>
+  )
+
   return (
     <div
       ref={containerRef}
@@ -187,42 +211,56 @@ export function DiffView({
       aria-label={t('patch')}
       tabIndex={0}
       onPointerDown={event => {
-        // A click outside the gutter drops the line selection.
+        // Only a left click outside the gutter (or a split row) drops the
+        // selection: right-click must keep it, so the menu can act on it.
+        if (event.button !== 0) return
         const target = event.target as HTMLElement | null
         if (target !== null && target.closest('.dsh-gitlog-diff-gutter') !== null) return
+        if (target !== null && target.closest('.dsh-gitlog-diff-split-row') !== null) return
         setAnchor(null)
         setHead(null)
       }}
       onKeyDown={event => {
-        if (range === null) return
+        if (lineRange === null) return
         if (event.key !== 'c' || !(event.ctrlKey || event.metaKey)) return
         event.preventDefault()
         copySelection()
+      }}
+      onContextMenu={event => {
+        // Rows handle their own menu; anywhere else with a selection keeps it.
+        if (onLineContextMenu === undefined || lineRange === null) return
+        const target = event.target as HTMLElement | null
+        if (target !== null && target.closest('[data-diff-row]') !== null) return
+        event.preventDefault()
+        onLineContextMenu(lineRange, event)
       }}
     >
       {splitRows === null
         ? parsed.lines.slice(0, limit).map(unifiedLine)
         : splitRows.slice(0, limit).map((row, index) => {
+            const selected = range !== null && index >= range.start && index <= range.end
             if (row.full !== null) {
               return (
-                <div key={index} className={`dsh-gitlog-diff-line is-${row.full.kind}`}>
+                <div
+                  key={index}
+                  data-diff-row={index}
+                  className={`dsh-gitlog-diff-line is-${row.full.kind}`}
+                >
                   <span className="dsh-gitlog-diff-code">{row.full.raw === '' ? ' ' : row.full.raw}</span>
                   {row.full.kind === 'hunk' ? hunkButton(row.full.hunk) : null}
                 </div>
               )
             }
-            const cell = (line: typeof row.left, side: 'left' | 'right'): React.ReactElement => (
-              <div className={`dsh-gitlog-diff-cell${line === null ? ' is-empty' : ` is-${line.kind}`}`}>
-                <span className="dsh-gitlog-diff-num">
-                  {line === null ? '' : side === 'left' ? line.oldLine ?? '' : line.newLine ?? ''}
-                </span>
-                <span className="dsh-gitlog-diff-code">{line === null ? '' : line.raw}</span>
-              </div>
-            )
             return (
-              <div key={index} className="dsh-gitlog-diff-split-row">
-                {cell(row.left, 'left')}
-                {cell(row.right, 'right')}
+              <div
+                key={index}
+                data-diff-row={index}
+                className={`dsh-gitlog-diff-split-row${selected ? ' is-selected' : ''}`}
+                onPointerDown={startSelect(index)}
+                onContextMenu={openMenu(index)}
+              >
+                {splitCell(row.left, 'left')}
+                {splitCell(row.right, 'right')}
               </div>
             )
           })}
@@ -240,3 +278,7 @@ export function DiffView({
     </div>
   )
 }
+
+
+
+
