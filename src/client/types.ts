@@ -223,6 +223,8 @@ export interface WorkspaceFile {
   origPath?: string
   staged: boolean
   untracked: boolean
+  /** Unmerged: the path is part of a conflict. */
+  unmerged?: boolean
   additions: number | null
   deletions: number | null
   binary: boolean
@@ -279,8 +281,14 @@ export interface ClonePayload {
 
 export interface OpenAppPayload {
   ok: true
-  target: 'terminal' | 'explorer'
+  target: 'terminal' | 'explorer' | 'vscode'
   path: string
+}
+
+/** External editors the host could launch. */
+export interface AppsPayload {
+  ok: true
+  vscode: boolean
 }
 
 /** Installed version versus the latest one published on npm. */
@@ -410,3 +418,4 @@ export interface CheckoutPayload {
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 export type DetailStatus = 'idle' | LoadStatus
+

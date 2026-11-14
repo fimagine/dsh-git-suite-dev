@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import { graphGeometry } from '../lib/graph.js'
 import type { Commit, CommitColumn, CommitColumns, Translate } from '../types.js'
 import { CommitColumnsMenu } from './CommitColumnsMenu.js'
+import { tooltipProps } from './Tooltip.js'
 import { CommitRow, COMMIT_ROW_HEIGHT } from './CommitRow.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
 import { LoadingLine } from './States.js'
@@ -100,7 +101,7 @@ function ColumnResizer({ label, style, onStart, onDrag }: ColumnResizerProps): R
       tabIndex={0}
       aria-label={label}
       aria-orientation="vertical"
-      title={label}
+      {...tooltipProps(label)}
       className={`dsh-gitlog-col-resizer${dragging ? ' is-dragging' : ''}`}
       style={style}
       onPointerDown={event => {
@@ -473,3 +474,5 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
     </section>
   )
 }
+
+

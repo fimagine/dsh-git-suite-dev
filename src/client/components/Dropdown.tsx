@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
+import { tooltipProps } from './Tooltip.js'
 
 export interface DropdownOption {
   value: string
@@ -216,7 +217,7 @@ export function Dropdown({
               aria-expanded={open}
               aria-label={ariaLabel}
               disabled={disabled}
-              title={selected?.title ?? selected?.label ?? placeholder}
+              {...tooltipProps(selected?.title ?? selected?.label ?? placeholder ?? '')}
               onClick={() => {
                 if (open) setOpen(false)
                 else openMenu()
@@ -253,7 +254,7 @@ export function Dropdown({
                             role="option"
                             aria-selected={option.value === value}
                             className={`dsh-gitlog-dropdown-item${index === active ? ' is-active' : ''}${option.value === value ? ' is-selected' : ''}`}
-                            title={option.title}
+                            {...(option.title === undefined ? {} : tooltipProps(option.title))}
                             onMouseEnter={() => setActive(index)}
                             onClick={() => select(option)}
                           >
@@ -269,3 +270,6 @@ export function Dropdown({
     </div>
   )
 }
+
+
+

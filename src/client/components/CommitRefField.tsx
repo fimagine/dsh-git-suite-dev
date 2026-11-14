@@ -2,7 +2,7 @@ import type * as React from 'react'
 import { h, useEffect, useState } from '../runtime.js'
 import { isAbortError, requestJson, toApiError } from '../lib/api.js'
 import type { Commit, ResolvePayload, Translate } from '../types.js'
-import { useTooltip } from './Tooltip.js'
+import { hideTooltip, showTooltip } from './Tooltip.js'
 
 export interface CommitRefFieldProps {
   t: Translate
@@ -26,7 +26,6 @@ export function CommitRefField({ t, path, label, value, fallback, onChange, onSu
   const [resolved, setResolved] = useState<ResolvePayload | null>(null)
   const [resolving, setResolving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const tooltip = useTooltip()
 
   useEffect(() => {
     const ref = value.trim()
@@ -99,14 +98,14 @@ export function CommitRefField({ t, path, label, value, fallback, onChange, onSu
             // Long subjects are clipped to one line; show the whole text on hover.
             const element = event.currentTarget
             if (element.scrollWidth <= element.clientWidth + 1) return
-            tooltip.show(summary, element.getBoundingClientRect())
+            showTooltip(summary, element.getBoundingClientRect())
           }}
-          onMouseLeave={tooltip.hide}
+          onMouseLeave={hideTooltip}
         >
           {summary}
         </span>
       )}
-      {tooltip.node}
     </label>
   )
 }
+

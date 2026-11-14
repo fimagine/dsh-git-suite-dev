@@ -28,7 +28,9 @@ import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
 import { SettingsDialog, SettingsIcon } from './components/SettingsDialog.js'
 import { Splitter } from './components/Splitter.js'
+import { useSplitSize } from './lib/use-split-size.js'
 import { ToastHost } from './components/Toast.js'
+import { TooltipHost } from './components/Tooltip.js'
 import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
@@ -75,9 +77,6 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
   const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
   const [narrow, setNarrow] = useState(isNarrowViewport)
-  const [treeWidth, setTreeWidth] = useState(() => clamp(readUiState().treeWidth ?? 240, MIN_TREE_WIDTH, MAX_TREE_WIDTH))
-  const [treeHeight, setTreeHeight] = useState(() => clamp(readUiState().treeHeight ?? 220, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT))
-  const [detailRatio, setDetailRatio] = useState(() => clamp(readUiState().detailRatio ?? 0.45, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO))
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewMode, setViewModeState] = useState<'history' | 'workspace'>(() => readUiState().viewMode ?? 'history')
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
@@ -104,11 +103,43 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [tagActionError, setTagActionError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const stackRef = useRef<HTMLDivElement | null>(null)
-  const treeStart = useRef({ width: 240, height: 220, maxWidth: MAX_TREE_WIDTH, maxHeight: MAX_TREE_HEIGHT })
-  const detailStart = useRef({ ratio: 0.45, height: 0 })
   const hasCommits = commits.length > 0
   // In the narrow layout the tree sits above the log, so its splitter is horizontal.
   const treeOrientation = compact || narrow ? 'horizontal' : 'vertical'
+
+  // One hook per axis: the tree splits horizontally in the narrow layout and
+  // vertically otherwise, so both sizes have to stay available.
+  const treeWidthSize = useSplitSize({
+    initial: () => clamp(readUiState().treeWidth ?? 240, MIN_TREE_WIDTH, MAX_TREE_WIDTH),
+    min: MIN_TREE_WIDTH,
+    max: () => {
+      const width = bodyRef.current?.getBoundingClientRect().width ?? 0
+      return width <= 0 ? MAX_TREE_WIDTH : clamp(width - 320, MIN_TREE_WIDTH, MAX_TREE_WIDTH)
+    },
+    axis: 'x',
+    persist: value => writeUiState({ treeWidth: value }),
+  })
+  const treeHeightSize = useSplitSize({
+    initial: () => clamp(readUiState().treeHeight ?? 220, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT),
+    min: MIN_TREE_HEIGHT,
+    max: () => {
+      const height = bodyRef.current?.getBoundingClientRect().height ?? 0
+      return height <= 0 ? MAX_TREE_HEIGHT : clamp(height - 240, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT)
+    },
+    axis: 'y',
+    persist: value => writeUiState({ treeHeight: value }),
+  })
+  // The detail pane is the remainder under the list, so dragging up grows it.
+  const detailSize = useSplitSize({
+    initial: () => clamp(readUiState().detailRatio ?? 0.45, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO),
+    min: MIN_DETAIL_RATIO,
+    max: MAX_DETAIL_RATIO,
+    axis: 'y',
+    invert: true,
+    reference: () => stackRef.current?.getBoundingClientRect().height ?? 0,
+    persist: value => writeUiState({ detailRatio: value }),
+  })
+  const treeSize = treeOrientation === 'vertical' ? treeWidthSize : treeHeightSize
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 900px)')
@@ -123,65 +154,18 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     writeUiState({ viewMode: mode })
   }
 
-  useEffect(() => {
-    writeUiState({ treeWidth })
-  }, [treeWidth])
-
-  useEffect(() => {
-    writeUiState({ treeHeight })
-  }, [treeHeight])
-
-  useEffect(() => {
-    writeUiState({ detailRatio })
-  }, [detailRatio])
-
   const state = status === 'loading'
     ? <LoadingState label={t('loadingCommits')} />
     : status === 'error'
       ? <ErrorState error={error} t={t} onRetry={view.refresh} />
       : <EmptyState t={t} onRefresh={view.refresh} />
 
-  const startTreeResize = (): void => {
-    const rect = bodyRef.current?.getBoundingClientRect()
-    treeStart.current = {
-      width: treeWidth,
-      height: treeHeight,
-      maxWidth: rect === undefined
-        ? MAX_TREE_WIDTH
-        : clamp(rect.width - 320, MIN_TREE_WIDTH, MAX_TREE_WIDTH),
-      maxHeight: rect === undefined
-        ? MAX_TREE_HEIGHT
-        : clamp(rect.height - 240, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT),
-    }
-  }
-
-  const resizeTree = (deltaX: number, deltaY: number): void => {
-    if (treeOrientation === 'vertical') {
-      setTreeWidth(clamp(treeStart.current.width + deltaX, MIN_TREE_WIDTH, treeStart.current.maxWidth))
-    } else {
-      setTreeHeight(clamp(treeStart.current.height + deltaY, MIN_TREE_HEIGHT, treeStart.current.maxHeight))
-    }
-  }
-
-  const startDetailResize = (): void => {
-    detailStart.current = {
-      ratio: detailRatio,
-      height: stackRef.current?.getBoundingClientRect().height ?? 0,
-    }
-  }
-
-  const resizeDetail = (_deltaX: number, deltaY: number): void => {
-    const height = detailStart.current.height
-    if (height <= 0) return
-    setDetailRatio(clamp(detailStart.current.ratio - deltaY / height, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO))
-  }
-
   const bodyStyle = {
-    '--gitlog-tree-w': `${treeWidth}px`,
-    '--gitlog-tree-h': `${treeHeight}px`,
+    '--gitlog-tree-w': `${treeWidthSize.size}px`,
+    '--gitlog-tree-h': `${treeHeightSize.size}px`,
   } as unknown as React.CSSProperties
 
-  const detailStyle: React.CSSProperties = { flexBasis: `${detailRatio * 100}%` }
+  const detailStyle: React.CSSProperties = { flexBasis: `${detailSize.size * 100}%` }
 
   const openCommitMenu = (commit: Commit, event: React.MouseEvent): void => {
     event.preventDefault()
@@ -540,8 +524,9 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       <Splitter
         orientation={treeOrientation}
         label={t('resizeTree')}
-        onStart={startTreeResize}
-        onDrag={resizeTree}
+        onStart={treeSize.start}
+        onDrag={treeSize.drag}
+        onReset={treeSize.reset}
       />
       <div ref={stackRef} className="dsh-gitlog-stack">
         {viewMode === 'workspace'
@@ -550,6 +535,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
                 view={view}
                 ws={ws}
                 t={t}
+                narrow={compact || narrow}
                 operation={operation}
                 onOperationChanged={() => { void refreshOperation() }}
               />
@@ -562,8 +548,9 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
               <Splitter
                 orientation="horizontal"
                 label={t('resizeDetail')}
-                onStart={startDetailResize}
-                onDrag={resizeDetail}
+                onStart={detailSize.start}
+                onDrag={detailSize.drag}
+                onReset={detailSize.reset}
               />
             )
           : null}
@@ -587,6 +574,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     <div className="dsh-gitlog">
       <style>{CSS}</style>
       <ToastHost />
+      <TooltipHost />
       <div className="dsh-gitlog-topbar">
         <PanelControls view={view} t={t} />
         <div className="dsh-gitlog-header-actions">
@@ -812,4 +800,8 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     </div>
   )
 }
+
+
+
+
 

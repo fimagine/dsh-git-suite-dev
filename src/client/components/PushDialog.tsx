@@ -6,6 +6,7 @@ import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
 import { Button, DialogActions } from './Button.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
+import { tooltipProps } from './Tooltip.js'
 
 export interface PushDialogProps {
   view: GitLogView
@@ -73,7 +74,7 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
               placeholder={t('remote')}
             />
           </label>
-          <code className="dsh-gitlog-push-url" title={remoteGroup?.url}>{remoteGroup?.url ?? ''}</code>
+          <code className="dsh-gitlog-push-url" {...(remoteGroup?.url === undefined ? {} : tooltipProps(remoteGroup.url))}>{remoteGroup?.url ?? ''}</code>
         </div>
 
         <h3 className="dsh-gitlog-push-title">{t('branchesToPush')}</h3>
@@ -158,3 +159,5 @@ export function PushDialog({ view, ws, t, onClose }: PushDialogProps): React.Rea
     </DialogShell>
   )
 }
+
+

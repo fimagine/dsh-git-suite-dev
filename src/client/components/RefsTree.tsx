@@ -8,7 +8,7 @@ import type { LoadStatus, RefsPayload, Selection, Translate } from '../types.js'
 import { PlusIcon, TagDiffIcon, TagLocalIcon } from './GitLogIcon.js'
 import type { RemoteBranchSelection } from './RemoteBranchMenu.js'
 import type { TagSelection } from './TagMenu.js'
-import { useTooltip } from './Tooltip.js'
+import { hideTooltip, showTooltip, showTooltipNow } from './Tooltip.js'
 import { ChevronIcon, CurrentBranchIcon, SectionIcon } from './TreeIcons.js'
 import type { TagStatusPayload } from '../types.js'
 
@@ -81,7 +81,6 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>(() => ({
     ...(readUiState().collapsedFolders ?? {}),
   }))
-  const tooltip = useTooltip()
   const searching = query.trim() !== ''
 
   useEffect(() => {
@@ -126,12 +125,12 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
     const truncated = labelElement !== null && labelElement.scrollWidth > labelElement.clientWidth + 1
     const body = text !== '' ? text : truncated ? labelElement?.textContent ?? '' : ''
     if (body === '') {
-      tooltip.hide()
+      hideTooltip()
       return
     }
     const rect = event.currentTarget.getBoundingClientRect()
-    if (immediate) tooltip.showNow(body, rect)
-    else tooltip.show(body, rect)
+    if (immediate) showTooltipNow(body, rect)
+    else showTooltip(body, rect)
   }
 
   const sectionTitle = (id: TreeSection['id']): string => {
@@ -227,11 +226,11 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
                 aria-label={addLabel}
                 onClick={() => addAction()}
                 onMouseEnter={event => reveal(event, addLabel)}
-                onMouseLeave={tooltip.hide}
+                onMouseLeave={hideTooltip}
                 onFocus={event => {
                   if (event.currentTarget.matches(':focus-visible')) reveal(event, addLabel, true)
                 }}
-                onBlur={tooltip.hide}
+                onBlur={hideTooltip}
               >
                 <PlusIcon size={14} />
               </button>
@@ -284,11 +283,11 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
         aria-current={node.current === true ? 'true' : undefined}
         className={`dsh-gitlog-tree-row${isSelected ? ' is-selected' : ''}`}
         onMouseEnter={event => reveal(event, hint)}
-        onMouseLeave={tooltip.hide}
+        onMouseLeave={hideTooltip}
         onFocus={event => {
           if (event.currentTarget.matches(':focus-visible')) reveal(event, hint, true)
         }}
-        onBlur={tooltip.hide}
+        onBlur={hideTooltip}
         onClick={() => {
           if (isGroup) {
             toggleFolder(node.key)
@@ -373,7 +372,7 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
             )
           : null}
       </div>
-      {tooltip.node}
     </aside>
   )
 }
+

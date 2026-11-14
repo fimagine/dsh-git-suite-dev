@@ -20,6 +20,7 @@ import type {
   CommitOpPayload,
   ReflogPayload,
   OperationPayload,
+  AppsPayload,
   StashPayload,
   VersionPayload,
 } from '../types.js'
@@ -45,7 +46,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -183,7 +184,12 @@ export async function requestClone(body: CloneRequest, signal?: AbortSignal): Pr
 
 export interface OpenAppRequest {
   path: string
-  target: 'terminal' | 'explorer'
+  target: 'terminal' | 'explorer' | 'vscode'
+}
+
+/** GET /git-suite?mode=apps: which external editors are installed. */
+export async function requestApps(signal?: AbortSignal): Promise<AppsPayload> {
+  return requestJson<AppsPayload>({ mode: 'apps' }, signal)
 }
 
 /** POST /git-suite/open: open a terminal or the OS file manager at the repository root. */

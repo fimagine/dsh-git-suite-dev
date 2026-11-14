@@ -345,9 +345,17 @@ $brand: var(--dsw-alias-brand-primary);
     @include control-surface(13px);
     cursor: pointer;
     white-space: nowrap;
+    // Background/border/colour easing covers hover, press, and disabled states.
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
 
-    &:hover {
+    // `:not(:disabled)` keeps hover above the `.ghost` transparent background.
+    &:hover:not(:disabled) {
       background: $bg-layer-2;
+    }
+
+    &:active:not(:disabled) {
+      background: color-mix(in srgb, $brand 16%, $bg-layer-2);
+      border-color: color-mix(in srgb, $brand 34%, $border-l2);
     }
 
     &:focus-visible {
@@ -363,16 +371,38 @@ $brand: var(--dsw-alias-brand-primary);
     &.primary {
       border-color: $brand;
       color: $brand;
+
+      &:active:not(:disabled) {
+        background: color-mix(in srgb, $brand 24%, transparent);
+      }
     }
 
     &.danger {
       border-color: var(--dsw-alias-state-error-primary);
       color: var(--dsw-alias-state-error-primary);
+
+      &:active:not(:disabled) {
+        background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 22%, transparent);
+      }
     }
 
+    // Text button in the Ant Design 5 sense: no border or fill at rest, a
+    // neutral hover fill, and a slightly stronger neutral while pressed.
     &.ghost {
       border-color: transparent;
       background: transparent;
+      color: $label-secondary;
+
+      &:hover:not(:disabled) {
+        background: $bg-layer-2;
+        color: $label-primary;
+      }
+
+      &:active:not(:disabled) {
+        border-color: transparent;
+        background: color-mix(in srgb, $label-primary 14%, transparent);
+        color: $label-primary;
+      }
     }
   }
 
@@ -394,26 +424,30 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
-  &-view-switch {
-    display: flex;
+  // Bordered track; only the pressed segment carries a fill.
+  &-switch {
+    display: inline-flex;
     gap: 2px;
+    height: $control-height;
     padding: 1px;
     border: 1px solid $border-l1;
     border-radius: 8px;
     background: $bg-base;
-  }
 
-  &-view-switch .dsh-gitlog-btn {
-    height: 28px;
-    padding: 0 8px;
-    border-color: transparent;
-    background: transparent;
-    font-size: $font-meta;
-  }
+    .dsh-gitlog-btn {
+      height: 24px;
+      padding: 0 9px;
+      border-color: transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: $label-secondary;
+      font-size: $font-meta;
+    }
 
-  &-view-switch .dsh-gitlog-btn[aria-pressed="true"] {
-    background: $bg-layer-2;
-    color: $label-primary;
+    .dsh-gitlog-btn[aria-pressed="true"] {
+      background: $bg-layer-2;
+      color: $label-primary;
+    }
   }
 
   &-add {
@@ -1747,6 +1781,12 @@ $brand: var(--dsw-alias-brand-primary);
     overflow-wrap: anywhere;
     pointer-events: none;
     box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+    animation: dsh-gitlog-tooltip-in .12s ease-out;
+
+    // Kept mounted for the duration of the fade before the host removes it.
+    &.is-hiding {
+      animation: dsh-gitlog-tooltip-out .11s ease-in forwards;
+    }
   }
 
   &-settings-backdrop {
@@ -1897,40 +1937,6 @@ $brand: var(--dsw-alias-brand-primary);
     padding: 4px 12px;
     border-bottom: 1px solid $border-l1;
     background: $bg-layer-1;
-  }
-
-  &-workspace-action {
-    all: unset;
-    box-sizing: border-box;
-    display: inline-flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-    height: 28px;
-    padding: 2px 6px;
-    color: $label-primary;
-    font: inherit;
-    font-size: $font-meta;
-    cursor: pointer;
-
-    svg {
-      color: $brand;
-    }
-
-    &:first-child {
-      padding-left: 0;
-    }
-
-    &:focus-visible {
-      outline: 2px solid $brand;
-      outline-offset: -2px;
-    }
-
-    &:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
   }
 
   &-fetch-options {
@@ -2108,7 +2114,8 @@ $brand: var(--dsw-alias-brand-primary);
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    border-right: 1px solid $border-l1;
+    // The vertical splitter draws the line between the column and the diff.
+    border-right: 0;
   }
 
   &-workspace-file-action {
@@ -2235,13 +2242,31 @@ $brand: var(--dsw-alias-brand-primary);
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
 
+    // Git's status letters carry a colour: modified, untracked, deleted, renamed.
+    &.is-modified {
+      color: var(--dsw-alias-state-warn-primary, #d29922);
+    }
+
+    &.is-untracked,
+    &.is-added {
+      color: var(--dsw-alias-state-success-primary, #3fb950);
+    }
+
+    &.is-deleted {
+      color: var(--dsw-alias-state-error-primary, #f85149);
+    }
+
+    &.is-renamed {
+      color: var(--dsw-alias-state-info-primary, #4c8dff);
+    }
+
     // Conflicted files carry a word instead of git's single status letter.
     &.is-conflict {
       flex: 0 0 auto;
       padding: 0 5px;
       border: 1px solid currentColor;
       border-radius: 999px;
-      color: var(--dsw-alias-state-warn-primary);
+      color: var(--dsw-alias-state-error-primary, #f85149);
       font-family: inherit;
       font-weight: 600;
       line-height: 15px;
@@ -2262,9 +2287,12 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
     padding: 12px;
     border-top: 1px solid $border-l1;
     background: $bg-layer-1;
+    // The splitter above owns the height; content scrolls if it does not fit.
+    overflow: auto;
   }
 
   &-workspace-author {
@@ -2298,10 +2326,12 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-workspace-message {
+    flex: 1 1 auto;
     width: 100%;
-    min-height: 62px;
-    max-height: 160px;
-    resize: vertical;
+    min-height: 56px;
+    max-height: none;
+    // The form's splitter controls the size; the field itself stays fixed.
+    resize: none;
     padding: 8px 10px;
     border: 1px solid $border-l2;
     border-radius: 8px;
@@ -2514,6 +2544,26 @@ $brand: var(--dsw-alias-brand-primary);
   }
 }
 
+@keyframes dsh-gitlog-tooltip-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dsh-gitlog-tooltip-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes dsh-gitlog-spin {
   to {
     transform: rotate(360deg);
@@ -2576,3 +2626,4 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+

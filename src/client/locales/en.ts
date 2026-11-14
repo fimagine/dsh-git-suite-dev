@@ -46,6 +46,14 @@ export const en = {
   conflictStillBlocked: 'Conflicts are still unresolved',
   conflictResolvedFile: 'Marked {file} resolved',
   conflictBadge: 'Conflict',
+  statusModified: 'modified',
+  statusUntracked: 'untracked',
+  statusDeleted: 'deleted',
+  statusRenamed: 'renamed',
+  statusAdded: 'added',
+  statusCopied: 'copied',
+  statusTypeChange: 'type change',
+  statusConflicted: 'conflicted',
   markResolved: 'Mark as resolved',
   conflictBody: '{operation} stopped at a conflict. Resolve it and continue manually, or abort here to return to the state before the operation.',
   conflictAbort: 'Abort and restore',
@@ -146,6 +154,7 @@ export const en = {
   fetch: 'Fetch',
   terminal: 'Terminal',
   openTerminal: 'Open a terminal at the repository',
+  openInVscode: 'Open in VS Code',
   fileExplorer: 'File Explorer',
   finder: 'Finder',
   fileManager: 'File Manager',
@@ -358,6 +367,9 @@ export const en = {
   binary: 'binary',
   details: 'Commit details',
   resizeTree: 'Resize the refs tree',
+  resizeCommitFiles: 'Resize the file list',
+  resizeStaged: 'Resize the staged list',
+  resizeCommitForm: 'Resize the commit message area',
   resizeDetail: 'Resize the commit detail',
   resizePatch: 'Resize the patch',
   resizeSummary: 'Resize the summary and changed files',
@@ -367,3 +379,4 @@ export const en = {
 } as const
 
 export type LocaleKey = keyof typeof en
+

@@ -86,6 +86,7 @@ src/
       SettingsDialog.tsx
       Splitter.tsx
       States.tsx
+      Switch.tsx
       SyncDialog.tsx
       TagMenu.tsx
       Toast.tsx
@@ -146,7 +147,8 @@ LICENSE
 | `host/repository.ts` | Validates paths and resolves the repository root with `rev-parse` |
 | `host/remote-url.ts` | Accepts https/ssh/git/file and absolute local remotes; rejects `ext::`-style transports |
 | `host/reveal-handler.ts` | `POST /git-suite/reveal`: keeps the path inside the repository, reports `file-missing`, and opens the OS file browser with the file selected |
-| `host/open-handler.ts` | `POST /git-suite/open`: opens a terminal (`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`) or the OS file manager (`explorer.exe`/`open`/`xdg-open`) at the repository root |
+| `host/open-handler.ts` | `POST /git-suite/open`: opens a terminal (`cmd.exe`/`open -a Terminal`/`x-terminal-emulator`), the OS file manager (`explorer.exe`/`open`/`xdg-open`), or VS Code at the repository root; on Windows it launches `Code.exe` from `host/vscode.ts` directly, because the `code` `.cmd` shim needs cmd.exe and flashes a console window |
+| `host/routes/apps.ts` | `mode=apps`: reports whether VS Code can be launched (Windows: the GUI executable exists on disk; macOS: the app bundle; Linux: `code --version`), so the UI only shows the button when it can actually open |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
 | `host/parsers.ts` | Parses log output, commit headers, numstat, and refs |
 | `host/routes/` | Readers for branches, the refs tree, paged log, commit detail, working-tree status/diff, plus local branch switching |
@@ -172,10 +174,11 @@ LICENSE
 | `client/SidebarPanel.tsx` | Right-sidebar tab wrapper with the narrow single-column layout |
 | `client/hooks/useGitLogView.ts` | Project scan, refs tree, paged log, detail selection, and actions |
 | `client/hooks/useWorkspace.ts` | Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
-| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog (page size plus version/update check), working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch, then terminal and the platform-named file manager), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout/cherry-pick/revert/reset/reflog), tag context menu (checkout), stash context menu (apply/pop/drop), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), toast (`ToastHost` mounted once plus a module-level `toast(text, kind)` with info/error styles), commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
+| `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog (page size plus version/update check), working-tree/commit pane, second-line action row (Ant Design 5 style text buttons — no border or fill at rest, a neutral hover fill, a stronger neutral while pressed; the history/commit `Switch` keeps a bordered track with text labels, the rest are icon-only with tooltips: pull/push/fetch, terminal, the platform-named file manager, and VS Code when `mode=apps` reports it), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout/cherry-pick/revert/reset/reflog), tag context menu (checkout), stash context menu (apply/pop/drop), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), toast (`ToastHost` mounted once plus a module-level `toast(text, kind)` with info/error styles), commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
 | `client/lib/api.ts` | Fetch wrapper with the private header and `AbortSignal` |
 | `client/lib/graph.ts` | Lane layout and geometry for the commit graph |
 | `client/lib/patch.ts` | Splits a commit's combined patch into one section per file for the file list |
+| `client/lib/use-split-size.ts` | `useSplitSize`: drag start value, bounds (number or measured lazily), optional axis/invert/ratio conversion, and debounced persistence; every splitter in the panel uses it |
 | `client/lib/refs-tree.ts` | Branch folder folding, remote/stash nodes, and tree search filtering |
 | `client/lib/selection.ts` | Maps the selection model to request parameters and labels |
 | `client/lib/projects.ts` | Pure helpers for project groups, labels, and branch labels |
@@ -200,7 +203,7 @@ The tree reads `mode=tree`, which returns local branches, tags, remote groups, s
 - Right-clicking a remote-tracking branch offers **Checkout** (as a new tracking branch), merge / rebase it into the current branch, pull it into the current branch (through `/git-suite/sync`), and delete it on the remote (confirmation, `push --delete`).
 - Right-clicking a remote group opens fetch / pull / push, **Edit remote** (rename and URL, `POST /git-suite/remote { action: 'set-url', newName }`), and remove; hovering the group row shows its configured URL.
 - Right-clicking the log header opens a checkbox menu for the graph, date, author, and commit columns (the description column always stays); the choice is persisted and a panel narrower than 760px forces the author and commit columns off.
-- Row hints (remote URL, submodule path, branch switch hint, and truncated labels) use the plugin's own `useTooltip` box instead of the browser `title` bubble, so they render the same on Windows, macOS, and embedded webviews.
+- Row hints (remote URL, submodule path, branch switch hint, and truncated labels) plus every control tooltip use the plugin's own tooltip: one `TooltipHost` mounted per panel, `tooltipProps(text)` on elements, and `Button` converts its `title` prop into the same tooltip (no native `title` bubble anywhere). The bubble fades in (120ms) and out (110ms); the host keeps it mounted during the fade.
 - Right-clicking a tag opens **Checkout {tag}**, **Edit {tag}**, **Push {tag}** / **Force push {tag}**, **Replace local {tag} with the remote** (only when the automatic comparison reports a mismatch), and **Delete {tag}**: checkout detaches HEAD at the tag through `POST /git-suite/checkout { ref }`; edit loads the tag through `mode=tag` and saves a rename, a new commit, and/or a rewritten message; push sends `{ action: 'push', tagRefs: [name] }`; force push and the remote→local replacement both rewrite a tag, so each goes through a warning dialog first; delete runs `POST /git-suite/tag { action: 'delete' }` after a confirmation.
 
 While viewing HEAD, the tree highlights the checked-out branch (`head` itself has no node).
@@ -224,11 +227,14 @@ The second row's **History / Commit** switch changes between history and the com
   - `stage` / `unstage` with `paths` or `all`, running `git add -A` / `git reset -q HEAD`.
   - `commit` with `message`, `amend`, and `push`, running `git commit -m` (optionally `--amend`) and optionally `git push` to the configured upstream.
 - Staging is file-level (hunk-level staging is not available yet); each file row ends with a **+** (stage this file) or **−** (unstage it) button, and double-clicking a row flips it between staged and unstaged (its text is `user-select: none` so the double-click never selects the label). A successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
+- Status letters are coloured: **M** yellow, **U** (untracked, previously `?`) green, **D** red, **R**/**C** blue, **A** green. Unmerged paths carry an explicit `unmerged` flag from `mode=status` and render the red **Conflict** pill instead of a letter.
+- Hovering a file row shows the plugin tooltip `<absolute path> - <status word>` (renames append `(from <old path>)`); the row's own hint replaces the per-path tooltip.
 - **Generate with AI** beside the commit message POSTs to `/git-suite/generate-message`, which reads the staged (otherwise unstaged) diff and calls `ctx.llm.stream()` with the provider/model from `ctx.agentDefaultModel.currentSelection()`; the file list and diff are sent to the configured model provider, and the generated text only fills the input. Missing default model, no changes, and model failures return explicit errors.
 - The **+** menu beside the repository/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned repositories, and a manual path; **Open** only opens the repository in this panel. Use DSH's own Workspaces add flow to register a DSH workspace. A non-native picker asks for a typed path.
 - Right-clicking a changed file opens **Open in file explorer** plus one destructive entry: **Discard changes** for an unstaged modification (`git checkout --`, warning dialog) and **Delete file** for an untracked file (warning dialog; the host refuses tracked paths with `409 tracked-file`). Untracked files also offer **Ignore**, which appends one pattern to `.gitignore`: the exact path, the bare file name (matches at any depth), or `*.ext` for the extension. Staged files only offer the reveal action.
 - Right-clicking a changed file opens a menu with **Open in file explorer** (`POST /git-suite/reveal`): the host refuses paths outside the repository, answers `404 file-missing` when the file is gone, and otherwise opens the OS browser with the file selected (`explorer /select,`, `open -R`, `xdg-open`). A missing file shows a toast instead of an inline error.
 - Every write remains POST + same-origin + private request header; errors return as JSON and render in the workspace.
+- The commit view is resizable: the file column and the diff pane split vertically (the splitter disappears in the stacked narrow layout), and the column itself is three resizable regions — the staged list, the unstaged list, and the commit message form — separated by two horizontal splitters. Sizes live in `useSplitSize` and persist through `commitFilesWidth` / `commitStagedHeight` / `commitFormHeight`; the message field itself is not resizable, it fills the form (which scrolls when the form is shorter than its content).
 
 ## Commit context actions
 
@@ -282,3 +288,5 @@ DSH loads exactly one lazy factory per package through `exports["./client"]` (`w
 - `dist/` and `src/client/styles.generated.css` are build artifacts and are ignored by Git. After cloning, run `pnpm install && pnpm build` first; DSH Plugin Manager does not build a local directory for you.
 - `pnpm watch:client` watches `src/client/` and `styles.scss`; a SCSS change recompiles it and triggers an esbuild rebuild, and DSH HMR watches `dist/client.js` to reload the plugin on the page.
 - Changing entry paths in `package.json` requires restarting DSH (or disabling and re-enabling the plugin row), because the running Host caches the plugin manifest.
+
+

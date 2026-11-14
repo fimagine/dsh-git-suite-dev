@@ -75,6 +75,7 @@ export async function readWorkspaceStatus(
           status: entry.index,
           staged: true,
           untracked: false,
+          unmerged: false,
           additions: stat?.additions ?? null,
           deletions: stat?.deletions ?? null,
           binary: stat?.binary ?? false,
@@ -85,9 +86,10 @@ export async function readWorkspaceStatus(
         const untracked = entry.untracked ? await untrackedStats(repo.root, entry.path) : null
         unstaged.push({
           ...base,
-          status: entry.untracked ? '?' : entry.unmerged ? 'U' : entry.worktree,
+          status: entry.untracked ? 'U' : entry.unmerged ? 'U' : entry.worktree,
           staged: false,
           untracked: entry.untracked,
+          unmerged: entry.unmerged,
           additions: untracked === null ? stat?.additions ?? null : untracked.additions,
           deletions: untracked === null ? stat?.deletions ?? null : 0,
           binary: untracked === null ? stat?.binary ?? false : untracked.binary,
@@ -114,3 +116,4 @@ export async function readWorkspaceStatus(
     throw gitFailure(error)
   }
 }
+

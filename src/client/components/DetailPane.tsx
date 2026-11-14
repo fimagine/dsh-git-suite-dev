@@ -4,6 +4,8 @@ import type { ApiError } from '../lib/api.js'
 import { formatDateTime } from '../lib/format.js'
 import { splitPatch } from '../lib/patch.js'
 import type { CommitDetail, DetailStatus, Translate } from '../types.js'
+import { useSplitSize } from '../lib/use-split-size.js'
+import { tooltipProps } from './Tooltip.js'
 import { Refs } from './Refs.js'
 import { Splitter } from './Splitter.js'
 
@@ -26,40 +28,38 @@ function clamp(value: number, min: number, max: number): number {
  * patch on the right. The sidebar layout stacks the two columns instead.
  */
 export function DetailPane({ detail, status, error, t }: DetailPaneProps): React.ReactElement {
-  const [infoRatio, setInfoRatio] = useState(DEFAULT_INFO_RATIO)
-  const [summaryHeight, setSummaryHeight] = useState<number | null>(null)
   const [fileChoice, setFileChoice] = useState<{ hash: string | null; index: number }>({ hash: null, index: 0 })
   const sections = useMemo(() => splitPatch(detail?.patch ?? ''), [detail?.patch])
   const innerRef = useRef<HTMLDivElement | null>(null)
   const infoRef = useRef<HTMLDivElement | null>(null)
   const summaryRef = useRef<HTMLDivElement | null>(null)
-  const splitStart = useRef({ ratio: DEFAULT_INFO_RATIO, width: 0 })
-  const summaryStart = useRef({ height: 0, max: 0 })
 
-  const startSplit = (): void => {
-    splitStart.current = {
-      ratio: infoRatio,
-      width: innerRef.current?.getBoundingClientRect().width ?? 0,
-    }
+  const width = (): number => innerRef.current?.getBoundingClientRect().width ?? 0
+  const infoMin = (): number => {
+    const measured = width()
+    return measured <= 0 ? 0.24 : clamp(MIN_INFO_PX / measured, 0.24, 0.5)
   }
-
-  const resizeSplit = (deltaX: number): void => {
-    const width = splitStart.current.width
-    if (width <= 0) return
-    const min = Math.max(0.24, Math.min(0.5, MIN_INFO_PX / width))
-    const max = Math.min(0.78, Math.max(min + 0.1, 1 - MIN_INFO_PX / width))
-    setInfoRatio(clamp(splitStart.current.ratio + deltaX / width, min, max))
-  }
-
-  const startSummarySplit = (): void => {
-    const height = summaryRef.current?.getBoundingClientRect().height ?? 0
-    const infoHeight = infoRef.current?.clientHeight ?? 0
-    summaryStart.current = { height, max: Math.max(height, infoHeight - 200) }
-  }
-
-  const resizeSummarySplit = (_deltaX: number, deltaY: number): void => {
-    setSummaryHeight(clamp(summaryStart.current.height + deltaY, 80, summaryStart.current.max))
-  }
+  const info = useSplitSize({
+    initial: DEFAULT_INFO_RATIO,
+    axis: 'x',
+    min: infoMin,
+    max: () => {
+      const measured = width()
+      const low = infoMin()
+      return measured <= 0 ? 0.78 : Math.min(0.78, Math.max(low + 0.1, 1 - MIN_INFO_PX / measured))
+    },
+    reference: width,
+  })
+  const summary = useSplitSize({
+    initial: 160,
+    axis: 'y',
+    min: 80,
+    measure: () => summaryRef.current?.getBoundingClientRect().height ?? 0,
+    max: () => {
+      const current = summaryRef.current?.getBoundingClientRect().height ?? 80
+      return Math.max(current, (infoRef.current?.clientHeight ?? 0) - 200)
+    },
+  })
 
   if (status === 'idle') {
     return (
@@ -93,12 +93,12 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
   const activeSection = sections[selectedFile]
 
   const innerStyle: React.CSSProperties = {
-    gridTemplateColumns: `${infoRatio * 100}% 6px minmax(0, 1fr)`,
+    gridTemplateColumns: `${info.size * 100}% 6px minmax(0, 1fr)`,
   }
 
-  const summaryStyle: React.CSSProperties | undefined = summaryHeight === null
-    ? undefined
-    : { flexBasis: `${summaryHeight}px`, flexGrow: 0 }
+  const summaryStyle: React.CSSProperties | undefined = summary.touched
+    ? { flexBasis: `${summary.size}px`, flexGrow: 0 }
+    : undefined
 
   return (
     <div key={detail.hash} ref={innerRef} className="dsh-gitlog-detail-inner" style={innerStyle}>
@@ -131,8 +131,8 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
           orientation="horizontal"
           className="dsh-gitlog-detail-summary-split"
           label={t('resizeSummary')}
-          onStart={startSummarySplit}
-          onDrag={resizeSummarySplit}
+          onStart={summary.start}
+          onDrag={summary.drag}
         />
         <div className="dsh-gitlog-detail-files">
           <h3>{`${t('changedFiles')}(${detail.files.length})`}</h3>
@@ -146,7 +146,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
                         type="button"
                         className={`dsh-gitlog-file${index === selectedFile ? ' is-selected' : ''}`}
                         aria-pressed={index === selectedFile}
-                        title={file.path}
+                        {...tooltipProps(file.path)}
                         onClick={() => setFileChoice({ hash: detail.hash, index })}
                       >
                         <span className="dsh-gitlog-file-path">{file.path}</span>
@@ -164,14 +164,14 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
       <Splitter
         orientation="vertical"
         label={t('resizePatch')}
-        onStart={startSplit}
-        onDrag={resizeSplit}
+        onStart={info.start}
+        onDrag={info.drag}
       />
       <div className="dsh-gitlog-detail-patch">
         <div className="dsh-gitlog-detail-patch-head">
           <h3>{t('patch')}</h3>
           {activeFile !== undefined
-            ? <code className="dsh-gitlog-patch-file" title={activeFile.path}>{activeFile.path}</code>
+            ? <code className="dsh-gitlog-patch-file" {...tooltipProps(activeFile.path)}>{activeFile.path}</code>
             : null}
         </div>
         {detail.files.length === 0
@@ -186,3 +186,8 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
     </div>
   )
 }
+
+
+
+
+

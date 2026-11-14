@@ -4,6 +4,7 @@ import { RouteError } from './errors.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
 import type { RouteContext } from './types.js'
+import { findCodeExecutable } from './vscode.js'
 
 interface OpenBody {
   path?: unknown
@@ -44,8 +45,35 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
   res.end(Buffer.from(await response.arrayBuffer()))
 }
 
-/** Open a terminal or the OS file manager at `root`; a failure to launch is not fatal. */
-function launch(target: 'terminal' | 'explorer', root: string): void {
+/** Open a terminal, the file manager, or VS Code at `root`; a launch failure is not fatal. */
+function launch(target: 'terminal' | 'explorer' | 'vscode', root: string): void {
+  if (target === 'vscode') {
+    const options = { cwd: root, detached: true, stdio: 'ignore' as const, windowsHide: true }
+    let command = 'code'
+    let args = ['--new-window', root]
+    if (process.platform === 'win32') {
+      // Launching the `code.cmd` shim needs cmd.exe, which flashes a console
+      // window; the GUI executable opens the window directly.
+      const executable = findCodeExecutable()
+      if (executable === undefined) {
+        command = process.env.ComSpec ?? 'cmd.exe'
+        args = ['/c', 'start', '', 'code', '--new-window', root]
+      } else {
+        command = executable
+      }
+    } else if (process.platform === 'darwin') {
+      command = 'open'
+      args = ['-a', 'Visual Studio Code', root]
+    }
+    try {
+      const child = spawn(command, args, options)
+      child.on('error', () => {})
+      child.unref()
+    } catch {
+      // The editor may not be installed after all; the repository is still there.
+    }
+    return
+  }
   const options = { cwd: root, detached: true, stdio: 'ignore' as const, windowsHide: false }
   let command: string
   let args: string[]
@@ -95,8 +123,10 @@ export function createOpenHandler(context: RouteContext): (req: IncomingMessage,
       const body = await readJson(req)
       const target = body.target === 'terminal'
         ? 'terminal' as const
-        : body.target === 'explorer' ? 'explorer' as const : null
-      if (target === null) throw new RouteError(400, 'invalid-target', 'Choose a terminal or the file manager.')
+        : body.target === 'explorer'
+          ? 'explorer' as const
+          : body.target === 'vscode' ? 'vscode' as const : null
+      if (target === null) throw new RouteError(400, 'invalid-target', 'Choose a terminal, the file manager, or VS Code.')
       const repo = await resolveRepository(context, typeof body.path === 'string' ? body.path : '')
       launch(target, repo.root)
       await send(res, json({ ok: true, target, path: repo.root }))
@@ -105,3 +135,4 @@ export function createOpenHandler(context: RouteContext): (req: IncomingMessage,
     }
   }
 }
+

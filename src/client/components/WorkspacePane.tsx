@@ -3,10 +3,13 @@ import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
+import { useSplitSize } from '../lib/use-split-size.js'
+import { readUiState, writeUiState } from '../lib/ui-state.js'
 import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
+import { Splitter } from './Splitter.js'
 import { toast } from './Toast.js'
-import { useTooltip } from './Tooltip.js'
+import { hideTooltip, showTooltip, tooltipProps } from './Tooltip.js'
 import { FileActionDialog } from './FileActionDialog.js'
 import { IgnoreFileDialog } from './IgnoreFileDialog.js'
 import { StashCreateDialog } from './StashCreateDialog.js'
@@ -17,11 +20,34 @@ function scopeOf(file: WorkspaceFile): WorkspaceScope {
   return file.untracked ? 'untracked' : 'unstaged'
 }
 
+/** Colour class for a status letter: M yellow, U green, D red, R/C blue, A green. */
+function statusTone(status: string): string {
+  switch (status) {
+    case 'M':
+    case 'T':
+      return 'is-modified'
+    case 'U':
+    case '?':
+      return 'is-untracked'
+    case 'A':
+      return 'is-added'
+    case 'D':
+      return 'is-deleted'
+    case 'R':
+    case 'C':
+      return 'is-renamed'
+    default:
+      return ''
+  }
+}
+
 /** Working-tree panel: staged/unstaged files, per-file diff, and the commit form. */
-export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
+export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperationChanged }: {
   view: GitLogView
   ws: WorkspaceView
   t: Translate
+  /** Stacked layout: the files column sits above the diff instead of beside it. */
+  narrow?: boolean
   /** Conflicts of an in-progress merge/rebase, when one is stopped. */
   operation?: OperationPayload | null
   onOperationChanged?(): void
@@ -33,7 +59,6 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
   const [ignoreFile, setIgnoreFile] = useState<string | null>(null)
   const [stashOpen, setStashOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
-  const tooltip = useTooltip()
   const status = ws.status
   const staged = status?.staged ?? []
   const unstaged = status?.unstaged ?? []
@@ -99,9 +124,45 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
     }
   }
 
+  /** Absolute path of a working-tree file, using the repository's separator. */
+  const absolutePath = (relative: string): string => {
+    const root = path.replace(/[\\/]+$/, '')
+    const separator = root.includes('\\') ? '\\' : '/'
+    return `${root}${separator}${relative.replace(/^[\\/]+/, '')}`
+  }
+
+  /** Tooltip for the whole row: the absolute path and the status in words. */
+  const rowHint = (file: WorkspaceFile): string => {
+    const from = file.origPath === undefined ? '' : ` (from ${file.origPath})`
+    return `${absolutePath(file.path)} - ${statusLabel(file)}${from}`
+  }
+
+  const statusLabel = (file: WorkspaceFile): string => {
+    if (file.unmerged === true) return t('statusConflicted')
+    switch (file.status) {
+      case 'M':
+        return t('statusModified')
+      case 'T':
+        return t('statusTypeChange')
+      case 'U':
+      case '?':
+        return t('statusUntracked')
+      case 'A':
+        return t('statusAdded')
+      case 'D':
+        return t('statusDeleted')
+      case 'R':
+        return t('statusRenamed')
+      case 'C':
+        return t('statusCopied')
+      default:
+        return file.status
+    }
+  }
+
   const fileRow = (file: WorkspaceFile): React.ReactElement => {
     const scope = scopeOf(file)
-    const conflicted = file.status === 'U'
+    const conflicted = file.unmerged === true
     const conflictSides = conflicted && operation !== null && operation !== undefined
       ? operation.conflicts.find(conflict => conflict.path === file.path)
       : undefined
@@ -112,6 +173,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
       <div
         key={`${scope}:${file.path}`}
         className={`dsh-gitlog-workspace-file${selected ? ' is-selected' : ''}`}
+        {...tooltipProps(() => rowHint(file))}
         onClick={() => ws.selectFile(file.path, scope)}
         onDoubleClick={() => toggleStage(file, scope)}
         onContextMenu={event => {
@@ -129,11 +191,8 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
         />
         {conflicted
           ? <span className="dsh-gitlog-workspace-status is-conflict">{t('conflictBadge')}</span>
-          : <span className="dsh-gitlog-workspace-status">{file.status}</span>}
-        <span
-          className="dsh-gitlog-workspace-path"
-          title={file.origPath === undefined ? file.path : `${file.path} ← ${file.origPath}`}
-        >
+          : <span className={`dsh-gitlog-workspace-status ${statusTone(file.status)}`}>{file.status}</span>}
+        <span className="dsh-gitlog-workspace-path">
           {file.path}
         </span>
         {file.binary
@@ -147,18 +206,17 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
         <button
           type="button"
           className="dsh-gitlog-workspace-file-action"
-          title={conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile')}
-          aria-label={conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile')}
+                    aria-label={conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile')}
           onClick={event => {
             event.stopPropagation()
             toggleStage(file, scope)
           }}
           onDoubleClick={event => event.stopPropagation()}
-          onMouseEnter={event => tooltip.show(
+          onMouseEnter={event => showTooltip(
             conflicted ? t('markResolved') : scope === 'staged' ? t('unstageFile') : t('stageFile'),
             event.currentTarget.getBoundingClientRect(),
           )}
-          onMouseLeave={tooltip.hide}
+          onMouseLeave={hideTooltip}
         >
           {scope === 'staged' ? <MinusIcon size={14} /> : <PlusIcon size={14} />}
         </button>
@@ -166,7 +224,44 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
     )
   }
 
-  const section = (group: 'staged' | 'unstaged', files: WorkspaceFile[]): React.ReactElement => {
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const filesRef = useRef<HTMLDivElement | null>(null)
+  const stagedRef = useRef<HTMLElement | null>(null)
+  const filesSize = useSplitSize({
+    initial: () => readUiState().commitFilesWidth ?? 380,
+    min: 260,
+    max: () => {
+      const width = bodyRef.current?.getBoundingClientRect().width ?? 0
+      return width <= 0 ? 520 : Math.max(260, Math.min(width - 320, width * 0.7))
+    },
+    axis: 'x',
+    persist: value => writeUiState({ commitFilesWidth: value }),
+  })
+  // The form is anchored at the bottom, so dragging up grows it.
+  const commitSize = useSplitSize({
+    initial: () => readUiState().commitFormHeight ?? 220,
+    min: 150,
+    max: () => {
+      const height = filesRef.current?.getBoundingClientRect().height ?? 0
+      return height <= 0 ? 420 : Math.max(160, height - 240)
+    },
+    axis: 'y',
+    invert: true,
+    persist: value => writeUiState({ commitFormHeight: value }),
+  })
+  const stagedSize = useSplitSize({
+    initial: () => readUiState().commitStagedHeight ?? 180,
+    min: 90,
+    measure: () => stagedRef.current?.getBoundingClientRect().height ?? 0,
+    max: () => {
+      const height = filesRef.current?.getBoundingClientRect().height ?? 0
+      return height <= 0 ? 420 : Math.max(120, height - commitSize.size - 150)
+    },
+    axis: 'y',
+    persist: value => writeUiState({ commitStagedHeight: value }),
+  })
+
+  const section = (group: 'staged' | 'unstaged', files: WorkspaceFile[], style?: React.CSSProperties, nodeRef?: React.Ref<HTMLElement>): React.ReactElement => {
     const isStaged = group === 'staged'
     const hasChecked = checked[group].length > 0
     const selectedAction = (): void => {
@@ -188,7 +283,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
       }
     }
     return (
-      <section className="dsh-gitlog-workspace-section">
+      <section className="dsh-gitlog-workspace-section" style={style} ref={nodeRef}>
         <div className="dsh-gitlog-workspace-section-head">
           <h3>{`${isStaged ? t('stagedFiles') : t('unstagedFiles')} (${files.length})`}</h3>
           <span className="dsh-gitlog-workspace-section-actions">
@@ -227,7 +322,10 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
   }
 
   const commitForm = (
-    <div className="dsh-gitlog-workspace-commit">
+    <div
+      className="dsh-gitlog-workspace-commit"
+      style={{ flex: '0 0 auto', height: `${commitSize.size}px` }}
+    >
       <div className="dsh-gitlog-workspace-author">
         {status?.author.name
           ? `${status.author.name} <${status.author.email}>`
@@ -302,7 +400,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
       <div className="dsh-gitlog-workspace-diff-head">
         <h3>{t('patch')}</h3>
         {ws.selected !== null
-          ? <code className="dsh-gitlog-patch-file" title={ws.selected.path}>{`${scopeLabel} · ${ws.selected.path}`}</code>
+          ? <code className="dsh-gitlog-patch-file" {...tooltipProps(ws.selected.path)}>{`${scopeLabel} · ${ws.selected.path}`}</code>
           : null}
       </div>
       {ws.selected === null
@@ -330,7 +428,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
         <div className="dsh-gitlog-workspace-title">
           {status !== null
             ? (
-                <span className="dsh-gitlog-workspace-branch" title={status.upstream ?? undefined}>
+                <span className="dsh-gitlog-workspace-branch" {...(status.upstream === null ? {} : tooltipProps(status.upstream))}>
                   {status.branch}
                   {status.upstream === null
                     ? ''
@@ -359,12 +457,52 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
               </div>
             )
           : (
-              <div className="dsh-gitlog-workspace-body">
-                <div className="dsh-gitlog-workspace-files">
-                  {section('staged', staged)}
+              <div
+                ref={bodyRef}
+                className="dsh-gitlog-workspace-body"
+                style={narrow ? undefined : { gridTemplateColumns: `${filesSize.size}px 6px minmax(0, 1fr)` }}
+              >
+                <div ref={filesRef} className="dsh-gitlog-workspace-files">
+                  {section(
+                    'staged',
+                    staged,
+                    staged.length > 0 && unstaged.length > 0 && stagedSize.touched
+                      ? { flex: '0 0 auto', height: `${stagedSize.size}px` }
+                      : undefined,
+                    stagedRef,
+                  )}
+                  {staged.length > 0 && unstaged.length > 0
+                    ? (
+                        <Splitter
+                          orientation="horizontal"
+                          label={t('resizeStaged')}
+                          onStart={stagedSize.start}
+                          onDrag={stagedSize.drag}
+                          onReset={stagedSize.reset}
+                        />
+                      )
+                    : null}
                   {section('unstaged', unstaged)}
+                  <Splitter
+                    orientation="horizontal"
+                    label={t('resizeCommitForm')}
+                    onStart={commitSize.start}
+                    onDrag={commitSize.drag}
+                    onReset={commitSize.reset}
+                  />
                   {commitForm}
                 </div>
+                {narrow
+                  ? null
+                  : (
+                      <Splitter
+                        orientation="vertical"
+                        label={t('resizeCommitFiles')}
+                        onStart={filesSize.start}
+                        onDrag={filesSize.drag}
+                       onReset={filesSize.reset}
+                      />
+                    )}
                 {diffPane}
               </div>
             )}
@@ -391,7 +529,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
               >
                 {t('revealInExplorer')}
               </button>
-              {fileMenu.file.status !== 'U' ? null : (
+              {fileMenu.file.unmerged !== true ? null : (
                 <button
                   type="button"
                   role="menuitem"
@@ -405,7 +543,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
                   {t('conflictTakeOurs')}
                 </button>
               )}
-              {fileMenu.file.status !== 'U' ? null : (
+              {fileMenu.file.unmerged !== true ? null : (
                 <button
                   type="button"
                   role="menuitem"
@@ -419,7 +557,7 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
                   {t('conflictTakeTheirs')}
                 </button>
               )}
-              {fileMenu.file.staged || fileMenu.file.status === 'U'
+              {fileMenu.file.staged || fileMenu.file.unmerged === true
                 ? null
                 : (
                     <button
@@ -479,7 +617,17 @@ export function WorkspacePane({ view, ws, t, operation, onOperationChanged }: {
       {stashOpen
         ? <StashCreateDialog view={view} ws={ws} t={t} onClose={() => setStashOpen(false)} />
         : null}
-      {tooltip.node}
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+

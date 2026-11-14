@@ -8,6 +8,8 @@ export interface SplitterProps {
   onStart(): void
   onDrag(deltaX: number, deltaY: number): void
   onEnd?(): void
+  /** Double-click restores the default size. */
+  onReset?(): void
   className?: string
 }
 
@@ -15,7 +17,7 @@ export interface SplitterProps {
  * Drag handle between two regions. It only reports pointer deltas; the owner
  * decides which size changes and clamps the result.
  */
-export function Splitter({ orientation, label, onStart, onDrag, onEnd, className }: SplitterProps): React.ReactElement {
+export function Splitter({ orientation, label, onStart, onDrag, onEnd, onReset, className }: SplitterProps): React.ReactElement {
   const [dragging, setDragging] = useState(false)
   const origin = useRef<{ x: number; y: number } | null>(null)
 
@@ -74,6 +76,7 @@ export function Splitter({ orientation, label, onStart, onDrag, onEnd, className
         onStart()
         onDrag(deltaX, deltaY)
       }}
+      onDoubleClick={() => onReset?.()}
     />
   )
 }

@@ -5,6 +5,7 @@ import type { GraphGeometry, GraphRow } from '../lib/graph.js'
 import type { Commit, CommitColumns, Translate } from '../types.js'
 import { CommitGraph } from './CommitGraph.js'
 import { Refs } from './Refs.js'
+import { tooltipProps } from './Tooltip.js'
 
 /** One log line: the graph lane height has to match the row height (`.dsh-gitlog-commit`) so lines connect. */
 export const COMMIT_ROW_HEIGHT = 26
@@ -32,7 +33,6 @@ export function CommitRow({ commit, selected, onSelect, onContextMenu, onRefCont
       aria-pressed={selected}
       onClick={() => onSelect(commit)}
       onContextMenu={event => onContextMenu?.(commit, event)}
-      title={commit.subject}
     >
       {columns.graph
         ? (
@@ -43,14 +43,15 @@ export function CommitRow({ commit, selected, onSelect, onContextMenu, onRefCont
         : null}
       <span className="dsh-gitlog-desc">
         <Refs refs={commit.refs} onRefContextMenu={onRefContextMenu} />
-        <span className="dsh-gitlog-subject">{commit.subject || t('noSubject')}</span>
+        <span className="dsh-gitlog-subject" {...tooltipProps(commit.subject || t('noSubject'))}>{commit.subject || t('noSubject')}</span>
         {isMerge ? <span className="dsh-gitlog-merge">{t('merge')}</span> : null}
       </span>
       {columns.date ? <span className="dsh-gitlog-commit-date">{formatDateTime(commit.date, t('localeId'))}</span> : null}
       {columns.author
-        ? <span className="dsh-gitlog-commit-author" title={`${commit.author} <${commit.email}>`}>{commit.author}</span>
+        ? <span className="dsh-gitlog-commit-author" {...tooltipProps(`${commit.author} <${commit.email}>`)}>{commit.author}</span>
         : null}
-      {columns.hash ? <code className="dsh-gitlog-commit-hash" title={commit.hash}>{commit.shortHash}</code> : null}
+      {columns.hash ? <code className="dsh-gitlog-commit-hash" {...tooltipProps(commit.hash)}>{commit.shortHash}</code> : null}
     </button>
   )
 }
+

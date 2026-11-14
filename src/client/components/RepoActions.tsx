@@ -1,10 +1,12 @@
 import type * as React from 'react'
-import { h, useState } from '../runtime.js'
+import { h, useEffect, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
-import { requestOpenApp, toApiError } from '../lib/api.js'
+import { requestApps, requestOpenApp, toApiError } from '../lib/api.js'
 import type { Translate } from '../types.js'
-import { FetchIcon, FolderIcon, PullIcon, PushIcon, TerminalIcon } from './GitLogIcon.js'
+import { Button } from './Button.js'
+import { Switch } from './Switch.js'
+import { VscodeIcon, FetchIcon, FolderIcon, PullIcon, PushIcon, TerminalIcon } from './GitLogIcon.js'
 import { FetchDialog } from './FetchDialog.js'
 import { PushDialog } from './PushDialog.js'
 import { SyncDialog } from './SyncDialog.js'
@@ -17,7 +19,7 @@ export interface RepoActionsProps {
   t: Translate
 }
 
-/** View switch plus pull / push / fetch, shown under the topbar. */
+/** View switch plus pull / push / fetch and the "open with" actions, icon-only. */
 export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProps): React.ReactElement {
   const path = view.repo?.repoRoot ?? view.pathInput.trim()
   const remotes = view.tree?.remotes ?? []
@@ -26,8 +28,30 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
   const [fetchOpen, setFetchOpen] = useState(false)
   const [pushOpen, setPushOpen] = useState(false)
   const [openError, setOpenError] = useState<string | null>(null)
+  const [vscode, setVscode] = useState(false)
 
-  const openApp = async (target: 'terminal' | 'explorer'): Promise<void> => {
+  useEffect(() => {
+    const controller = new AbortController()
+    requestApps(controller.signal)
+      .then(payload => {
+        if (controller.signal.aborted) return
+        setVscode(payload.vscode)
+      })
+      .catch(() => {
+        // Detection is best effort: hide the editor button when it fails.
+        if (!controller.signal.aborted) setVscode(false)
+      })
+    return () => controller.abort()
+  }, [])
+
+  const syncLabel = (action: 'pull' | 'push' | 'fetch'): string => {
+    if (syncBusy && ws.syncAction === action) {
+      return action === 'pull' ? t('pulling') : action === 'push' ? t('pushing') : t('fetching')
+    }
+    return t(action)
+  }
+
+  const openApp = async (target: 'terminal' | 'explorer' | 'vscode'): Promise<void> => {
     if (path === '') return
     setOpenError(null)
     try {
@@ -45,83 +69,69 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
     return t('fileManager')
   })()
 
-  const syncLabel = (action: 'pull' | 'push' | 'fetch'): string => {
-    if (syncBusy && ws.syncAction === action) {
-      return action === 'pull' ? t('pulling') : action === 'push' ? t('pushing') : t('fetching')
-    }
-    return t(action)
-  }
-
   return (
     <div className="dsh-gitlog-repo-actions">
-      <div className="dsh-gitlog-view-switch" role="group" aria-label={t('viewMode')}>
-        <button
-          type="button"
-          className="dsh-gitlog-btn"
-          aria-pressed={mode === 'history'}
-          onClick={() => onModeChange('history')}
-        >
-          {t('history')}
-        </button>
-        <button
-          type="button"
-          className="dsh-gitlog-btn"
-          aria-pressed={mode === 'workspace'}
-          onClick={() => onModeChange('workspace')}
-        >
-          {t('commit')}
-        </button>
-      </div>
-      <button
-        type="button"
-        className="dsh-gitlog-workspace-action"
-        title={t('pull')}
+      <Switch
+        value={mode}
+        ariaLabel={t('viewMode')}
+        options={[
+          { value: 'history' as const, label: t('history') },
+          { value: 'workspace' as const, label: t('commit') },
+        ]}
+        onChange={onModeChange}
+      />
+      <Button
+        variant="ghost"
+        iconOnly
+        title={syncLabel('pull')}
+        icon={<PullIcon />}
+        disabled={syncBusy || path === '' || remotes.length === 0}
         onClick={() => setPullOpen(true)}
+      />
+      <Button
+        variant="ghost"
+        iconOnly
+        title={syncLabel('push')}
+        icon={<PushIcon />}
         disabled={syncBusy || path === '' || remotes.length === 0}
-      >
-        <PullIcon />
-        <span>{syncLabel('pull')}</span>
-      </button>
-      <button
-        type="button"
-        className="dsh-gitlog-workspace-action"
-        title={t('push')}
         onClick={() => setPushOpen(true)}
-        disabled={syncBusy || path === '' || remotes.length === 0}
-      >
-        <PushIcon />
-        <span>{syncLabel('push')}</span>
-      </button>
-      <button
-        type="button"
-        className="dsh-gitlog-workspace-action"
-        title={t('fetch')}
-        onClick={() => setFetchOpen(true)}
+      />
+      <Button
+        variant="ghost"
+        iconOnly
+        title={syncLabel('fetch')}
+        icon={<FetchIcon />}
         disabled={syncBusy || path === ''}
-      >
-        <FetchIcon />
-        <span>{syncLabel('fetch')}</span>
-      </button>
-      <button
-        type="button"
-        className="dsh-gitlog-workspace-action"
+        onClick={() => setFetchOpen(true)}
+      />
+      <Button
+        variant="ghost"
+        iconOnly
         title={t('openTerminal')}
+        icon={<TerminalIcon />}
+        disabled={path === ''}
         onClick={() => { void openApp('terminal') }}
-        disabled={path === ''}
-      >
-        <TerminalIcon />
-        <span>{t('terminal')}</span>
-      </button>
-      <button
-        type="button"
-        className="dsh-gitlog-workspace-action"
+      />
+      <Button
+        variant="ghost"
+        iconOnly
         title={explorerLabel}
-        onClick={() => { void openApp('explorer') }}
+        icon={<FolderIcon />}
         disabled={path === ''}
-      >
-        <FolderIcon />
-        <span>{explorerLabel}</span>
-      </button>
+        onClick={() => { void openApp('explorer') }}
+      />
+      {vscode
+        ? (
+            <Button
+              variant="ghost"
+              iconOnly
+              title={t('openInVscode')}
+              icon={<VscodeIcon />}
+              disabled={path === ''}
+              onClick={() => { void openApp('vscode') }}
+            />
+          )
+        : null}
       {ws.syncNote !== null ? <p className="dsh-gitlog-note" role="status">{ws.syncNote}</p> : null}
       {ws.syncError !== null ? <p className="dsh-gitlog-note" role="alert">{ws.syncError.message}</p> : null}
       {openError === null ? null : <p className="dsh-gitlog-note" role="alert">{openError}</p>}
@@ -145,3 +155,6 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
     </div>
   )
 }
+
+
+

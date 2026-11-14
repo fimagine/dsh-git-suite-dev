@@ -1,5 +1,6 @@
 import type * as React from 'react'
 import { h } from '../runtime.js'
+import { tooltipProps } from './Tooltip.js'
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger'
 
@@ -18,6 +19,7 @@ export interface ButtonProps {
   autoFocus?: boolean
   ariaHasPopup?: 'dialog' | 'menu' | boolean
   ariaExpanded?: boolean
+  ariaPressed?: boolean
 }
 
 /** Shared button: 28px control height, variants, icon-only, and a loading state. */
@@ -36,6 +38,7 @@ export function Button({
   autoFocus = false,
   ariaHasPopup,
   ariaExpanded,
+  ariaPressed,
 }: ButtonProps): React.ReactElement {
   const classes = ['dsh-gitlog-btn']
   if (variant === 'primary') classes.push('primary')
@@ -48,11 +51,12 @@ export function Button({
       type={type}
       className={classes.join(' ')}
       disabled={disabled || loading}
-      title={title}
       aria-label={ariaLabel ?? title}
+      {...(title === undefined ? {} : tooltipProps(title))}
       aria-busy={loading || undefined}
       aria-haspopup={ariaHasPopup}
       aria-expanded={ariaExpanded}
+      aria-pressed={ariaPressed}
       onClick={onClick}
       autoFocus={autoFocus}
     >

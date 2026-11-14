@@ -14,6 +14,12 @@ export interface UiState {
   treeWidth?: number
   treeHeight?: number
   detailRatio?: number
+  /** Width of the staged/unstaged column in the commit view. */
+  commitFilesWidth?: number
+  /** Height of the staged list in the commit view. */
+  commitStagedHeight?: number
+  /** Height of the commit message form in the commit view. */
+  commitFormHeight?: number
   openSections?: Record<string, boolean>
   collapsedFolders?: Record<string, boolean>
 }
@@ -53,6 +59,12 @@ export function readUiState(): UiState {
     if (treeHeight !== undefined) state.treeHeight = treeHeight
     const detailRatio = finite(source.detailRatio)
     if (detailRatio !== undefined) state.detailRatio = detailRatio
+    const commitFilesWidth = finite(source.commitFilesWidth)
+    if (commitFilesWidth !== undefined) state.commitFilesWidth = commitFilesWidth
+    const commitStagedHeight = finite(source.commitStagedHeight)
+    if (commitStagedHeight !== undefined) state.commitStagedHeight = commitStagedHeight
+    const commitFormHeight = finite(source.commitFormHeight)
+    if (commitFormHeight !== undefined) state.commitFormHeight = commitFormHeight
     const openSections = booleanRecord(source.openSections)
     if (openSections !== undefined) state.openSections = openSections
     const collapsedFolders = booleanRecord(source.collapsedFolders)

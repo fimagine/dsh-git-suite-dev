@@ -28,12 +28,14 @@ export interface CommitDetail extends CommitHeader {
 
 export interface WorkspaceFile {
   path: string
-  /** One-letter status shown in the list: A/M/D/R/C/U or `?` for untracked. */
+  /** One-letter status shown in the list: A/M/D/R/C/U (U also covers untracked). */
   status: string
   /** Original path for a rename/copy. */
   origPath?: string
   staged: boolean
   untracked: boolean
+  /** Unmerged: the path is part of a conflict, not a normal change. */
+  unmerged: boolean
   additions: number | null
   deletions: number | null
   binary: boolean
@@ -115,6 +117,12 @@ export interface OperationPayload {
   conflicts: ConflictFile[]
 }
 
+/** External editors the host could launch, for the "open with" actions. */
+export interface AppsPayload {
+  ok: true
+  vscode: boolean
+}
+
 /** One local tag with the commit it points at and its annotation message. */
 export interface TagInfoPayload {
   ok: true
@@ -170,3 +178,4 @@ export interface RouteContext {
   workspaces(): WorkspaceRef[]
   defaultPath(): string
 }
+
