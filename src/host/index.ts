@@ -8,6 +8,7 @@ import { createRemoteHandler } from './remote-handler.js'
 import { createRevealHandler } from './reveal-handler.js'
 import { createOpenHandler } from './open-handler.js'
 import { createCommitOpsHandler } from './commit-ops.js'
+import { createStashHandler } from './stash-handler.js'
 import { createResource } from './resource.js'
 import { createSwitchHandler } from './switch-handler.js'
 import { createSyncHandler } from './sync-handler.js'
@@ -28,6 +29,7 @@ const REMOTE_PATH = '/git-suite/remote'
 const REVEAL_PATH = '/git-suite/reveal'
 const OPEN_PATH = '/git-suite/open'
 const COMMIT_OP_PATH = '/git-suite/commit-op'
+const STASH_PATH = '/git-suite/stash'
 const BRANCH_ACTION_PATH = '/git-suite/branch-action'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
@@ -120,6 +122,11 @@ export function apply(ctx: HostContext): void {
     path: COMMIT_OP_PATH,
     handler: createCommitOpsHandler(context),
   }), 'git-suite: commit operations route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: STASH_PATH,
+    handler: createStashHandler(context),
+  }), 'git-suite: stash route')
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: BRANCH_ACTION_PATH,

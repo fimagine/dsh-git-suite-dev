@@ -30,6 +30,7 @@ export interface RefsTreeProps {
   onTagMenu?(selection: TagSelection, event: React.MouseEvent): void
   onRemoteBranchMenu?(selection: RemoteBranchSelection, event: React.MouseEvent): void
   onBranchMenu?(selection: Selection, event: React.MouseEvent): void
+  onStashMenu?(selection: Selection, event: React.MouseEvent): void
   t: Translate
 }
 
@@ -71,7 +72,7 @@ interface EmptyRow {
 type TreeRow = SectionRow | NodeRow | EmptyRow
 
 /** Branch/tag/remote/stash navigation for the left column of the panel. */
-export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onAddTag, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, t }: RefsTreeProps): React.ReactElement {
+export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onAddTag, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, onStashMenu, t }: RefsTreeProps): React.ReactElement {
   const [query, setQuery] = useState('')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
     ...SECTION_DEFAULT_OPEN,
@@ -301,9 +302,11 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
           || (nodeSelection?.kind === 'branch' && !nodeSelection.remote && onBranchMenu !== undefined)
           || (nodeSelection?.kind === 'branch' && nodeSelection.remote && onRemoteBranchMenu !== undefined)
           || (nodeSelection?.kind === 'tag' && onTagMenu !== undefined)
+          || (nodeSelection?.kind === 'stash' && onStashMenu !== undefined)
           ? event => {
               event.preventDefault()
               if (node.kind === 'remote') onRemoteMenu?.(node.label, event)
+              else if (nodeSelection?.kind === 'stash') onStashMenu?.(nodeSelection, event)
               else if (nodeSelection?.kind === 'tag') onTagMenu?.(nodeSelection, event)
               else if (nodeSelection?.kind === 'branch' && nodeSelection.remote) onRemoteBranchMenu?.(nodeSelection, event)
               else if (nodeSelection !== undefined) onBranchMenu?.(nodeSelection, event)

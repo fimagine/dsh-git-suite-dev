@@ -20,6 +20,7 @@ import { AddTagDialog } from './components/AddTagDialog.js'
 import { DeleteTagDialog } from './components/DeleteTagDialog.js'
 import { ForcePushTagDialog } from './components/ForcePushTagDialog.js'
 import { FetchTagDialog } from './components/FetchTagDialog.js'
+import { StashMenu, type StashMenuState } from './components/StashMenu.js'
 import { Button } from './components/Button.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
@@ -89,6 +90,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [branchDialog, setBranchDialog] = useState<{ action: 'rename' | 'delete'; branch: Branch } | null>(null)
   const [branchActionError, setBranchActionError] = useState<string | null>(null)
   const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
+  const [stashMenu, setStashMenu] = useState<StashMenuState | null>(null)
   const [tagStatus, setTagStatus] = useState<TagStatusPayload | null>(null)
   const [addTagOpen, setAddTagOpen] = useState(false)
   const [tagEdit, setTagEdit] = useState<string | null>(null)
@@ -463,6 +465,10 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
           y: event.clientY,
         })}
         onRemoteBranchMenu={(branch, event) => setRemoteBranchMenu({ branch, x: event.clientX, y: event.clientY })}
+        onStashMenu={(stash, event) => {
+          const ref = 'ref' in stash && typeof stash.ref === 'string' ? stash.ref : ''
+          if (ref !== '') setStashMenu({ selection: stash, ref, x: event.clientX, y: event.clientY })
+        }}
         onRemoteMenu={(remote, event) => setRemoteMenu({ remote, x: event.clientX, y: event.clientY })}
         onBranchMenu={openBranchMenu}
         t={t}
@@ -561,6 +567,16 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         t={t}
         onClose={() => setCommitMenu(null)}
         onChanged={() => ws.refresh()}
+      />
+      <StashMenu
+        view={view}
+        context={stashMenu}
+        t={t}
+        onChanged={() => {
+          ws.refresh()
+          view.refresh()
+        }}
+        onClose={() => setStashMenu(null)}
       />
       <RemoteMenu
         context={remoteMenu}

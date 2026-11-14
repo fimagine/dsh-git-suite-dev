@@ -9,6 +9,7 @@ import { toast } from './Toast.js'
 import { useTooltip } from './Tooltip.js'
 import { FileActionDialog } from './FileActionDialog.js'
 import { IgnoreFileDialog } from './IgnoreFileDialog.js'
+import { StashCreateDialog } from './StashCreateDialog.js'
 import type { Translate, WorkspaceFile, WorkspaceScope } from '../types.js'
 
 function scopeOf(file: WorkspaceFile): WorkspaceScope {
@@ -23,6 +24,7 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
   const [fileMenu, setFileMenu] = useState<{ file: WorkspaceFile; x: number; y: number } | null>(null)
   const [fileAction, setFileAction] = useState<{ kind: 'discard' | 'delete'; file: string } | null>(null)
   const [ignoreFile, setIgnoreFile] = useState<string | null>(null)
+  const [stashOpen, setStashOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const tooltip = useTooltip()
   const status = ws.status
@@ -173,6 +175,17 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
             >
               {isStaged ? t('unstageAll') : t('stageAll')}
             </Button>
+            {isStaged
+              ? null
+              : (
+                  <Button
+                    disabled={ws.status === null || ws.actionState === 'loading'}
+                    title={t('stashHint')}
+                    onClick={() => setStashOpen(true)}
+                  >
+                    {t('stashCreate')}
+                  </Button>
+                )}
           </span>
         </div>
         <div className="dsh-gitlog-workspace-list">
@@ -406,6 +419,9 @@ export function WorkspacePane({ view, ws, t }: { view: GitLogView; ws: Workspace
               onClose={() => setIgnoreFile(null)}
             />
           )}
+      {stashOpen
+        ? <StashCreateDialog view={view} ws={ws} t={t} onClose={() => setStashOpen(false)} />
+        : null}
       {tooltip.node}
     </div>
   )

@@ -19,6 +19,7 @@ import type {
   TagStatusPayload,
   CommitOpPayload,
   ReflogPayload,
+  StashPayload,
   VersionPayload,
 } from '../types.js'
 
@@ -355,6 +356,19 @@ export interface CommitOpRequest {
 /** POST /git-suite/commit-op: cherry-pick, revert, reset, or abort. */
 export async function requestCommitOp(body: CommitOpRequest, signal?: AbortSignal): Promise<CommitOpPayload> {
   return postCommitJson<CommitOpPayload>('/git-suite/commit-op', body, signal)
+}
+
+export interface StashRequest {
+  path: string
+  action: 'save' | 'apply' | 'pop' | 'drop'
+  ref?: string
+  message?: string
+  includeUntracked?: boolean
+}
+
+/** POST /git-suite/stash: push, apply, pop, or drop one stash entry. */
+export async function requestStash(body: StashRequest, signal?: AbortSignal): Promise<StashPayload> {
+  return postCommitJson<StashPayload>('/git-suite/stash', body, signal)
 }
 
 export interface BranchRequest {

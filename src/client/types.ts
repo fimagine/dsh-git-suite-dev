@@ -316,6 +316,14 @@ export interface ReflogPayload {
   entries: ReflogEntry[]
 }
 
+/** Result of a stash push/apply/pop/drop. */
+export interface StashPayload {
+  ok: true
+  action: 'save' | 'apply' | 'pop' | 'drop'
+  ref?: string
+  hash?: string
+}
+
 export interface RevealPayload {
   ok: true
   file: string
