@@ -34,7 +34,9 @@
     "dist",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "assets",
+    "docs"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
@@ -73,6 +75,7 @@
     ]
   }
 }
+
 
 
 

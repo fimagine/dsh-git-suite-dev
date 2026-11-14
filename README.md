@@ -22,6 +22,15 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 
 ![Hunk staging and a side-by-side diff](assets/readme-screenshot-3.png)
 
+## Usage
+
+- **Where to find it**: the left sidebar's **Git** entry, the right panel's **Git** card on its Start page, or **Ctrl/Cmd+Shift+G** from anywhere (rebindable in DSH's keyboard settings). Both places render the same panel.
+- **Pick a repository**: use the project dropdown (type to search) or the **+** menu beside it to **clone a remote** or **select a local** repository. The right panel opens on the repository of the current session by default.
+- **Two views**: the **History / Commit** switch in the second row. History shows the commit graph and details; Commit shows the working tree.
+- **Commit**: stage whole files with the row buttons, single hunks with **Stage this hunk**, or a dragged line selection via the right-click menu, then write a message (↑ walks this repository's recent messages) and press **Commit**. **Amend last commit** and **push after committing** are optional.
+- **Diffs**: every diff has a layout toggle between unified rows and side-by-side columns.
+- **Everything else**: right-click branches, tags, stashes, remotes, commits, and files for their menus (checkout, merge, rebase, cherry-pick, reset, stash, tag, …); the top-right buttons open a terminal, the file manager, or VS Code at the repository.
+
 ## Features
 
 - **History**: paged loading, commit graph, commit details, and per-file patches in a unified or side-by-side diff viewer; sticky header, resizable columns, and virtualized rows.
@@ -30,6 +39,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - **Remote actions**: the history/commit switch, pull/push/fetch with remote, branch, prune, tag, and force options, merge/rebase, rebase onto any ref, and a commit context menu for tag/branch/checkout/cherry-pick/revert/reset.
 - **Right panel**: the same panel in DSH's right sidebar (Ctrl/Cmd+Shift+G), opening on the repository of the current session and keeping its own view, filters, splitters, and draft per repository.
 - **Repositories**: the **+** menu clones a remote or selects a local repository; the repository dropdown supports name search.
+
 ## Requirements
 
 - DSH Web
