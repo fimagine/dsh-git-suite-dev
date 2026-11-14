@@ -576,6 +576,80 @@ $brand: var(--dsw-alias-brand-primary);
     color: var(--dsw-alias-state-error-primary);
   }
 
+  &-reflog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: min(52vh, 420px);
+    margin: 0;
+    padding: 4px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    list-style: none;
+    overscroll-behavior: contain;
+  }
+
+  &-reflog-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $label-primary;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 2px 0 0 $brand;
+    }
+  }
+
+  &-reflog-hash {
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+  }
+
+  &-reflog-action {
+    min-width: 0;
+    overflow: hidden;
+    font-size: $font-meta;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-reflog-meta {
+    color: $label-secondary;
+    font-size: $font-tiny;
+    white-space: nowrap;
+  }
+
+  &-reflog-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid $border-l1;
+  }
+
+  &-reflog-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
   &-dialog-target {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);

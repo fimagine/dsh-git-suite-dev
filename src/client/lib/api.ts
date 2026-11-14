@@ -17,6 +17,8 @@ import type {
   TagInfoPayload,
   TagPayload,
   TagStatusPayload,
+  CommitOpPayload,
+  ReflogPayload,
   VersionPayload,
 } from '../types.js'
 
@@ -41,7 +43,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -329,6 +331,30 @@ export async function requestTagStatus(
 /** GET /git-suite?mode=version: installed version versus the latest npm release. */
 export async function requestVersionCheck(signal?: AbortSignal): Promise<VersionPayload> {
   return requestJson<VersionPayload>({ mode: 'version' }, signal)
+}
+
+/** GET /git-suite?mode=reflog: recent HEAD movements for recovery. */
+export async function requestReflog(
+  params: { path: string; limit?: number },
+  signal?: AbortSignal,
+): Promise<ReflogPayload> {
+  return requestJson<ReflogPayload>({
+    mode: 'reflog',
+    path: params.path,
+    ...(params.limit === undefined ? {} : { limit: String(params.limit) }),
+  }, signal)
+}
+
+export interface CommitOpRequest {
+  path: string
+  action: 'cherry-pick' | 'revert' | 'reset' | 'abort'
+  hash?: string
+  mode?: 'soft' | 'mixed' | 'hard'
+}
+
+/** POST /git-suite/commit-op: cherry-pick, revert, reset, or abort. */
+export async function requestCommitOp(body: CommitOpRequest, signal?: AbortSignal): Promise<CommitOpPayload> {
+  return postCommitJson<CommitOpPayload>('/git-suite/commit-op', body, signal)
 }
 
 export interface BranchRequest {

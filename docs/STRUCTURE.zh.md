@@ -131,6 +131,8 @@ LICENSE
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
 | `host/clone-handler.ts` | POST `/git-suite/clone`：校验远端 URL 与目标目录后，先克隆到目标同级的临时目录，成功后改名到目标目录 |
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支（可指定提交或任意引用作为起点），检出本地分支、指定提交或任意引用（分离 HEAD，不 force） |
+| `host/commit-ops.ts` | `POST /git-suite/commit-op`：拣选或反向提交单个提交、把当前分支重置到某提交（soft/mixed/hard）、中止停在半途的 merge/rebase/cherry-pick/revert（`409 operation-conflict` 会说明是哪种操作） |
+| `host/routes/reflog.ts` | `mode=reflog`：最近 80 次 HEAD 变动（哈希、selector、动作、作者、时间），用于找回丢失的提交 |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 |
 | `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，支持单个标签（`tagRefs`）、全部标签（`tags`）与 `force`；`fetch-tag` 用远端覆盖单个本地标签 |
@@ -168,7 +170,7 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
-| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数 + 版本检查更新）、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取，再是「命令行」与按平台命名的文件管理器）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
+| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数 + 版本检查更新）、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取，再是「命令行」与按平台命名的文件管理器）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出/拣选/反向提交/重置/最近操作）、标签右键菜单（检出）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 |
@@ -228,14 +230,17 @@ LICENSE
 
 ## 提交右键操作
 
-提交列表的每一行右键打开「标签 / 分支 / 检出」菜单（`CommitActions`）：
+提交列表的每一行右键打开「标签 / 分支 / 检出 / 拣选 / 反向提交 / 重置 / 最近操作」菜单（`CommitActions`）：
 
 - **标签** → `POST /git-suite/tag`（弹窗标题为「新建标签」）：`git check-ref-format refs/tags/<name>` 校验名称；`message` 非空时用 `git tag -a -m`，否则轻量标签；只有 `force: true`（勾选「覆盖同名标签」）才加 `-f`。它的提交字段预填右键选中的提交、可编辑，并像分支弹窗一样实时解析。
 - **分支** → `POST /git-suite/branch`：`git check-ref-format --branch` 校验后执行 `git branch <name> <起点>`。弹窗的「起点」预填右键选中的提交且可编辑；改成别的引用时会通过 `mode=resolve` 实时解析，并在输入框下方显示该提交的短哈希与标题；清空则回退到该提交。
 - **检出** → `POST /git-suite/checkout`：`branch` 走 `git switch <branch>`，`hash` 走 `git switch --detach <hash>`；不 force；工作区有会被覆盖的改动时返回 409 `worktree-dirty`。客户端在检出前显示确认弹窗，分离 HEAD 会明确警告，分支也会提示工作区改动风险。
+- **拣选** 执行 `git cherry-pick <hash>`，**反向提交** 执行 `git revert --no-edit <hash>`，都走 `POST /git-suite/commit-op`；冲突时返回 `409 operation-conflict`，弹窗提供「中止并恢复」（执行对应的 `--abort`）。
+- **重置** 弹窗可选 soft/mixed/hard 三种方式；hard 显示警告并使用危险按钮。
+- **最近操作** 读取 `mode=reflog`，可在旧提交上新建分支（默认名 `reflog-<短哈希>`），或勾选确认后硬重置到该提交。
 - 标签/分支/检出成功后刷新日志和引用树；检出后选择回到 HEAD。
 - 提交行里的分支/标签 **chip** 右键打开与引用树相同的菜单（本地分支菜单、远端分支菜单，或标签的 检出/编辑/推送/用远端覆盖/删除）；无法归类的装饰仍落到提交菜单。
-- 三个路由仍是 POST + 同源 + 私有请求头。
+- 以上路由仍是 POST + 同源 + 私有请求头。
 
 ## 右侧栏标签页
 

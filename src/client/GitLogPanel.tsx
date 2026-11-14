@@ -560,6 +560,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         context={commitMenu}
         t={t}
         onClose={() => setCommitMenu(null)}
+        onChanged={() => ws.refresh()}
       />
       <RemoteMenu
         context={remoteMenu}

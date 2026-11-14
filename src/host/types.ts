@@ -85,6 +85,21 @@ export interface VersionPayload {
   updateAvailable: boolean
 }
 
+/** One recent HEAD movement from `git reflog`. */
+export interface ReflogEntry {
+  hash: string
+  shortHash: string
+  selector: string
+  action: string
+  author: string
+  date: string
+}
+
+export interface ReflogPayload {
+  ok: true
+  entries: ReflogEntry[]
+}
+
 /** One local tag with the commit it points at and its annotation message. */
 export interface TagInfoPayload {
   ok: true

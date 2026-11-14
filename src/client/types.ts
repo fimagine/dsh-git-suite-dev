@@ -291,6 +291,31 @@ export interface VersionPayload {
   updateAvailable: boolean
 }
 
+/** Result of a cherry-pick, revert, reset, or an abort. */
+export interface CommitOpPayload {
+  ok: true
+  action: 'cherry-pick' | 'revert' | 'reset' | 'abort'
+  mode?: 'soft' | 'mixed' | 'hard'
+  hash?: string
+  head?: string
+  operation?: 'merge' | 'rebase' | 'cherry-pick' | 'revert'
+}
+
+/** One recent HEAD movement from `git reflog`. */
+export interface ReflogEntry {
+  hash: string
+  shortHash: string
+  selector: string
+  action: string
+  author: string
+  date: string
+}
+
+export interface ReflogPayload {
+  ok: true
+  entries: ReflogEntry[]
+}
+
 export interface RevealPayload {
   ok: true
   file: string

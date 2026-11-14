@@ -1,11 +1,15 @@
 import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
-import { requestBranch, requestCheckout, requestTag, toApiError } from '../lib/api.js'
+import { requestBranch, requestCheckout, requestCommitOp, requestTag, toApiError } from '../lib/api.js'
 import type { Branch, Commit, Translate } from '../types.js'
 import { Button, DialogActions } from './Button.js'
 import { CommitRefField } from './CommitRefField.js'
 import { DialogShell } from './DialogShell.js'
+import { OperationConflictDialog } from './OperationConflictDialog.js'
+import { ReflogDialog } from './ReflogDialog.js'
+import { ResetCommitDialog } from './ResetCommitDialog.js'
+import { toast } from './Toast.js'
 
 export interface CommitContext {
   commit: Commit
@@ -282,19 +286,29 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
   )
 }
 
-/** Right-click menu for a commit: tag, branch, and a warned checkout. */
-export function CommitActions({ view, context, t, onClose }: {
+/** Right-click menu for a commit: tag, branch, checkout, pick/revert/reset, reflog. */
+export function CommitActions({ view, context, t, onClose, onChanged }: {
   view: GitLogView
   context: CommitContext | null
   t: Translate
   onClose(): void
+  /** Also refresh the working tree, which reset and pick/revert can touch. */
+  onChanged?(): void
 }): React.ReactElement | null {
-  const [dialog, setDialog] = useState<'tag' | 'branch' | 'checkout' | null>(null)
+  const [dialog, setDialog] = useState<'tag' | 'branch' | 'checkout' | 'reset' | 'reflog' | null>(null)
+  const [busy, setBusy] = useState<'cherry-pick' | 'revert' | null>(null)
+  const [conflict, setConflict] = useState<{ operation: string; message: string } | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   const close = (): void => {
     setDialog(null)
+    setConflict(null)
     onClose()
+  }
+
+  const done = (): void => {
+    view.refresh()
+    onChanged?.()
   }
 
   useEffect(() => {
@@ -316,12 +330,53 @@ export function CommitActions({ view, context, t, onClose }: {
   if (context === null) return null
   const { commit } = context
 
+  const run = async (action: 'cherry-pick' | 'revert'): Promise<void> => {
+    if (busy !== null) return
+    setBusy(action)
+    try {
+      await requestCommitOp({ path: repoPath(view), action, hash: commit.hash })
+      done()
+      toast(action === 'cherry-pick' ? t('cherryPickDone') : t('revertDone'))
+      onClose()
+    } catch (error) {
+      const failure = toApiError(error)
+      const operation = failure.details?.operation
+      if (failure.code === 'operation-conflict') {
+        setConflict({
+          operation: typeof operation === 'string' ? operation : action,
+          message: failure.message,
+        })
+      } else {
+        toast(failure.message, 'error')
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (conflict !== null) {
+    return (
+      <OperationConflictDialog
+        view={view}
+        operation={conflict.operation}
+        message={conflict.message}
+        t={t}
+        onDone={done}
+        onClose={close}
+      />
+    )
+  }
+
   if (dialog === 'tag') return <TagDialog view={view} commit={commit} t={t} onClose={close} />
   if (dialog === 'branch') return <BranchDialog view={view} commit={commit} t={t} onClose={close} />
   if (dialog === 'checkout') return <CheckoutDialog view={view} commit={commit} t={t} onClose={close} />
+  if (dialog === 'reset') {
+    return <ResetCommitDialog view={view} commit={commit} t={t} onDone={done} onClose={close} />
+  }
+  if (dialog === 'reflog') return <ReflogDialog view={view} t={t} onDone={done} onClose={close} />
 
-  const left = Math.min(context.x, window.innerWidth - 180)
-  const top = Math.min(context.y, window.innerHeight - 140)
+  const left = Math.min(context.x, window.innerWidth - 200)
+  const top = Math.min(context.y, window.innerHeight - 230)
   return (
     <div
       ref={menuRef}
@@ -333,6 +388,10 @@ export function CommitActions({ view, context, t, onClose }: {
       <button type="button" role="menuitem" onClick={() => setDialog('tag')}>{t('commitTag')}</button>
       <button type="button" role="menuitem" onClick={() => setDialog('branch')}>{t('commitBranch')}</button>
       <button type="button" role="menuitem" onClick={() => setDialog('checkout')}>{t('commitCheckout')}</button>
+      <button type="button" role="menuitem" onClick={() => { void run('cherry-pick') }}>{t('commitCherryPick')}</button>
+      <button type="button" role="menuitem" onClick={() => { void run('revert') }}>{t('commitRevert')}</button>
+      <button type="button" role="menuitem" onClick={() => setDialog('reset')}>{t('commitReset')}</button>
+      <button type="button" role="menuitem" onClick={() => setDialog('reflog')}>{t('commitReflog')}</button>
     </div>
   )
 }
