@@ -324,6 +324,12 @@ export interface ReflogPayload {
   entries: ReflogEntry[]
 }
 
+/** Recent commit messages, newest first, for the message history. */
+export interface CommitMessagesPayload {
+  ok: true
+  messages: string[]
+}
+
 /** Result of a stash push/apply/pop/drop. */
 export interface StashPayload {
   ok: true
@@ -418,4 +424,5 @@ export interface CheckoutPayload {
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
 export type DetailStatus = 'idle' | LoadStatus
+
 

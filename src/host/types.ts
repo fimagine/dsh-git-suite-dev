@@ -117,6 +117,12 @@ export interface OperationPayload {
   conflicts: ConflictFile[]
 }
 
+/** Recent commit messages, newest first, for the message history. */
+export interface CommitMessagesPayload {
+  ok: true
+  messages: string[]
+}
+
 /** External editors the host could launch, for the "open with" actions. */
 export interface AppsPayload {
   ok: true
@@ -178,4 +184,5 @@ export interface RouteContext {
   workspaces(): WorkspaceRef[]
   defaultPath(): string
 }
+
 

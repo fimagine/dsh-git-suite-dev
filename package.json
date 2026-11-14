@@ -20,7 +20,7 @@
     "url": "git+https://github.com/gimhol/dsh-git-suite.git"
   },
   "homepage": "https://github.com/gimhol/dsh-git-suite#readme",
-  "bugs": {
+  "bugs": { 
     "url": "https://github.com/gimhol/dsh-git-suite/issues"
   },
   "type": "module",

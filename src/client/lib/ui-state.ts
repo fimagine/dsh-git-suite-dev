@@ -20,6 +20,8 @@ export interface UiState {
   commitStagedHeight?: number
   /** Height of the commit message form in the commit view. */
   commitFormHeight?: number
+  /** Unsent commit messages per repository, so switching away keeps the draft. */
+  commitDrafts?: Record<string, string>
   openSections?: Record<string, boolean>
   collapsedFolders?: Record<string, boolean>
 }
@@ -28,6 +30,15 @@ const STORAGE_KEY = 'dsh-git-suite:ui-state'
 
 function finite(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function stringRecord(value: unknown): Record<string, string> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const out: Record<string, string> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === 'string') out[key] = item
+  }
+  return out
 }
 
 function booleanRecord(value: unknown): Record<string, boolean> | undefined {
@@ -65,6 +76,8 @@ export function readUiState(): UiState {
     if (commitStagedHeight !== undefined) state.commitStagedHeight = commitStagedHeight
     const commitFormHeight = finite(source.commitFormHeight)
     if (commitFormHeight !== undefined) state.commitFormHeight = commitFormHeight
+    const commitDrafts = stringRecord(source.commitDrafts)
+    if (commitDrafts !== undefined) state.commitDrafts = commitDrafts
     const openSections = booleanRecord(source.openSections)
     if (openSections !== undefined) state.openSections = openSections
     const collapsedFolders = booleanRecord(source.collapsedFolders)
@@ -84,3 +97,4 @@ export function writeUiState(patch: Partial<UiState>): void {
     // A disabled or full localStorage must not break the panel.
   }
 }
+

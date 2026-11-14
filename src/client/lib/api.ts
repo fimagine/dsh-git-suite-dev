@@ -22,6 +22,7 @@ import type {
   OperationPayload,
   AppsPayload,
   StashPayload,
+  CommitMessagesPayload,
   VersionPayload,
 } from '../types.js'
 
@@ -46,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'switch' | 'status' | 'workspace-diff'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'commit-messages' | 'switch' | 'status' | 'workspace-diff'
 
 export interface RequestParams {
   mode: RequestMode
@@ -349,6 +350,14 @@ export async function requestOperation(
   return requestJson<OperationPayload>({ mode: 'operation', path: params.path }, signal)
 }
 
+/** GET /git-suite?mode=commit-messages: recent messages for the commit box history. */
+export async function requestCommitMessages(
+  params: { path: string },
+  signal?: AbortSignal,
+): Promise<CommitMessagesPayload> {
+  return requestJson<CommitMessagesPayload>({ mode: 'commit-messages', path: params.path }, signal)
+}
+
 /** GET /git-suite?mode=reflog: recent HEAD movements for recovery. */
 export async function requestReflog(
   params: { path: string; limit?: number },
@@ -489,3 +498,4 @@ export async function requestBranchAction(body: BranchActionRequest, signal?: Ab
 export function toApiError(error: unknown): ApiError {
   return error instanceof ApiError ? error : new ApiError(error instanceof Error ? error.message : String(error), 'internal')
 }
+

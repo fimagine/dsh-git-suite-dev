@@ -9,6 +9,7 @@ import {
   type ApiError,
   type WorkspaceActionRequest,
 } from '../lib/api.js'
+import { readUiState, writeUiState } from '../lib/ui-state.js'
 import type {
   FetchOptions,
   LoadStatus,
@@ -66,6 +67,20 @@ export interface WorkspaceView {
 }
 
 /** Working-tree status, per-file diff, and stage/unstage/commit operations for one repository. */
+/** Unsent commit message for one repository, kept across panel switches. */
+function readDraft(key: string): string {
+  if (key === '') return ''
+  return readUiState().commitDrafts?.[key] ?? ''
+}
+
+function writeDraft(key: string, value: string): void {
+  if (key === '') return
+  const drafts = { ...(readUiState().commitDrafts ?? {}) }
+  if (value === '') delete drafts[key]
+  else drafts[key] = value
+  writeUiState({ commitDrafts: drafts })
+}
+
 export function useWorkspace(path: string, revision: string, t: Translate, onCommitted?: () => void): WorkspaceView {
   const [status, setStatus] = useState<WorkspaceStatus | null>(null)
   const [statusState, setStatusState] = useState<WorkspaceLoadState>('idle')
@@ -74,7 +89,8 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
   const [diff, setDiff] = useState<WorkspaceDiff | null>(null)
   const [diffState, setDiffState] = useState<WorkspaceLoadState>('idle')
   const [diffError, setDiffError] = useState<ApiError | null>(null)
-  const [message, setMessage] = useState('')
+  const draftKey = path.trim()
+  const [message, setMessage] = useState(() => readDraft(draftKey))
   const [amend, setAmend] = useState(false)
   const [push, setPush] = useState(false)
   const [actionState, setActionState] = useState<'idle' | 'loading'>('idle')
@@ -91,6 +107,17 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
   const syncAbort = useRef<AbortController | null>(null)
   const committedRef = useRef(onCommitted)
   committedRef.current = onCommitted
+
+  // Drafts are per repository, so switching back restores what was typed.
+  useEffect(() => {
+    setMessage(readDraft(draftKey))
+  }, [draftKey])
+
+  // Write the draft back lazily; the field is edited on every keystroke.
+  useEffect(() => {
+    const timer = window.setTimeout(() => writeDraft(draftKey, message), 250)
+    return () => window.clearTimeout(timer)
+  }, [draftKey, message])
 
   const loadStatus = useCallback(async (signal?: AbortSignal): Promise<void> => {
     if (path.trim() === '') {
@@ -194,6 +221,7 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
       const payload = await requestAction<WorkspaceActionPayload>({ ...body, path }, controller.signal)
       if (payload.action === 'commit') {
         setMessage('')
+        writeDraft(draftKey, '')
         setAmend(false)
         setPush(false)
         setNote(payload.commit ? `${t('commitSucceeded')} ${payload.commit.shortHash}` : t('commitSucceeded'))
@@ -342,3 +370,5 @@ export function useWorkspace(path: string, revision: string, t: Translate, onCom
     commit,
   }
 }
+
+

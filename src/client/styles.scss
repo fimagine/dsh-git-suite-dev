@@ -2155,7 +2155,10 @@ $brand: var(--dsw-alias-brand-primary);
   &-workspace-stats {
     display: flex;
     flex: 0 0 auto;
+    align-items: center;
     gap: 6px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   &-workspace-diff-body {
@@ -2212,6 +2215,8 @@ $brand: var(--dsw-alias-brand-primary);
     padding: 0 6px;
     border-radius: 6px;
     color: $label-primary;
+    // One line box for every child keeps the letter, path, and stats on one baseline.
+    line-height: 1;
     cursor: pointer;
     // Double-click toggles staging, so the label must not be selectable.
     user-select: none;
@@ -2234,13 +2239,16 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-workspace-status {
-    display: flex;
+    display: inline-flex;
     flex: 0 0 14px;
     align-items: center;
     justify-content: center;
+    // Fill the row so the mono glyph is centred optically, not by its line box.
+    align-self: stretch;
     color: $label-secondary;
     font-family: var(--gitlog-mono);
     font-size: $font-tiny;
+    line-height: 1;
 
     // Git's status letters carry a colour: modified, untracked, deleted, renamed.
     &.is-modified {
@@ -2278,6 +2286,7 @@ $brand: var(--dsw-alias-brand-primary);
     min-width: 0;
     overflow: hidden;
     font-size: $font-meta;
+    line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -2627,6 +2636,7 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
 
 
 

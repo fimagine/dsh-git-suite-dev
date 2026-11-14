@@ -2,7 +2,7 @@ import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
-import { requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
+import { requestCommitMessages, requestCommitOp, requestRevealFile, toApiError } from '../lib/api.js'
 import { useSplitSize } from '../lib/use-split-size.js'
 import { readUiState, writeUiState } from '../lib/ui-state.js'
 import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon } from './GitLogIcon.js'
@@ -124,6 +124,66 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     }
   }
 
+  // Commit-message history: ArrowUp at the start and ArrowDown at the end walk it.
+  const messageRef = useRef<HTMLTextAreaElement | null>(null)
+  const historyRef = useRef<string[] | null>(null)
+  const historyIndex = useRef(-1)
+  /** Text that was in the field before the first history insert. */
+  const historyDraft = useRef('')
+  const caretToEnd = useRef(false)
+
+  useEffect(() => {
+    historyRef.current = null
+    historyIndex.current = -1
+    historyDraft.current = ''
+  }, [path])
+
+  useEffect(() => {
+    if (!caretToEnd.current) return
+    caretToEnd.current = false
+    const element = messageRef.current
+    if (element !== null) element.setSelectionRange(element.value.length, element.value.length)
+  }, [ws.message])
+
+  // An empty field always starts a fresh message rather than a history walk.
+  useEffect(() => {
+    if (ws.message !== '') return
+    historyIndex.current = -1
+    historyDraft.current = ''
+  }, [ws.message])
+
+  const loadHistory = async (): Promise<string[]> => {
+    if (historyRef.current !== null) return historyRef.current
+    try {
+      const payload = await requestCommitMessages({ path })
+      historyRef.current = payload.messages
+    } catch {
+      historyRef.current = []
+    }
+    return historyRef.current
+  }
+
+  /**
+   * Advance the history walk: `ArrowUp` at the start or `ArrowDown` at the end
+   * of an inserted message both move to the next older message. After the oldest
+   * entry the walk returns to the text that was typed before it started.
+   */
+  const stepHistory = async (): Promise<void> => {
+    const messages = await loadHistory()
+    if (messages.length === 0) return
+    if (historyIndex.current < 0) historyDraft.current = ws.message
+    const next = historyIndex.current + 1
+    caretToEnd.current = true
+    if (next >= messages.length) {
+      const draft = historyDraft.current
+      historyDraft.current = ''
+      historyIndex.current = -1
+      ws.setMessage(draft)
+      return
+    }
+    historyIndex.current = next
+    ws.setMessage(messages[next] ?? '')
+  }
   /** Absolute path of a working-tree file, using the repository's separator. */
   const absolutePath = (relative: string): string => {
     const root = path.replace(/[\\/]+$/, '')
@@ -335,10 +395,32 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
         <span>{t('commitMessage')}</span>
       </div>
       <textarea
+        ref={messageRef}
         className="dsh-gitlog-workspace-message"
         value={ws.message}
         placeholder={t('commitMessage')}
-        onChange={event => ws.setMessage(event.target.value)}
+        onChange={event => {
+          // Any edit makes this a new message: the history walk restarts.
+          historyIndex.current = -1
+          historyDraft.current = ''
+          ws.setMessage(event.target.value)
+        }}
+        onKeyDown={event => {
+          if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return
+          const element = event.currentTarget
+          if (element.selectionStart !== element.selectionEnd) return
+          if (event.key === 'ArrowUp' && element.selectionStart === 0) {
+            // At the very start: walk into the repository's messages.
+            event.preventDefault()
+            void stepHistory()
+            return
+          }
+          // At the end of an inserted, unedited message: keep walking backwards.
+          if (event.key === 'ArrowDown' && historyIndex.current >= 0 && element.selectionEnd === element.value.length) {
+            event.preventDefault()
+            void stepHistory()
+          }
+        }}
         rows={3}
         spellCheck={false}
       />
@@ -614,6 +696,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
 
 
 
