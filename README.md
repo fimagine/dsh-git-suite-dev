@@ -16,30 +16,11 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 
 ## Features
 
-- Scans registered workspaces for Git repositories, including nested repositories
-- Remembers recently opened repositories
-- Branch selection for the current branch, and individual local or remote branches
-- Commit graph with merges, forks, joins, branch decorations, and tags
-- Paged loading (25 / 50 / 100 / 200 per page) or the complete history; the next page loads automatically near the bottom
-- Action row (second line): the history / commit switch on the far left, then pull / push / fetch; commits happen in the commit form of the commit view; pull first asks for a remote and branch (defaulting to the current branch's upstream); push opens a branch list where you tick local branches, set each remote branch and tracking, push all tags, or force push; fetch offers fetch-all, prune tracking branches, fetch all tags, and force local tags
-- Settings dialog (gear button) for the number of commits per page (25 / 50 / 100 / 200 / all)
-- History toolbar: branch dropdown (all / current / local branches, with an optional remote display), a **Show remotes** checkbox, and **Sort by date / Sort topologically**; the table header no longer shows the commit count or current branch
-- Unified controls: buttons use a `Button` component and dialogs use `DialogActions` for the cancel → confirm order; inputs and buttons are 28px tall with 12px text
-- Working tree and commits: switch between history and the commit/file-status view with **History / Commit** in the second row; staged/unstaged files, stage/unstage all or selected, per-file diffs, commit messages, amend, and push after committing (file-level staging; hunk-level staging is not available yet)
-- Repositories: the **+** menu beside the repository/path controls (click or hover) clones a remote repository (https / ssh / git / file / local path; the destination must not exist, and the clone dialog's destination field can pick a parent folder with the OS chooser and append the repository name) or selects a local repository with the OS directory chooser; both dialogs only open the repository in this panel; use DSH's own Workspaces add flow to register a DSH workspace; the repository dropdown supports name search
-- Persistence: leaving/returning or reloading keeps the last repository, history/commit view, sort, show-remotes, page size, tree/commit splitter widths, detail ratio, and tree expansion
-- AI commit messages: the sparkle icon button left of Submit (with an **AI 生成** tooltip) summarizes the staged changes (or unstaged changes when nothing is staged) with DSH's configured default model and fills the message, which remains editable
-- Commit context menu: **Tag** (create or move a tag, optionally forcing an existing one), **Branch** (create a local branch at the commit), and **Checkout** (a local branch or a detached HEAD, with a confirmation warning; Git refuses when the working tree has changes it would overwrite)
-- Single-line log rows (graph, refs, subject, date, author, hash) with the commit detail below the list: metadata and changed files on the left, patch on the right; click a changed file to show its patch, with the newest commit and first file selected after loading
-- Sticky commit-list header with drag-resizable graph, date, author, and commit columns; there is no extra max-width cap, so a column can grow until the description reaches its 120px minimum, and the table scrolls horizontally when the columns exceed the panel; the graph stays at the chosen width instead of growing with the lane count, overflow is clipped rather than scaled, and all widths are remembered locally
-- Virtualized commit list: only the visible rows plus a small overscan are rendered, and row DOM is reused while scrolling and paging
-- Commit details with author, date, commit hash, parents, local/remote branches, commit message, changed files, and patch
-- Left refs tree with branches grouped by `/`, plus tags, remotes, stashes, and submodules; the tags/stashes/submodules groups are hidden when empty; submodules appear at the bottom when present and open their repository on click, showing `[submodule]name` in the repository selector with a **← Parent** button back to the superproject; right-clicking a remote offers fetch / pull / push / remove and right-clicking a local branch offers checkout / merge / rebase / fetch / pull / push-to-upstream / rename / delete; the search box stays fixed while the tree scrolls; the checked-out branch is bold with a ring marker
-- Resizable panes: drag the dividers to resize the refs tree, the log/detail split, the detail's two columns, and the summary/changed-files blocks inside the detail's left column; the files scroll on their own
-- Double-click a local branch to switch the working tree (never forced; conflicting changes are rejected)
-- English and Chinese UI, theme-aware styling
-- Opens as a right-sidebar tab from the right sidebar's Start page, with a single-column layout in the narrow column
-
+- **History**: paged loading, commit graph, commit details, and per-file patches; sticky header, resizable columns, and virtualized rows.
+- **Refs tree**: branches, tags, remotes, stashes, and submodules with search; double-click a local branch to switch; open submodules and return to the parent.
+- **Working tree and commits**: stage/unstage, per-file diffs, commit or amend, push after committing, and AI-generated commit messages.
+- **Remote actions**: the history/commit switch, pull/push/fetch with remote, branch, prune, tag, and force options, and a commit context menu for tag/branch/checkout.
+- **Repositories**: the **+** menu clones a remote or selects a local repository; the repository dropdown supports name search.
 ## Requirements
 
 - DSH Web
@@ -118,3 +99,4 @@ Read routes (log, commit detail, working-tree status, diff) only run `git log` /
 ## License
 
 MIT © 2026 Gim. See [LICENSE](LICENSE).
+
