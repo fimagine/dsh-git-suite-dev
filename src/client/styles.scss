@@ -1491,9 +1491,6 @@ $brand: var(--dsw-alias-brand-primary);
     line-height: 1.4;
   }
 
-  &-detail-summary-split {
-    margin: 8px 0;
-  }
 
   &-detail-patch {
     display: flex;
@@ -2116,7 +2113,10 @@ $brand: var(--dsw-alias-brand-primary);
     min-height: 0;
     // The vertical splitter draws the line between the column and the diff.
     border-right: 0;
+    // Keep the three regions inside the column so both splitters stay visible.
+    overflow: hidden;
   }
+
 
   &-workspace-file-action {
     display: inline-flex;
@@ -2149,7 +2149,7 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 1 1 0;
     flex-direction: column;
     min-height: 120px;
-    border-bottom: 1px solid $border-l1;
+    // The splitters draw the separators; a border here would double them.
   }
 
   &-workspace-stats {
@@ -2289,10 +2289,11 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 8px;
     min-height: 0;
     padding: 12px;
-    border-top: 1px solid $border-l1;
     background: $bg-layer-1;
     // The splitter above owns the height; content scrolls if it does not fit.
     overflow: auto;
+    // Shrinks with the column instead of pushing the splits out of view.
+    min-height: 150px;
   }
 
   &-workspace-author {
@@ -2626,4 +2627,8 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
+
+
+
 

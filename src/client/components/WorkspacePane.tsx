@@ -324,7 +324,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
   const commitForm = (
     <div
       className="dsh-gitlog-workspace-commit"
-      style={{ flex: '0 0 auto', height: `${commitSize.size}px` }}
+      style={{ flex: '0 1 auto', height: `${commitSize.size}px` }}
     >
       <div className="dsh-gitlog-workspace-author">
         {status?.author.name
@@ -466,22 +466,16 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                   {section(
                     'staged',
                     staged,
-                    staged.length > 0 && unstaged.length > 0 && stagedSize.touched
-                      ? { flex: '0 0 auto', height: `${stagedSize.size}px` }
-                      : undefined,
+                    stagedSize.touched ? { flex: '0 0 auto', height: `${stagedSize.size}px` } : undefined,
                     stagedRef,
                   )}
-                  {staged.length > 0 && unstaged.length > 0
-                    ? (
-                        <Splitter
-                          orientation="horizontal"
-                          label={t('resizeStaged')}
-                          onStart={stagedSize.start}
-                          onDrag={stagedSize.drag}
-                          onReset={stagedSize.reset}
-                        />
-                      )
-                    : null}
+                  <Splitter
+                    orientation="horizontal"
+                    label={t('resizeStaged')}
+                    onStart={stagedSize.start}
+                    onDrag={stagedSize.drag}
+                    onReset={stagedSize.reset}
+                  />
                   {section('unstaged', unstaged)}
                   <Splitter
                     orientation="horizontal"
@@ -620,6 +614,10 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
+
+
+
 
 
 
