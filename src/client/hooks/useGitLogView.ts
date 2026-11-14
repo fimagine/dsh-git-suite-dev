@@ -5,6 +5,7 @@ import { layoutGraph, type GraphLayout } from '../lib/graph.js'
 import { buildProjectGroups, findCurrentProject, type ProjectGroups } from '../lib/projects.js'
 import { addRecentProject, readRecentProjects, writeRecentProjects } from '../lib/recent-projects.js'
 import { selectionLabel, selectionParams } from '../lib/selection.js'
+import { readUiState, writeUiState } from '../lib/ui-state.js'
 import type {
   Commit,
   CommitDetail,
@@ -91,9 +92,9 @@ export function useGitLogView(t: Translate): GitLogView {
   const [treeStatus, setTreeStatus] = useState<LoadStatus>('loading')
   const [treeError, setTreeError] = useState<ApiError | null>(null)
   const [selection, setSelection] = useState<Selection>(HEAD)
-  const [limit, setLimitState] = useState(DEFAULT_LIMIT)
-  const [sort, setSortState] = useState<'date' | 'topo'>('date')
-  const [showRemotes, setShowRemotesState] = useState(false)
+  const [limit, setLimitState] = useState(() => readUiState().limit ?? DEFAULT_LIMIT)
+  const [sort, setSortState] = useState<'date' | 'topo'>(() => readUiState().sort ?? 'date')
+  const [showRemotes, setShowRemotesState] = useState(() => readUiState().showRemotes ?? false)
   const [hasMore, setHasMore] = useState(false)
   const [nextOffset, setNextOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -119,6 +120,8 @@ export function useGitLogView(t: Translate): GitLogView {
   const showRemotesRef = useRef(showRemotes)
   sortRef.current = sort
   showRemotesRef.current = showRemotes
+  const limitRef = useRef(limit)
+  limitRef.current = limit
 
   const scanWorkspaceProjects = useCallback(async (signal: AbortSignal): Promise<Project[]> => {
     const payload = await requestJson<ProjectsPayload>({ mode: 'projects' }, signal)
@@ -229,7 +232,7 @@ export function useGitLogView(t: Translate): GitLogView {
       const initialPath = remembered[0] || scanned[0]?.path || ''
       setSelectedProjectPath(initialPath)
       setSelection(HEAD)
-      void loadLog({ path: initialPath, limit: DEFAULT_LIMIT, offset: 0, selection: HEAD })
+      void loadLog({ path: initialPath, limit: limitRef.current, offset: 0, selection: HEAD })
       void loadTree(initialPath)
     }
 
@@ -262,17 +265,20 @@ export function useGitLogView(t: Translate): GitLogView {
 
   const setLimit = useCallback((value: number) => {
     setLimitState(value)
+    writeUiState({ limit: value })
   }, [])
 
   const setSort = useCallback((value: 'date' | 'topo'): void => {
     if (value === sort) return
     setSortState(value)
+    writeUiState({ sort: value })
     void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, sort: value })
   }, [sort, loadLog, repo, pathInput, limit, selection])
 
   const setShowRemotes = useCallback((value: boolean): void => {
     if (value === showRemotes) return
     setShowRemotesState(value)
+    writeUiState({ showRemotes: value })
     if (selection.kind === 'all') {
       void loadLog({ path: repo?.repoRoot ?? pathInput.trim(), limit, offset: 0, selection, showRemotes: value })
     }

@@ -19,6 +19,7 @@ import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
 import { requestBranchAction, toApiError } from './lib/api.js'
+import { readUiState, writeUiState } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
 import type { Branch, Commit, Selection, Translate } from './types.js'
@@ -53,11 +54,11 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
   const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
   const [narrow, setNarrow] = useState(isNarrowViewport)
-  const [treeWidth, setTreeWidth] = useState(240)
-  const [treeHeight, setTreeHeight] = useState(220)
-  const [detailRatio, setDetailRatio] = useState(0.45)
+  const [treeWidth, setTreeWidth] = useState(() => clamp(readUiState().treeWidth ?? 240, MIN_TREE_WIDTH, MAX_TREE_WIDTH))
+  const [treeHeight, setTreeHeight] = useState(() => clamp(readUiState().treeHeight ?? 220, MIN_TREE_HEIGHT, MAX_TREE_HEIGHT))
+  const [detailRatio, setDetailRatio] = useState(() => clamp(readUiState().detailRatio ?? 0.45, MIN_DETAIL_RATIO, MAX_DETAIL_RATIO))
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'history' | 'workspace'>('history')
+  const [viewMode, setViewModeState] = useState<'history' | 'workspace'>(() => readUiState().viewMode ?? 'history')
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
   const [remoteMenu, setRemoteMenu] = useState<RemoteMenuState | null>(null)
   const [remoteDelete, setRemoteDelete] = useState<string | null>(null)
@@ -79,6 +80,23 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     query.addEventListener('change', update)
     return () => query.removeEventListener('change', update)
   }, [])
+
+  const setViewMode = (mode: 'history' | 'workspace'): void => {
+    setViewModeState(mode)
+    writeUiState({ viewMode: mode })
+  }
+
+  useEffect(() => {
+    writeUiState({ treeWidth })
+  }, [treeWidth])
+
+  useEffect(() => {
+    writeUiState({ treeHeight })
+  }, [treeHeight])
+
+  useEffect(() => {
+    writeUiState({ detailRatio })
+  }, [detailRatio])
 
   const state = status === 'loading'
     ? <LoadingState label={t('loadingCommits')} />

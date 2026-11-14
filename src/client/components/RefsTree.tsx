@@ -2,7 +2,8 @@ import type * as React from 'react'
 import type { ApiError } from '../lib/api.js'
 import { buildRefSections, filterTree, type TreeNode, type TreeSection } from '../lib/refs-tree.js'
 import { selectionKey } from '../lib/selection.js'
-import { h, useMemo, useState } from '../runtime.js'
+import { readUiState, writeUiState } from '../lib/ui-state.js'
+import { h, useEffect, useMemo, useState } from '../runtime.js'
 import type { LoadStatus, RefsPayload, Selection, Translate } from '../types.js'
 import { ChevronIcon, CurrentBranchIcon, SectionIcon } from './TreeIcons.js'
 
@@ -60,9 +61,22 @@ type TreeRow = SectionRow | NodeRow | EmptyRow
 /** Branch/tag/remote/stash navigation for the left column of the panel. */
 export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onRemoteMenu, onBranchMenu, t }: RefsTreeProps): React.ReactElement {
   const [query, setQuery] = useState('')
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ ...SECTION_DEFAULT_OPEN })
-  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
+    ...SECTION_DEFAULT_OPEN,
+    ...(readUiState().openSections ?? {}),
+  }))
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>(() => ({
+    ...(readUiState().collapsedFolders ?? {}),
+  }))
   const searching = query.trim() !== ''
+
+  useEffect(() => {
+    writeUiState({ openSections })
+  }, [openSections])
+
+  useEffect(() => {
+    writeUiState({ collapsedFolders })
+  }, [collapsedFolders])
   const sections = useMemo(() => buildRefSections(tree, t), [tree, t])
   // HEAD has no tree row of its own; highlight the checked-out branch instead.
   const selected = selection.kind === 'head' && tree !== null && tree.current !== 'detached'
