@@ -1,7 +1,7 @@
 import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
-import { requestClone, requestCreateWorkspace, requestPickDirectory, toApiError } from '../lib/api.js'
+import { requestClone, requestPickDirectory, toApiError } from '../lib/api.js'
 import { projectDropdownOptions } from '../lib/project-dropdown.js'
 import type { Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
@@ -34,7 +34,6 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
   const [destination, setDestination] = useState('')
   const [busy, setBusy] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [addToWorkspace, setAddToWorkspace] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const suggested = suggestedDestination(view.repo?.repoRoot, url)
 
@@ -68,7 +67,6 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
     setError(null)
     try {
       const payload = await requestClone({ url: remote, path: target })
-      if (addToWorkspace) await requestCreateWorkspace({ path: payload.repoRoot })
       view.openPath(payload.repoRoot)
       view.rescanProjects()
       onClose()
@@ -116,18 +114,6 @@ function CloneDialog({ view, t, onClose }: DialogProps): React.ReactElement {
           </div>
         </label>
         <p className="dsh-gitlog-settings-hint">{t('cloneHint')}</p>
-        <label className="dsh-gitlog-check">
-          <input
-            type="checkbox"
-            checked={addToWorkspace}
-            onChange={event => setAddToWorkspace(event.target.checked)}
-            disabled={busy}
-          />
-          {t('addToWorkspace')}
-        </label>
-        {addToWorkspace
-          ? <p className="dsh-gitlog-settings-hint">{t('workspaceReloadHint')}</p>
-          : null}
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button onClick={onClose}>{t('cancel')}</Button>
@@ -144,13 +130,10 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
   const [path, setPath] = useState(view.pathInput)
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [addToWorkspace, setAddToWorkspace] = useState(false)
-  const [hasWorkspace, setHasWorkspace] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const changePath = (value: string): void => {
     setPath(value)
-    setHasWorkspace(false)
     view.changePathText(value)
   }
 
@@ -166,7 +149,6 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
       }
       setPath(payload.path)
       view.changePathText(payload.path)
-      setHasWorkspace(payload.hasWorkspace === true)
     } catch (failure) {
       setError(toApiError(failure).message)
     } finally {
@@ -181,7 +163,6 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
     setBusy(true)
     setError(null)
     try {
-      if (addToWorkspace && !hasWorkspace) await requestCreateWorkspace({ path: target })
       view.openPath(target)
       view.rescanProjects()
       onClose()
@@ -204,6 +185,9 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
             disabled={view.projectsStatus === 'loading'}
             ariaLabel={t('project')}
             placeholder={t('selectProject')}
+            searchable
+            searchPlaceholder={t('search')}
+            noMatchesLabel={t('noMatches')}
           />
         </label>
         <label className="dsh-gitlog-field">
@@ -229,19 +213,6 @@ function ChooseDialog({ view, t, onClose }: DialogProps): React.ReactElement {
           </div>
         </label>
         <p className="dsh-gitlog-settings-hint">{t('chooseLocalHint')}</p>
-        <label className="dsh-gitlog-check">
-          <input
-            type="checkbox"
-            checked={addToWorkspace}
-            onChange={event => setAddToWorkspace(event.target.checked)}
-            disabled={hasWorkspace || busy}
-          />
-          {t('addToWorkspace')}
-        </label>
-        {addToWorkspace
-          ? <p className="dsh-gitlog-settings-hint">{t('workspaceReloadHint')}</p>
-          : null}
-        {hasWorkspace ? <p className="dsh-gitlog-settings-hint">{t('alreadyWorkspace')}</p> : null}
         {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
         <DialogActions className="dsh-gitlog-settings-actions">
           <Button

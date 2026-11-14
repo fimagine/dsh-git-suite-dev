@@ -19,6 +19,9 @@ export function PanelControls({ view, t }: { view: GitLogView; t: Translate }): 
         disabled={view.projectsStatus === 'loading'}
         ariaLabel={t('project')}
         placeholder={t('selectProject')}
+        searchable
+        searchPlaceholder={t('search')}
+        noMatchesLabel={t('noMatches')}
       />
       {view.repo !== null && view.repo.superproject !== null
         ? (

@@ -2,7 +2,6 @@ import type { HostContext, WorkspaceRegistry, WorkspaceRegistryEntry } from './d
 import { createCloneHandler } from './clone-handler.js'
 import { createBranchActionHandler } from './branch-action-handler.js'
 import { createBranchHandler, createCheckoutHandler, createTagHandler } from './commit-actions.js'
-import { createWorkspaceHandler } from './create-workspace-handler.js'
 import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
 import { createRemoteHandler } from './remote-handler.js'
@@ -18,7 +17,6 @@ const ACTION_PATH = '/git-suite/action'
 const CLONE_PATH = '/git-suite/clone'
 const GENERATE_PATH = '/git-suite/generate-message'
 const PICK_PATH = '/git-suite/pick-directory'
-const CREATE_WORKSPACE_PATH = '/git-suite/create-workspace'
 const TAG_PATH = '/git-suite/tag'
 const BRANCH_PATH = '/git-suite/branch'
 const CHECKOUT_PATH = '/git-suite/checkout'
@@ -76,11 +74,6 @@ export function apply(ctx: HostContext): void {
     path: PICK_PATH,
     handler: createPickDirectoryHandler(context, ctx.directoryPicker, listWorkspaces),
   }), 'git-suite: pick directory route')
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: CREATE_WORKSPACE_PATH,
-    handler: createWorkspaceHandler(context, workspaceRegistry),
-  }), 'git-suite: create workspace route')
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: TAG_PATH,

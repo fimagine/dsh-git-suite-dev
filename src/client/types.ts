@@ -266,12 +266,6 @@ export interface PickDirectoryPayload {
   workspaceTitle?: string
 }
 
-export interface CreateWorkspacePayload {
-  ok: true
-  path: string
-  title: string
-}
-
 export interface TagPayload {
   ok: true
   tag: string

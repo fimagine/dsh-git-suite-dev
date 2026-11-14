@@ -16,7 +16,6 @@ src/
     commit-actions.ts
     generate-handler.ts
     pick-handler.ts
-    create-workspace-handler.ts
     http.ts
     git.ts
     repository.ts
@@ -86,7 +85,7 @@ icon.svg
 
 | 文件 / File | 职责 / Responsibility |
 |---|---|
-| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / create-workspace / tag / branch / checkout POST handler / Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, workspace creation, tag, branch, and checkout |
+| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action POST handler / Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, and branch actions |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 / Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler）/ Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、提交（可 amend）、可选 push 的 Node handler / Node handler for stage/unstage, commit (optionally amend), and the optional push |
@@ -94,7 +93,6 @@ icon.svg
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支，检出分支或分离 HEAD（不 force）/ Validates names, creates tags/branches, and checks out a branch or detached HEAD (never forced) |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 / Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 / Opens the native `ctx.directoryPicker`; `mode: 'repo'` (default) resolves the Git root and checks the DSH workspace, while `mode: 'directory'` returns a plain directory for clone destinations |
-| `host/create-workspace-handler.ts` | POST `/git-suite/create-workspace`：在用户确认后调用 `ctx.workspaceRegistry.create` / Calls `ctx.workspaceRegistry.create` after the user confirms |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` / Local DSH host types, including `webServer`, workspaces, `directoryPicker`, `llm`, and `agentDefaultModel` |
 | `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验 / JSON responses, error serialization, same-origin and private-header checks |
 | `host/git.ts` | 执行只读 git 命令并把失败映射为错误码 / Runs read-only git commands and maps failures to error codes |
@@ -124,7 +122,7 @@ icon.svg
 | `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，可带 `tags`/`force` / `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, and push per-ref local→remote mappings with optional tracking, tags, and force |
 | `host/remote-handler.ts` | `POST /git-suite/remote`：删除指定远端（`git remote remove`），会先校验远端存在 / `POST /git-suite/remote`: remove one configured remote after validating it exists |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；校验分支名，失败返回 git 错误详情 / `POST /git-suite/branch-action`: merge, rebase, rename, or delete one local branch with validation and git error details |
-| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支）、可拖拽分割线、详情、设置弹窗、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取）、仓库 + 菜单（克隆/选择，可勾选加入 DSH 工作区）、提交右键菜单（标签/分支/检出）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 / Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch), repository + menu (clone/select with an add-to-DSH-workspace checkbox), commit context menu (tag/branch/checkout), shared `Button`/`DialogActions` (28px/12px), errors, and states |
+| `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序）、引用树（双击切换分支）、可拖拽分割线、详情、设置弹窗、工作区/提交面板、第二行操作栏（最左侧「历史/提交」切换，接着拉取/推送/获取）、仓库 + 菜单（克隆/选择）、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 / Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort), refs tree (double-click switches branches), draggable splitters, detail, settings dialog, working-tree/commit pane, second-line action row (history/commit switch then pull/push/fetch), repository + menu (clone/select), `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout), shared `Button`/`DialogActions` (28px/12px), errors, and states |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 / Fetch wrapper with the private header and `AbortSignal` |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 / Lane layout and geometry for the commit graph |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 / Splits a commit's combined patch into one section per file for the file list |
@@ -182,7 +180,7 @@ Double-clicking a **local branch** in the tree POSTs to `/git-suite/switch`:
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
 - 暂存以文件为单位（暂不提供 hunk/区块级暂存）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
-- 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名；勾选「加入到 DSH 工作区」时克隆成功后调用 `POST /git-suite/create-workspace` 并打开（DSH 可能重新加载）。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径，以及「加入到 DSH 工作区」勾选项（默认不勾选；已有工作区时禁用并提示）；点「打开」时若勾选且尚无工作区则调用 `create-workspace`，否则只打开。目录选择器不是 native 时提示手动输入路径。
+- 仓库/路径旁的 **+** 菜单（点击或悬停）提供「克隆远端仓库」和「选择本地仓库」：克隆通过 `POST /git-suite/clone` 校验 URL（https / ssh / git / file / 绝对本地路径，拒绝 `ext::` 等）与目标（绝对路径、父目录存在、目标不存在）后执行 `git clone`；克隆对话框的「克隆到」可用 `POST /git-suite/pick-directory` 的 `mode: 'directory'` 选择父目录并自动追加仓库名。选择本地仓库弹窗提供「选择目录」（`mode: 'repo'` 的原生选择器）、已扫描仓库和手动路径；点「打开」只在当前面板打开仓库。如需加入 DSH 工作区，请使用 DSH 自带的 Workspaces 添加入口。目录选择器不是 native 时提示手动输入路径。
 - 所有写入仍是 POST + 同源 + 私有请求头；错误以 JSON 返回并在工作区显示。
 
 The second row's **History / Commit** switch changes between history and the commit/file-status view in the same page (`WorkspacePane` + `useWorkspace`), sharing the repository/path controls, refs tree, and branch switching:
@@ -193,7 +191,7 @@ The second row's **History / Commit** switch changes between history and the com
   - `commit` with `message`, `amend`, and `push`, running `git commit -m` (optionally `--amend`) and optionally `git push` to the configured upstream.
 - Staging is file-level (hunk-level staging is not available yet); a successful commit refreshes the status and reloads HEAD/the refs tree. The toolbar's pull/push can pick a remote and branch, and force push is used only when explicitly checked; the push after committing still targets the configured upstream only.
 - **Generate with AI** beside the commit message POSTs to `/git-suite/generate-message`, which reads the staged (otherwise unstaged) diff and calls `ctx.llm.stream()` with the provider/model from `ctx.agentDefaultModel.currentSelection()`; the file list and diff are sent to the configured model provider, and the generated text only fills the input. Missing default model, no changes, and model failures return explicit errors.
-- The **+** menu beside the project/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name; with **Add to DSH workspace** checked, a successful clone calls `POST /git-suite/create-workspace` and opens the result. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned projects, a manual path, and the **Add to DSH workspace** checkbox (disabled with a hint when it already is one); **Open** calls `create-workspace` when checked and not already a workspace, otherwise opens only. A non-native picker asks for a typed path.
+- The **+** menu beside the repository/path controls (click or hover) offers **Clone remote repository** and **Select local repository**: cloning POSTs to `/git-suite/clone`, which validates the URL (https / ssh / git / file / absolute local paths, rejecting `ext::` and similar) and the destination (absolute, existing parent, not already present), runs `git clone`; the clone dialog's destination can use `POST /git-suite/pick-directory` with `mode: 'directory'` to pick a parent folder and append the repository name. The select-local dialog offers **Choose folder** (`mode: 'repo'` native picker), scanned repositories, and a manual path; **Open** only opens the repository in this panel. Use DSH's own Workspaces add flow to register a DSH workspace. A non-native picker asks for a typed path.
 - Every write remains POST + same-origin + private request header; errors return as JSON and render in the workspace.
 
 ## 提交右键操作 / Commit context actions
@@ -259,3 +257,4 @@ DSH loads exactly one lazy factory per package through `exports["./client"]` (`w
 - `dist/` and `src/client/styles.generated.css` are build artifacts and are ignored by Git. After cloning, run `pnpm install && pnpm build` first; DSH Plugin Manager does not build a local directory for you.
 - `pnpm watch:client` watches `src/client/` and `styles.scss`; a SCSS change recompiles it and triggers an esbuild rebuild, and DSH HMR watches `dist/client.js` to reload the plugin on the page.
 - Changing entry paths in `package.json` requires restarting DSH (or disabling and re-enabling the plugin row), because the running Host caches the plugin manifest.
+

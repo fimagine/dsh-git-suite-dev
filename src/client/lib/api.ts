@@ -4,7 +4,6 @@ import type {
   BranchPayload,
   CheckoutPayload,
   ClonePayload,
-  CreateWorkspacePayload,
   GenerateMessagePayload,
   PickDirectoryPayload,
   PushTarget,
@@ -226,41 +225,6 @@ export async function requestPickDirectory(
   }
   const parsed = payload as ErrorPayload | null
   if (response.ok && parsed?.ok === true) return payload as PickDirectoryPayload
-  throw new ApiError(
-    parsed?.error?.message ?? `Request failed with HTTP ${response.status}`,
-    parsed?.error?.code ?? 'request-failed',
-    parsed?.error?.details,
-  )
-}
-
-export interface CreateWorkspaceRequest {
-  path: string
-}
-
-/** POST /git-suite/create-workspace; registers the repository directory as a DSH workspace. */
-export async function requestCreateWorkspace(
-  body: CreateWorkspaceRequest,
-  signal?: AbortSignal,
-): Promise<CreateWorkspacePayload> {
-  const response = await fetch(new URL('/git-suite/create-workspace', window.location.origin), {
-    method: 'POST',
-    signal,
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: {
-      'x-dsh-git-suite': '1',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  let payload: unknown = null
-  try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-  const parsed = payload as ErrorPayload | null
-  if (response.ok && parsed?.ok === true) return payload as CreateWorkspacePayload
   throw new ApiError(
     parsed?.error?.message ?? `Request failed with HTTP ${response.status}`,
     parsed?.error?.code ?? 'request-failed',

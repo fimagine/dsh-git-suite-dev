@@ -164,6 +164,7 @@ export const en = {
   stashes: 'Stashes',
   submodules: 'Submodules',
   search: 'Search',
+  noMatches: 'No matches',
   switchHint: 'Double-click to switch branch',
   switching: 'Switching branch…',
   loadingRefs: 'Loading branches…',

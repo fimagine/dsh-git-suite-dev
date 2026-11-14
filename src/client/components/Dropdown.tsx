@@ -18,6 +18,10 @@ export interface DropdownProps {
   className?: string
   autoFocus?: boolean
   placeholder?: string
+  /** Turn the trigger into a searchable input (antd-style) instead of the label button. */
+  searchable?: boolean
+  searchPlaceholder?: string
+  noMatchesLabel?: string
 }
 
 interface OptionGroup {
@@ -35,6 +39,26 @@ function groupOptions(options: DropdownOption[]): OptionGroup[] {
   return groups
 }
 
+function Chevron(): React.ReactElement {
+  return (
+    <svg
+      className="dsh-gitlog-dropdown-chevron"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}
+
 /** A custom listbox: the native select is replaced so the popup follows the DSH theme. */
 export function Dropdown({
   value,
@@ -45,19 +69,31 @@ export function Dropdown({
   className,
   autoFocus = false,
   placeholder = '',
+  searchable = false,
+  searchPlaceholder = '',
+  noMatchesLabel = '',
 }: DropdownProps): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [query, setQuery] = useState('')
   const [position, setPosition] = useState<{ left: number; top: number; width: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const selected = options.find(option => option.value === value)
   const selectedLabel = selected?.label ?? placeholder
-  const groups = groupOptions(options)
+  const needle = query.trim().toLowerCase()
+  const filtered = needle === ''
+    ? options
+    : options.filter(option => option.label.toLowerCase().includes(needle))
+  const groups = groupOptions(filtered)
 
   useEffect(() => {
-    if (autoFocus) buttonRef.current?.focus()
-  }, [autoFocus])
+    if (!autoFocus) return
+    if (searchable) searchRef.current?.focus()
+    else buttonRef.current?.focus()
+  }, [autoFocus, searchable])
 
   useEffect(() => {
     if (!open) return undefined
@@ -75,8 +111,13 @@ export function Dropdown({
     }
   }, [open])
 
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus()
+  }, [open, searchable])
+
   const openMenu = (): void => {
-    const rect = buttonRef.current?.getBoundingClientRect()
+    const anchor = searchable ? triggerRef.current : buttonRef.current
+    const rect = anchor?.getBoundingClientRect()
     if (rect !== undefined) {
       const width = Math.max(rect.width, 200)
       setPosition({
@@ -85,6 +126,7 @@ export function Dropdown({
         width: rect.width,
       })
     }
+    setQuery('')
     const index = options.findIndex(option => option.value === value)
     setActive(index < 0 ? 0 : index)
     setOpen(true)
@@ -95,7 +137,12 @@ export function Dropdown({
     setOpen(false)
   }
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+  const move = (delta: number): void => {
+    if (filtered.length === 0) return
+    setActive(index => (index + delta + filtered.length) % filtered.length)
+  }
+
+  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
     if (!open) {
       if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
@@ -105,19 +152,19 @@ export function Dropdown({
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActive(index => (index + 1) % options.length)
+      move(1)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setActive(index => (index - 1 + options.length) % options.length)
+      move(-1)
     } else if (event.key === 'Home') {
       event.preventDefault()
       setActive(0)
     } else if (event.key === 'End') {
       event.preventDefault()
-      setActive(options.length - 1)
-    } else if (event.key === 'Enter' || event.key === ' ') {
+      setActive(filtered.length - 1)
+    } else if (event.key === 'Enter') {
       event.preventDefault()
-      const option = options[active]
+      const option = filtered[active]
       if (option !== undefined) select(option)
     } else if (event.key === 'Escape') {
       event.preventDefault()
@@ -125,43 +172,61 @@ export function Dropdown({
     }
   }
 
+  const onSearchChange = (value: string): void => {
+    if (!open) openMenu()
+    setQuery(value)
+    setActive(0)
+  }
+
   return (
     <div
       ref={rootRef}
       className={`dsh-gitlog-dropdown${className === undefined ? '' : ` ${className}`}`}
     >
-      <button
-        ref={buttonRef}
-        type="button"
-        className="dsh-gitlog-dropdown-btn"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        title={selected?.title ?? selected?.label ?? placeholder}
-        onClick={() => {
-          if (open) setOpen(false)
-          else openMenu()
-        }}
-        onKeyDown={onKeyDown}
-      >
-        <span className="dsh-gitlog-dropdown-label">{selectedLabel}</span>
-        <svg
-          className="dsh-gitlog-dropdown-chevron"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden={true}
-          focusable={false}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
+      {searchable
+        ? (
+            <div ref={triggerRef} className="dsh-gitlog-dropdown-control">
+              <input
+                ref={searchRef}
+                className="dsh-gitlog-dropdown-input"
+                type="text"
+                value={open ? query : selectedLabel}
+                onChange={event => onSearchChange(event.target.value)}
+                onFocus={() => {
+                  if (!open) openMenu()
+                }}
+                onKeyDown={onTriggerKeyDown}
+                placeholder={open ? searchPlaceholder : placeholder}
+                aria-label={ariaLabel}
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                disabled={disabled}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <Chevron />
+            </div>
+          )
+        : (
+            <button
+              ref={buttonRef}
+              type="button"
+              className="dsh-gitlog-dropdown-btn"
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              aria-label={ariaLabel}
+              disabled={disabled}
+              title={selected?.title ?? selected?.label ?? placeholder}
+              onClick={() => {
+                if (open) setOpen(false)
+                else openMenu()
+              }}
+              onKeyDown={onTriggerKeyDown}
+            >
+              <span className="dsh-gitlog-dropdown-label">{selectedLabel}</span>
+              <Chevron />
+            </button>
+          )}
       {open
         ? (
             <div
@@ -172,30 +237,32 @@ export function Dropdown({
                 ? undefined
                 : { left: position.left, top: position.top, minWidth: position.width }}
             >
-              {groups.map(group => (
-                <div key={group.name ?? '__default'} className="dsh-gitlog-dropdown-group">
-                  {group.name === undefined
-                    ? null
-                    : <div className="dsh-gitlog-dropdown-group-label">{group.name}</div>}
-                  {group.options.map(option => {
-                    const index = options.indexOf(option)
-                    return (
-                      <button
-                        key={option.value === '' ? '__manual' : option.value}
-                        type="button"
-                        role="option"
-                        aria-selected={option.value === value}
-                        className={`dsh-gitlog-dropdown-item${index === active ? ' is-active' : ''}${option.value === value ? ' is-selected' : ''}`}
-                        title={option.title}
-                        onMouseEnter={() => setActive(index)}
-                        onClick={() => select(option)}
-                      >
-                        {option.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
+              {filtered.length === 0
+                ? <p className="dsh-gitlog-dropdown-empty">{noMatchesLabel}</p>
+                : groups.map(group => (
+                    <div key={group.name ?? '__default'} className="dsh-gitlog-dropdown-group">
+                      {group.name === undefined
+                        ? null
+                        : <div className="dsh-gitlog-dropdown-group-label">{group.name}</div>}
+                      {group.options.map(option => {
+                        const index = filtered.indexOf(option)
+                        return (
+                          <button
+                            key={option.value === '' ? '__manual' : option.value}
+                            type="button"
+                            role="option"
+                            aria-selected={option.value === value}
+                            className={`dsh-gitlog-dropdown-item${index === active ? ' is-active' : ''}${option.value === value ? ' is-selected' : ''}`}
+                            title={option.title}
+                            onMouseEnter={() => setActive(index)}
+                            onClick={() => select(option)}
+                          >
+                            {option.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
             </div>
           )
         : null}

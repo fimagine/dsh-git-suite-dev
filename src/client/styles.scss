@@ -232,6 +232,47 @@ $brand: var(--dsw-alias-brand-primary);
     box-shadow: 0 12px 28px rgb(0 0 0 / 35%);
   }
 
+  &-dropdown-control {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  &-dropdown-input {
+    @include control-surface(10px);
+    width: 100%;
+    min-width: 0;
+    padding-right: 28px;
+    color: $label-primary;
+    font-size: $font-meta;
+    outline: none;
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+
+    &:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+  }
+
+  &-dropdown-control &-dropdown-chevron {
+    position: absolute;
+    right: 10px;
+    pointer-events: none;
+  }
+
+  &-dropdown-empty {
+    padding: 8px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    text-align: center;
+  }
+
   &-dropdown-group + &-dropdown-group {
     margin-top: 4px;
     padding-top: 4px;

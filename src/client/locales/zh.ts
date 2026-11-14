@@ -166,6 +166,7 @@ export const zh: Record<LocaleKey, string> = {
   stashes: '贮藏',
   submodules: '子模块',
   search: '搜索',
+  noMatches: '没有匹配项',
   switchHint: '双击切换分支',
   switching: '正在切换分支…',
   loadingRefs: '正在加载分支…',

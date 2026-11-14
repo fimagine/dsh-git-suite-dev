@@ -14,7 +14,6 @@ export interface WorkspaceRegistryEntry {
 
 export interface WorkspaceRegistry {
   list?(): WorkspaceRegistryEntry[]
-  create?(path: string, title?: string): Promise<unknown>
 }
 
 export interface NativeDirectoryPicker {
