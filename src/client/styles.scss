@@ -914,6 +914,18 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
+  &-tree-badge {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    margin-left: 6px;
+    color: $label-secondary;
+
+    &.is-warn {
+      color: var(--dsw-alias-state-warn-primary);
+    }
+  }
+
   // One 16px column per hierarchy level. `is-line` continues an ancestor,
   // `is-tee` marks a row with siblings below, `is-elbow` closes a group.
   &-tree-indent {
@@ -1262,10 +1274,26 @@ $brand: var(--dsw-alias-brand-primary);
     color: $label-secondary;
     font-size: 10.5px;
     line-height: 17px;
+    transition: border-color .12s ease, background .12s ease, color .12s ease;
+
+    // Chips open their ref menu on right-click; the hover makes that discoverable.
+    &:hover,
+    &:focus-visible {
+      border-color: $label-secondary;
+      background: $bg-layer-2;
+      color: $label-primary;
+      outline: none;
+    }
 
     &.is-head {
       border-color: $brand;
       color: $brand;
+
+      &:hover,
+      &:focus-visible {
+        border-color: $brand;
+        color: $brand;
+      }
     }
   }
 

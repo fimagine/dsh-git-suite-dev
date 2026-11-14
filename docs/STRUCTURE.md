@@ -50,6 +50,7 @@ src/
     components/
       AddBranchDialog.tsx
       AddRemoteDialog.tsx
+      AddTagDialog.tsx
       BranchDialogs.tsx
       BranchMenu.tsx
       Button.tsx
@@ -67,6 +68,8 @@ src/
       Dropdown.tsx
       EditRemoteDialog.tsx
       EditTagDialog.tsx
+      ForcePushTagDialog.tsx
+      FetchTagDialog.tsx
       ErrorState.tsx
       FetchDialog.tsx
       GitLogIcon.tsx
@@ -128,7 +131,7 @@ LICENSE
 | `host/commit-actions.ts` | Validates names, creates tags and branches (at a commit hash or a ref), and checks out a local branch, a commit hash, or any ref as a detached HEAD (never forced) |
 | `host/generate-handler.ts` | Node handler that reads the staged/unstaged diff and calls `ctx.llm` with the default model |
 | `host/pick-handler.ts` | Opens the native `ctx.directoryPicker`; `mode: 'repo'` (default) resolves the Git root and checks the DSH workspace, while `mode: 'directory'` returns a plain directory for clone destinations |
-| `host/sync-handler.ts` | `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, and push per-ref local→remote mappings with optional tracking, tags, and force |
+| `host/sync-handler.ts` | `POST /git-suite/sync`: fetch supports fetchAll/prune/tags/forceTags (or one remote), pull a chosen remote branch, push per-ref local→remote mappings with optional tracking, single tags (`tagRefs`), all tags, and force; `fetch-tag` force-replaces one local tag from the remote |
 | `host/remote-handler.ts` | `POST /git-suite/remote`: add (`action: 'add'`), rename and/or replace the URL (`action: 'set-url'`), or remove (`action: 'remove'`) one configured remote after validating the names, the URL, and whether they already exist |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`: merge, rebase, rename, or delete a local branch; check out a remote-tracking branch as a new tracking branch (`track`); delete a branch on a remote (`delete-remote`, `push --delete`); with validation and git error details |
 | `host/dsh.ts` | Local DSH host types, including `webServer`, workspaces, `directoryPicker`, `llm`, and `agentDefaultModel` |
@@ -183,14 +186,14 @@ The tree reads `mode=tree`, which returns local branches, tags, remote groups, s
 - Stashes → `scope=stash&ref=<commit hash>`; the host runs `--no-walk -n 1` to load only that commit, and its detail still uses `mode=commit`.
 - Branch groups list local branches directly; remote groups list their remote branches directly; the tree no longer offers "all branches" or "all remotes" entries.
 - A local branch row shows `↑N` / `↓N` after its name when it is ahead of or behind its upstream (read from `%(upstream:track)`), and `gone` when the upstream no longer exists.
-- The tags row has a compare action that calls `mode=tag-status` against the upstream remote (or the first remote): tags that exist only locally, tags whose commit differs from the remote, and a summary of tags that exist only on the remote.
+- Tag rows are compared with the upstream remote (or the first remote) automatically once the tree loads and again whenever the tag set changes; the **+** on the tags row opens the new-tag dialog instead of a manual compare. Tags that exist only locally get an upload-arrow icon and tags whose commit differs get an inequality icon; there is no summary line. Comparisons stay silent when the remote is unreachable.
 - The **Remotes** section row ends with a **+** button that opens the add-remote dialog and POSTs `{ action: 'add', name, url }` to `/git-suite/remote`; the section opens itself when a remote is added.
 - The **Branches** section row carries the same **+** button: the new-branch dialog sends `{ name, base }` to `/git-suite/branch`, where `base` defaults to `HEAD` and may be any branch, tag, or revision.
 - Right-clicking a remote-tracking branch offers **Checkout** (as a new tracking branch), merge / rebase it into the current branch, pull it into the current branch (through `/git-suite/sync`), and delete it on the remote (confirmation, `push --delete`).
 - Right-clicking a remote group opens fetch / pull / push, **Edit remote** (rename and URL, `POST /git-suite/remote { action: 'set-url', newName }`), and remove; hovering the group row shows its configured URL.
 - Right-clicking the log header opens a checkbox menu for the graph, date, author, and commit columns (the description column always stays); the choice is persisted and a panel narrower than 760px forces the author and commit columns off.
 - Row hints (remote URL, submodule path, branch switch hint, and truncated labels) use the plugin's own `useTooltip` box instead of the browser `title` bubble, so they render the same on Windows, macOS, and embedded webviews.
-- Right-clicking a tag opens **Checkout {tag}**, **Edit {tag}**, and **Delete {tag}**: checkout detaches HEAD at the tag through `POST /git-suite/checkout { ref }` (annotated and lightweight tags both resolve to their commit); edit loads the tag through `mode=tag` and saves a rename, a new commit, and/or a rewritten message with `force`; delete runs `POST /git-suite/tag { action: 'delete' }` after a confirmation.
+- Right-clicking a tag opens **Checkout {tag}**, **Edit {tag}**, **Push {tag}** / **Force push {tag}**, **Replace local {tag} with the remote** (only when the automatic comparison reports a mismatch), and **Delete {tag}**: checkout detaches HEAD at the tag through `POST /git-suite/checkout { ref }`; edit loads the tag through `mode=tag` and saves a rename, a new commit, and/or a rewritten message; push sends `{ action: 'push', tagRefs: [name] }`; force push and the remote→local replacement both rewrite a tag, so each goes through a warning dialog first; delete runs `POST /git-suite/tag { action: 'delete' }` after a confirmation.
 
 While viewing HEAD, the tree highlights the checked-out branch (`head` itself has no node).
 
@@ -226,6 +229,7 @@ Right-clicking a commit row opens the **Tag / Branch / Checkout** menu (`CommitA
 - **Branch** → `POST /git-suite/branch`: validates with `git check-ref-format --branch`, then runs `git branch <name> <start>`. The dialog's start-point field is prefilled with the right-clicked commit and stays editable; typing another ref resolves it live through `mode=resolve` and shows that commit's short hash and subject under the field. An empty field falls back to the clicked commit.
 - **Checkout** → `POST /git-suite/checkout`: `branch` runs `git switch <branch>`, `hash` runs `git switch --detach <hash>`; never forced; a working tree that would be overwritten returns 409 `worktree-dirty`. The client asks for confirmation first, warns explicitly for a detached HEAD, and mentions the working-tree risk for a branch.
 - Tag/branch/checkout refresh the log and refs tree; checkout resets the selection to HEAD.
+- Right-clicking a branch or tag **chip** inside a commit row opens the same menu the refs tree uses (local branch menu, remote-tracking branch menu, or tag menu with its checkout/edit/push/replace/delete entries); unrelated refs fall back to the commit menu.
 - All three routes are POST + same-origin + the private request header.
 
 ## Right-sidebar tab

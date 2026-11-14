@@ -50,6 +50,7 @@ src/
     components/
       AddBranchDialog.tsx
       AddRemoteDialog.tsx
+      AddTagDialog.tsx
       BranchDialogs.tsx
       BranchMenu.tsx
       Button.tsx
@@ -67,6 +68,8 @@ src/
       Dropdown.tsx
       EditRemoteDialog.tsx
       EditTagDialog.tsx
+      ForcePushTagDialog.tsx
+      FetchTagDialog.tsx
       ErrorState.tsx
       FetchDialog.tsx
       GitLogIcon.tsx
@@ -128,7 +131,7 @@ LICENSE
 | `host/commit-actions.ts` | POST `/git-suite/tag`、`/branch`、`/checkout`：校验标签/分支名，创建标签/分支（可指定提交或任意引用作为起点），检出本地分支、指定提交或任意引用（分离 HEAD，不 force） |
 | `host/generate-handler.ts` | POST `/git-suite/generate-message`：读取 staged/unstaged diff，调用 `ctx.llm`（默认模型）生成提交信息 |
 | `host/pick-handler.ts` | POST `/git-suite/pick-directory`：调用 `ctx.directoryPicker` 的原生选择器；`mode: 'repo'`（默认）解析 Git 根并检查 DSH 工作区，`mode: 'directory'` 返回普通目录供克隆目标使用 |
-| `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，可带 `tags`/`force` |
+| `host/sync-handler.ts` | `POST /git-suite/sync`：`fetch` 支持 `fetchAll`/`prune`/`tags`/`forceTags`（对应 `--all`/`--prune`/`--tags`/`--force`），也可只获取指定 `remote`；`pull` 按所选 `remote`/`branch` 拉取；`push` 按 `refs`（本地分支→远程分支，可逐项 `track`）推送，支持单个标签（`tagRefs`）、全部标签（`tags`）与 `force`；`fetch-tag` 用远端覆盖单个本地标签 |
 | `host/remote-handler.ts` | `POST /git-suite/remote`：新增（`action: 'add'`）、改名和/或修改地址（`action: 'set-url'`）或删除（`action: 'remove'`）指定远端，会校验名称、地址格式以及是否已存在 |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` |
@@ -183,14 +186,14 @@ LICENSE
 - 贮藏 → `scope=stash&ref=<commit hash>`，宿主用 `--no-walk -n 1` 只取该提交；详情仍走 `mode=commit`。
 - 分支分组直接列出本地分支；远端分组直接列出各远端分支；树中不再提供“所有分支/所有远端”入口。
 - 本地分支领先/落后上游时，名称后显示 `↑N` / `↓N`（取自 `%(upstream:track)`）；上游已不存在时显示「上游已删除」。
-- 标签分组行有「对比远端标签」动作，调用 `mode=tag-status`（默认对比当前上游所属远端，否则第一个远端）：标出仅本地存在的标签、与远端提交不同的标签，并汇总仅远端存在的标签数。
+- 标签会自动与上游所属远端（没有上游则第一个远端）比较：树加载完成后自动比对一次，标签集合变化时再自动比对；标签分组行不再放对比按钮，改放「+」打开新建标签弹窗。仅本地存在的标签显示上传箭头图标，提交与远端不同的显示不等号图标；不再显示汇总行。远端不可达时静默失败。
 - 远端分组行尾有「+」按钮：打开添加远端弹窗，向 `/git-suite/remote` POST `{ action: 'add', name, url }`；添加成功后该分组会自动展开。
 - 分支分组行尾有同样的「+」按钮：打开新建分支弹窗，向 `/git-suite/branch` POST `{ name, base }`；`base` 留空表示 `HEAD`，也可以填分支、标签或任意版本表达式。
 - 远端分支右键菜单：检出为本地跟踪分支、合并/变基到当前分支、拉取到当前分支（走 `/git-suite/sync`）、删除远端分支（二次确认，`push --delete`）。
 - 远端分组右键打开菜单：获取 / 拉取 / 推送、**编辑远端**（可改名并改地址，`POST /git-suite/remote { action: 'set-url', newName }`）、删除；悬停该行会显示已配置的远端地址。
 - 右键提交列表表头打开复选菜单，选择显示图表 / 日期 / 作者 / 提交列（描述列始终显示）；选择会持久化，面板宽度小于 760px 时自动隐藏作者与提交列并在菜单中禁用这两项。
 - 行内提示（远端地址、子模块路径、切换分支提示、被截断的分支名）使用插件自己的 `useTooltip` 绘制，而不是浏览器原生 `title` 气泡，保证 Windows、macOS 与内嵌 WebView 下表现一致。
-- 标签节点右键菜单：「检出 {tag}」「编辑 {tag}」「删除 {tag}」。检出通过 `POST /git-suite/checkout { ref }` 分离 HEAD（轻量与附注标签都解析到提交）；编辑先用 `mode=tag` 读取该标签，再保存改名、改提交或改说明（带 `force`）；删除经二次确认后执行 `POST /git-suite/tag { action: 'delete' }`。
+- 标签节点右键菜单：「检出 {tag}」「编辑 {tag}」「推送 {tag}」「强制推送 {tag}」「用远端覆盖本地 {tag}」（仅当自动比对发现不一致时出现）「删除 {tag}」。检出通过 `POST /git-suite/checkout { ref }` 分离 HEAD；编辑先用 `mode=tag` 读取该标签，再保存改名、改提交或改说明；推送走 `/git-suite/sync { action: 'push', tagRefs: [名称] }`；强制推送与「用远端覆盖本地」（`fetch-tag`）都会改写标签指向，因此各自先进警告确认框；删除经二次确认后执行 `POST /git-suite/tag { action: 'delete' }`。
 
 查看 HEAD 时，树会高亮当前分支（`head` 本身没有节点）。
 
@@ -226,6 +229,7 @@ LICENSE
 - **分支** → `POST /git-suite/branch`：`git check-ref-format --branch` 校验后执行 `git branch <name> <起点>`。弹窗的「起点」预填右键选中的提交且可编辑；改成别的引用时会通过 `mode=resolve` 实时解析，并在输入框下方显示该提交的短哈希与标题；清空则回退到该提交。
 - **检出** → `POST /git-suite/checkout`：`branch` 走 `git switch <branch>`，`hash` 走 `git switch --detach <hash>`；不 force；工作区有会被覆盖的改动时返回 409 `worktree-dirty`。客户端在检出前显示确认弹窗，分离 HEAD 会明确警告，分支也会提示工作区改动风险。
 - 标签/分支/检出成功后刷新日志和引用树；检出后选择回到 HEAD。
+- 提交行里的分支/标签 **chip** 右键打开与引用树相同的菜单（本地分支菜单、远端分支菜单，或标签的 检出/编辑/推送/用远端覆盖/删除）；无法归类的装饰仍落到提交菜单。
 - 三个路由仍是 POST + 同源 + 私有请求头。
 
 ## 右侧栏标签页

@@ -8,6 +8,8 @@ export interface TagMenuState {
   tag: TagSelection
   x: number
   y: number
+  /** How the tag compares with the remote, when that is already known. */
+  status?: 'same' | 'different' | 'local-only'
 }
 
 export interface TagMenuProps {
@@ -15,12 +17,14 @@ export interface TagMenuProps {
   t: Translate
   onCheckout(tag: TagSelection): void
   onEdit(tag: TagSelection): void
+  onPush(tag: TagSelection, force: boolean): void
+  onFetchTag(tag: TagSelection): void
   onDelete(tag: TagSelection): void
   onClose(): void
 }
 
-/** Right-click menu for one tag: check out, edit, delete. */
-export function TagMenu({ context, t, onCheckout, onEdit, onDelete, onClose }: TagMenuProps): React.ReactElement | null {
+/** Right-click menu for one tag: check out, edit, push, delete. */
+export function TagMenu({ context, t, onCheckout, onEdit, onPush, onFetchTag, onDelete, onClose }: TagMenuProps): React.ReactElement | null {
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -40,8 +44,8 @@ export function TagMenu({ context, t, onCheckout, onEdit, onDelete, onClose }: T
   }, [context, onClose])
 
   if (context === null) return null
-  const left = Math.min(context.x, window.innerWidth - 220)
-  const top = Math.min(context.y, window.innerHeight - 120)
+  const left = Math.min(context.x, window.innerWidth - 260)
+  const top = Math.min(context.y, window.innerHeight - 190)
 
   return (
     <div
@@ -71,6 +75,40 @@ export function TagMenu({ context, t, onCheckout, onEdit, onDelete, onClose }: T
       >
         {t('tagEditMenu').replace('{tag}', context.tag.name)}
       </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onPush(context.tag, false)
+          onClose()
+        }}
+      >
+        {t('tagPushMenu').replace('{tag}', context.tag.name)}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          onPush(context.tag, true)
+          onClose()
+        }}
+      >
+        {t('tagForcePushMenu').replace('{tag}', context.tag.name)}
+      </button>
+      {context.status === 'different'
+        ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onFetchTag(context.tag)
+                onClose()
+              }}
+            >
+              {t('tagFetchMenu').replace('{tag}', context.tag.name)}
+            </button>
+          )
+        : null}
       <button
         type="button"
         role="menuitem"

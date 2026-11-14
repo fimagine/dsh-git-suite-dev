@@ -140,10 +140,11 @@ function ColumnResizer({ label, style, onStart, onDrag }: ColumnResizerProps): R
 }
 
 /** The paged, virtualized commit list with a sticky table header and resizable columns. */
-export function CommitList({ view, t, onContextMenu }: {
+export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
   view: GitLogView
   t: Translate
   onContextMenu?(commit: Commit, event: React.MouseEvent): void
+  onRefContextMenu?(ref: string, event: React.MouseEvent): boolean
 }): React.ReactElement {
   const { commits, selected, graph, status, hasMore } = view
   const listRef = useRef<HTMLElement | null>(null)
@@ -450,6 +451,7 @@ export function CommitList({ view, t, onContextMenu }: {
                 selected={selected === commit.hash}
                 onSelect={view.selectCommit}
                 onContextMenu={onContextMenu}
+                onRefContextMenu={onRefContextMenu}
                 t={t}
                 row={row}
                 geometry={geometry}

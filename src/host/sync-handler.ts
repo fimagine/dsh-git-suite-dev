@@ -11,6 +11,8 @@ interface SyncBody {
   remote?: unknown
   branch?: unknown
   refs?: unknown
+  tagRefs?: unknown
+  tag?: unknown
   tags?: unknown
   force?: unknown
   fetchAll?: unknown
@@ -107,7 +109,7 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
         return
       }
 
-      if (action !== 'pull' && action !== 'push') {
+      if (action !== 'pull' && action !== 'push' && action !== 'fetch-tag') {
         throw new RouteError(400, 'invalid-action', 'Unknown sync action.')
       }
       const remote = text(body.remote)
@@ -120,6 +122,22 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
         .filter(item => item !== '')
       if (!remotes.includes(remote)) {
         throw new RouteError(400, 'unknown-remote', 'That remote is not configured in this repository.', { remote })
+      }
+
+      if (action === 'fetch-tag') {
+        const name = text(body.tag)
+        try {
+          await runGit(repo.root, ['check-ref-format', `refs/tags/${name}`], controller.signal)
+        } catch {
+          throw new RouteError(400, 'invalid-tag', 'That tag name is not valid.', { tag: name })
+        }
+        try {
+          await runGit(repo.root, ['fetch', '--force', remote, `refs/tags/${name}:refs/tags/${name}`], controller.signal)
+        } catch (error) {
+          throw gitFailure(error).withDetails({ remote, tag: name })
+        }
+        await send(res, json({ ok: true, action, remote, tag: name }))
+        return
       }
 
       if (action === 'pull') {
@@ -153,8 +171,14 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
       }
       const tags = body.tags === true
       const force = body.force === true
-      if (refs.length === 0 && !tags) {
-        throw new RouteError(400, 'no-refs', 'Select at least one branch or all tags to push.')
+      const rawTagRefs = Array.isArray(body.tagRefs) ? body.tagRefs : []
+      const tagRefs = rawTagRefs
+        .filter((item): item is string => typeof item === 'string')
+        .map(item => item.trim())
+        .filter(item => item !== '')
+        .slice(0, 50)
+      if (refs.length === 0 && !tags && tagRefs.length === 0) {
+        throw new RouteError(400, 'no-refs', 'Select at least one branch or tag to push.')
       }
       for (const ref of refs) {
         try {
@@ -164,7 +188,22 @@ export function createSyncHandler(context: RouteContext): (req: IncomingMessage,
           throw new RouteError(400, 'invalid-branch', 'A branch name is not valid.', { branch: ref.local })
         }
       }
+      for (const name of tagRefs) {
+        try {
+          await runGit(repo.root, ['check-ref-format', `refs/tags/${name}`], controller.signal)
+        } catch {
+          throw new RouteError(400, 'invalid-tag', 'That tag name is not valid.', { tag: name })
+        }
+      }
       try {
+        for (const name of tagRefs) {
+          await runGit(repo.root, [
+            'push',
+            ...(force ? ['--force'] : []),
+            remote,
+            `refs/tags/${name}:refs/tags/${name}`,
+          ], controller.signal)
+        }
         for (const ref of refs) {
           await runGit(repo.root, [
             'push',

@@ -14,6 +14,8 @@ export interface CommitRowProps {
   selected: boolean
   onSelect(commit: Commit): void
   onContextMenu?(commit: Commit, event: React.MouseEvent): void
+  /** Right-click on a ref chip; returns whether it opened its own menu. */
+  onRefContextMenu?(ref: string, event: React.MouseEvent): boolean
   t: Translate
   row: GraphRow
   geometry: GraphGeometry
@@ -21,7 +23,7 @@ export interface CommitRowProps {
   columns: CommitColumns
 }
 
-export function CommitRow({ commit, selected, onSelect, onContextMenu, t, row, geometry, columns }: CommitRowProps): React.ReactElement {
+export function CommitRow({ commit, selected, onSelect, onContextMenu, onRefContextMenu, t, row, geometry, columns }: CommitRowProps): React.ReactElement {
   const isMerge = commit.parents.length > 1
   return (
     <button
@@ -40,7 +42,7 @@ export function CommitRow({ commit, selected, onSelect, onContextMenu, t, row, g
           )
         : null}
       <span className="dsh-gitlog-desc">
-        <Refs refs={commit.refs} />
+        <Refs refs={commit.refs} onRefContextMenu={onRefContextMenu} />
         <span className="dsh-gitlog-subject">{commit.subject || t('noSubject')}</span>
         {isMerge ? <span className="dsh-gitlog-merge">{t('merge')}</span> : null}
       </span>

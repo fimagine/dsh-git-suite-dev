@@ -16,7 +16,10 @@ import { RemoteBranchMenu, type RemoteBranchMenuState, type RemoteBranchSelectio
 import { DeleteRemoteBranchDialog } from './components/DeleteRemoteBranchDialog.js'
 import { TagMenu, type TagMenuState, type TagSelection } from './components/TagMenu.js'
 import { EditTagDialog } from './components/EditTagDialog.js'
+import { AddTagDialog } from './components/AddTagDialog.js'
 import { DeleteTagDialog } from './components/DeleteTagDialog.js'
+import { ForcePushTagDialog } from './components/ForcePushTagDialog.js'
+import { FetchTagDialog } from './components/FetchTagDialog.js'
 import { Button } from './components/Button.js'
 import { RefreshIcon } from './components/GitLogIcon.js'
 import { RepoActions } from './components/RepoActions.js'
@@ -26,7 +29,7 @@ import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
-import { requestBranchAction, requestCheckout, requestTagStatus, toApiError } from './lib/api.js'
+import { requestBranchAction, requestCheckout, requestSync, requestTagStatus, toApiError } from './lib/api.js'
 import { readUiState, writeUiState } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
@@ -86,9 +89,11 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
   const [branchActionError, setBranchActionError] = useState<string | null>(null)
   const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
   const [tagStatus, setTagStatus] = useState<TagStatusPayload | null>(null)
-  const [tagStatusError, setTagStatusError] = useState<string | null>(null)
+  const [addTagOpen, setAddTagOpen] = useState(false)
   const [tagEdit, setTagEdit] = useState<string | null>(null)
   const [tagDelete, setTagDelete] = useState<string | null>(null)
+  const [tagForcePush, setTagForcePush] = useState<string | null>(null)
+  const [tagFetch, setTagFetch] = useState<string | null>(null)
   const [tagActionError, setTagActionError] = useState<string | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const stackRef = useRef<HTMLDivElement | null>(null)
@@ -244,6 +249,35 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     }
   }
 
+  /** Right-click on a commit's ref chip: open the same menu the refs tree uses. */
+  const openRefMenu = (ref: string, event: React.MouseEvent): boolean => {
+    const x = event.clientX
+    const y = event.clientY
+    if (ref.startsWith('tag: ')) {
+      const name = ref.slice('tag: '.length)
+      setTagMenu({ tag: { kind: 'tag', ref: `refs/tags/${name}`, name }, status: tagStatus?.statuses[name], x, y })
+      return true
+    }
+    const branchName = ref.startsWith('HEAD -> ') ? ref.slice('HEAD -> '.length) : ref
+    const local = (view.tree?.branches ?? []).find(branch => branch.kind === 'local' && branch.name === branchName)
+    if (local !== undefined) {
+      setBranchMenu({ branch: local, x, y })
+      return true
+    }
+    for (const group of view.tree?.remotes ?? []) {
+      const branch = group.branches.find(item => item.name === branchName)
+      if (branch !== undefined) {
+        setRemoteBranchMenu({
+          branch: { kind: 'branch', ref: branch.ref, name: branch.name, remote: true },
+          x,
+          y,
+        })
+        return true
+      }
+    }
+    return false
+  }
+
   /** Right-clicking a tag checks it out by detaching HEAD at the tag's commit. */
   const checkoutTag = async (tag: TagSelection): Promise<void> => {
     setTagActionError(null)
@@ -260,35 +294,63 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
     }
   }
 
-  /** Compare local tags with the upstream remote (or the first configured one). */
-  const compareTags = async (): Promise<void> => {
-    const path = view.repo?.repoRoot ?? view.pathInput.trim()
+  const upstreamRemote = (() => {
     const upstream = ws.status?.upstream ?? ''
     const slash = upstream.indexOf('/')
-    const remote = slash > 0 ? upstream.slice(0, slash) : (view.tree?.remotes[0]?.name ?? '')
-    if (path === '' || remote === '') {
-      setTagStatusError(t('remoteMissing'))
-      return
-    }
-    setTagStatusError(null)
+    return slash > 0 ? upstream.slice(0, slash) : (view.tree?.remotes[0]?.name ?? '')
+  })()
+
+  /** Compare local tags with the upstream remote (or the first configured one). */
+  const runTagCompare = async (): Promise<void> => {
+    const path = view.repo?.repoRoot ?? view.pathInput.trim()
+    const remote = upstreamRemote
+    if (path === '' || remote === '') return
     try {
       setTagStatus(await requestTagStatus({ path, remote }))
-    } catch (error) {
+    } catch {
+      // Unreachable remote or missing credentials: keep the tree clean.
       setTagStatus(null)
-      setTagStatusError(toApiError(error).message)
     }
   }
 
-  const tagCounts = (() => {
-    if (tagStatus === null) return null
-    let different = 0
-    let localOnly = 0
-    for (const state of Object.values(tagStatus.statuses)) {
-      if (state === 'different') different += 1
-      else if (state === 'local-only') localOnly += 1
+  // Compare automatically once per repository/remote/tag set, and again whenever
+  // tags change; the compare button only re-runs it on demand.
+  const tagsKey = view.tree === null ? '' : view.tree.tags.map(tag => `${tag.name}:${tag.hash}`).join(',')
+  const lastTagCompare = useRef('')
+  useEffect(() => {
+    const root = view.repo?.repoRoot ?? ''
+    if (root === '' || upstreamRemote === '') return undefined
+    const key = `${root}\u0000${upstreamRemote}\u0000${tagsKey}`
+    if (lastTagCompare.current === key) return undefined
+    lastTagCompare.current = key
+    const timer = window.setTimeout(() => { void runTagCompare() }, 400)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runTagCompare closes over the same values
+  }, [view.repo?.repoRoot, upstreamRemote, tagsKey])
+
+  /** Push one tag to the upstream remote; `force` overwrites a moved remote tag. */
+  const pushTag = async (tag: TagSelection, force: boolean): Promise<void> => {
+    const path = view.repo?.repoRoot ?? view.pathInput.trim()
+    if (path === '' || upstreamRemote === '') {
+      setTagActionError(t('remoteMissing'))
+      return
     }
-    return { different, localOnly, remoteOnly: tagStatus.remoteOnly.length }
-  })()
+    setTagActionError(null)
+    try {
+      await requestSync({
+        action: 'push',
+        path,
+        remote: upstreamRemote,
+        tagRefs: [tag.name],
+        force,
+      })
+      ws.refresh()
+      view.refresh()
+      void runTagCompare()
+    } catch (error) {
+      setTagActionError(toApiError(error).message)
+    }
+  }
 
   /** Right-click actions on a remote-tracking branch such as `origin/main`. */
   const checkoutRemoteBranch = async (branch: RemoteBranchSelection): Promise<void> => {
@@ -391,9 +453,14 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         onOpenSubmodule={openSubmodule}
         onAddBranch={view.repo === null ? undefined : () => setAddBranchOpen(true)}
         onAddRemote={view.repo === null ? undefined : () => setAddRemoteOpen(true)}
-        onCompareTags={view.repo === null ? undefined : () => { void compareTags() }}
+        onAddTag={view.repo === null ? undefined : () => setAddTagOpen(true)}
         tagStatus={tagStatus}
-        onTagMenu={(tag, event) => setTagMenu({ tag, x: event.clientX, y: event.clientY })}
+        onTagMenu={(tag, event) => setTagMenu({
+          tag,
+          status: tagStatus?.statuses[tag.name],
+          x: event.clientX,
+          y: event.clientY,
+        })}
         onRemoteBranchMenu={(branch, event) => setRemoteBranchMenu({ branch, x: event.clientX, y: event.clientY })}
         onRemoteMenu={(remote, event) => setRemoteMenu({ remote, x: event.clientX, y: event.clientY })}
         onBranchMenu={openBranchMenu}
@@ -409,7 +476,7 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         {viewMode === 'workspace'
           ? <WorkspacePane view={view} ws={ws} t={t} />
           : hasCommits
-            ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} />
+            ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} onRefContextMenu={openRefMenu} />
             : <div className="dsh-gitlog-state-pane">{state}</div>}
         {viewMode === 'history' && hasCommits
           ? (
@@ -470,18 +537,6 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       {view.scanNote !== null ? <p className="dsh-gitlog-note">{view.scanNote}</p> : null}
       {branchActionError !== null ? <p className="dsh-gitlog-note" role="alert">{branchActionError}</p> : null}
       {tagActionError !== null ? <p className="dsh-gitlog-note" role="alert">{tagActionError}</p> : null}
-      {tagStatusError !== null ? <p className="dsh-gitlog-note" role="alert">{tagStatusError}</p> : null}
-      {tagStatus === null || tagCounts === null
-        ? null
-        : (
-            <p className="dsh-gitlog-note">
-              {t('tagsCompared')
-                .replace('{remote}', tagStatus.remote)
-                .replace('{different}', String(tagCounts.different))
-                .replace('{localOnly}', String(tagCounts.localOnly))
-                .replace('{remoteOnly}', String(tagCounts.remoteOnly))}
-            </p>
-          )}
       {view.switching ? <p className="dsh-gitlog-note" role="status">{t('switching')}</p> : null}
       {view.switchError !== null ? <p className="dsh-gitlog-note" role="alert">{view.switchError}</p> : null}
       {error !== null && commits.length > 0
@@ -519,6 +574,12 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
         t={t}
         onCheckout={tag => { void checkoutTag(tag) }}
         onEdit={tag => setTagEdit(tag.name)}
+        onPush={(tag, force) => {
+          // Overwriting a published tag needs the explicit confirmation dialog.
+          if (force) setTagForcePush(tag.name)
+          else void pushTag(tag, false)
+        }}
+        onFetchTag={tag => setTagFetch(tag.name)}
         onDelete={tag => setTagDelete(tag.name)}
         onClose={() => setTagMenu(null)}
       />
@@ -528,6 +589,40 @@ export function GitLogPanel({ t, compact = false }: GitLogPanelProps): React.Rea
       {tagDelete === null
         ? null
         : <DeleteTagDialog view={view} tag={tagDelete} t={t} onClose={() => setTagDelete(null)} />}
+      {tagForcePush === null || upstreamRemote === ''
+        ? null
+        : (
+            <ForcePushTagDialog
+              view={view}
+              tag={tagForcePush}
+              remote={upstreamRemote}
+              t={t}
+              onPushed={() => {
+                ws.refresh()
+                void runTagCompare()
+              }}
+              onClose={() => setTagForcePush(null)}
+            />
+          )}
+      {tagFetch === null || upstreamRemote === ''
+        ? null
+        : (
+            <FetchTagDialog
+              view={view}
+              tag={tagFetch}
+              remote={upstreamRemote}
+              t={t}
+              onFetched={() => {
+                ws.refresh()
+                view.refresh()
+                void runTagCompare()
+              }}
+              onClose={() => setTagFetch(null)}
+            />
+          )}
+      {addTagOpen
+        ? <AddTagDialog view={view} t={t} onClose={() => setAddTagOpen(false)} />
+        : null}
       <RemoteBranchMenu
         context={remoteBranchMenu}
         t={t}

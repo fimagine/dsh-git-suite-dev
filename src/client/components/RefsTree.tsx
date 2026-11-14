@@ -5,7 +5,7 @@ import { selectionKey } from '../lib/selection.js'
 import { readUiState, writeUiState } from '../lib/ui-state.js'
 import { h, useEffect, useMemo, useRef, useState } from '../runtime.js'
 import type { LoadStatus, RefsPayload, Selection, Translate } from '../types.js'
-import { CompareIcon, PlusIcon } from './GitLogIcon.js'
+import { PlusIcon, TagDiffIcon, TagLocalIcon } from './GitLogIcon.js'
 import type { RemoteBranchSelection } from './RemoteBranchMenu.js'
 import type { TagSelection } from './TagMenu.js'
 import { useTooltip } from './Tooltip.js'
@@ -23,8 +23,8 @@ export interface RefsTreeProps {
   onOpenSubmodule?(path: string): void
   onAddBranch?(): void
   onAddRemote?(): void
+  onAddTag?(): void
   /** Compare local tags with the selected remote's tags. */
-  onCompareTags?(): void
   tagStatus?: TagStatusPayload | null
   onRemoteMenu?(remote: string, event: React.MouseEvent): void
   onTagMenu?(selection: TagSelection, event: React.MouseEvent): void
@@ -71,7 +71,7 @@ interface EmptyRow {
 type TreeRow = SectionRow | NodeRow | EmptyRow
 
 /** Branch/tag/remote/stash navigation for the left column of the panel. */
-export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onCompareTags, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, t }: RefsTreeProps): React.ReactElement {
+export function RefsTree({ tree, status, error, selection, switching, onSelect, onSwitch, onOpenSubmodule, onAddBranch, onAddRemote, onAddTag, tagStatus, onRemoteMenu, onTagMenu, onRemoteBranchMenu, onBranchMenu, t }: RefsTreeProps): React.ReactElement {
   const [query, setQuery] = useState('')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => ({
     ...SECTION_DEFAULT_OPEN,
@@ -198,10 +198,12 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
       ? onAddRemote
       : row.section.id === 'branches'
         ? onAddBranch
-        : undefined
+        : row.section.id === 'tags' ? onAddTag : undefined
     const addLabel = row.section.id === 'remotes'
       ? t('addRemote')
-      : row.section.id === 'branches' ? t('addBranch') : null
+      : row.section.id === 'branches'
+        ? t('addBranch')
+        : row.section.id === 'tags' ? t('addTag') : null
     return (
       <div key={row.key} className="dsh-gitlog-tree-section-row" role="none">
         <button
@@ -231,24 +233,6 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
                 onBlur={tooltip.hide}
               >
                 <PlusIcon size={14} />
-              </button>
-            )
-          : null}
-        {row.section.id === 'tags' && onCompareTags !== undefined
-          ? (
-              <button
-                type="button"
-                className="dsh-gitlog-tree-action"
-                aria-label={t('compareTags')}
-                onClick={() => onCompareTags()}
-                onMouseEnter={event => reveal(event, t('compareTags'))}
-                onMouseLeave={tooltip.hide}
-                onFocus={event => {
-                  if (event.currentTarget.matches(':focus-visible')) reveal(event, t('compareTags'), true)
-                }}
-                onBlur={tooltip.hide}
-              >
-                <CompareIcon size={14} />
               </button>
             )
           : null}
@@ -333,9 +317,17 @@ export function RefsTree({ tree, status, error, selection, switching, onSelect, 
         </span>
         <span className={`dsh-gitlog-tree-label${node.current === true ? ' is-current' : ''}`}>{node.label}</span>
         {counters === '' ? null : <span className="dsh-gitlog-tree-counter">{counters}</span>}
-        {tagBadge === '' ? null : (
-          <span className={`dsh-gitlog-tree-counter${tagState === 'different' ? ' is-warn' : ''}`}>{tagBadge}</span>
-        )}
+        {tagState === undefined || tagState === 'same'
+          ? null
+          : (
+              <span
+                className={`dsh-gitlog-tree-badge${tagState === 'different' ? ' is-warn' : ''}`}
+                role="img"
+                aria-label={tagState === 'local-only' ? t('tagLocalOnly') : t('tagDifferent')}
+              >
+                {tagState === 'local-only' ? <TagLocalIcon /> : <TagDiffIcon />}
+              </span>
+            )}
       </button>
     )
   }

@@ -87,6 +87,47 @@ export function CompareIcon({ size = 14 }: { size?: number }): React.ReactElemen
   )
 }
 
+/** Upload arrow: this tag exists only in the local repository. */
+export function TagLocalIcon({ size = 12 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M8 11V3.4M4.9 6.5 8 3.4l3.1 3.1" />
+      <path d="M3.2 13h9.6" />
+    </svg>
+  )
+}
+
+/** Inequality mark: the local tag points at a different commit than the remote. */
+export function TagDiffIcon({ size = 12 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M2.8 5.8h10.4M2.8 10.2h10.4" />
+      <path d="M10.6 2.6 5.4 13.4" />
+    </svg>
+  )
+}
+
 /** Sparkle icon for the AI commit-message button. */
 export function SparkleIcon({ size = 16 }: { size?: number }): React.ReactElement {
   return (

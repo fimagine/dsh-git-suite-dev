@@ -58,7 +58,7 @@ export interface StashRef {
   message: string
 }
 
-export type SyncAction = 'fetch' | 'pull' | 'push'
+export type SyncAction = 'fetch' | 'pull' | 'push' | 'fetch-tag'
 
 export interface FetchOptions {
   fetchAll: boolean

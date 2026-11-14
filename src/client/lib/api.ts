@@ -341,10 +341,14 @@ export async function requestCheckout(body: CheckoutRequest, signal?: AbortSigna
 
 export interface SyncRequest {
   action: SyncAction
+  /** Tag name for `fetch-tag`: overwrite the local tag from the remote. */
+  tag?: string
   path: string
   remote?: string
   branch?: string
   refs?: PushTarget[]
+  /** Tag names pushed individually. */
+  tagRefs?: string[]
   tags?: boolean
   force?: boolean
   fetchAll?: boolean
