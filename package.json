@@ -1,9 +1,11 @@
 {
   "name": "dsh-git-suite",
   "version": "1.1.0",
-  "private": true,
   "license": "MIT",
   "author": "Gim",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "A Git suite for the DSH Web UI: browse and operate Git repositories (history, branches, diffs, and more).",
   "keywords": [
     "deepseek-harness",
@@ -35,9 +37,11 @@
     "icon.svg"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && pnpm run build:host && pnpm run build:client",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm run clean && pnpm run typecheck && pnpm run build:host && pnpm run build:client",
     "build:host": "tsc -p tsconfig.host.json",
     "build:client": "node scripts/build-client.mjs",
+    "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json",
     "watch:client": "node scripts/build-client.mjs --watch",
     "watch:host": "tsc -p tsconfig.host.json --watch"

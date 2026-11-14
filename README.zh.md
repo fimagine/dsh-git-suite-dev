@@ -48,7 +48,17 @@ DSH Web 的 Git 套件插件：提供提交历史、分支、引用树、提交�
 
 ## 安装
 
-克隆仓库、构建一次，然后通过 DSH 插件管理器把该目录安装为本地 bundle。
+### 从 npm 安装（无需编译）
+
+通过 DSH 插件管理器（或 `plugin_manager` 的 `install_bundle`，包名 `dsh-git-suite`）安装已发布的 bundle。npm 包内已带构建好的 `dist/`，用户无需 Node.js、pnpm，也无需从源码编译。
+
+### 从预构建包安装
+
+下载 `pnpm pack` / GitHub Release 的 tarball（内含 `dist/`），解压后把目录添加到 DSH 插件管理器（**Plugins → Add plugin**），同样无需编译。
+
+### 从源码安装（开发）
+
+克隆仓库、构建一次，再通过 DSH 插件管理器把该目录安装为本地 bundle。
 
 ```sh
 git clone https://github.com/gimhol/dsh-git-suite.git

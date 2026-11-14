@@ -48,6 +48,16 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 
 ## Installation
 
+### From npm (no build)
+
+Install the published **`dsh-git-suite`** bundle through DSH Plugin Manager (or `plugin_manager` `install_bundle` with the package name). The npm package ships the prebuilt `dist/`, so no Node.js, pnpm, or source build is needed.
+
+### From a prebuilt archive
+
+Download the `pnpm pack` / GitHub release tarball (it contains `dist/`), extract it, and add the extracted directory in DSH Plugin Manager (**Plugins → Add plugin**). No build is needed either.
+
+### From source (development)
+
 Clone the repository, build it once, then install the directory as a local bundle through DSH Plugin Manager.
 
 ```sh
