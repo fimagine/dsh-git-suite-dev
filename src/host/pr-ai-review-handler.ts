@@ -8,6 +8,7 @@ import { resolveForgeToken } from './forge/token.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
 import type { PullDetail, RouteContext } from './types.js'
+import { readReviewContext, type ReviewContext, type ReviewContextMode } from './pr-review-context.js'
 
 const MAX_BODY_BYTES = 64 * 1024
 const MAX_PATCH_CHARS = 36_000
@@ -19,6 +20,8 @@ interface ReviewBody {
   remote?: unknown
   number?: unknown
   language?: unknown
+  /** Full-file context source chosen by the user. */
+  context?: unknown
 }
 
 function header(req: IncomingMessage, name: string): string | null {
@@ -76,12 +79,15 @@ function diffExcerpt(pull: PullDetail): { text: string; truncated: boolean } {
   return { text: parts.join('\n\n'), truncated }
 }
 
-function buildPrompt(pull: PullDetail, language: string): { prompt: string; truncated: boolean } {
+function buildPrompt(pull: PullDetail, language: string, context: ReviewContext): { prompt: string; truncated: boolean } {
   const diff = diffExcerpt(pull)
   const description = pull.body.trim().slice(0, MAX_DESCRIPTION_CHARS)
   const commits = pull.commits.slice(0, 30).map(commit => `- ${commit.shortHash} ${commit.subject}`).join('\n')
+  const fullFiles = context.files.length === 0
+    ? '(complete file contents unavailable; review the diff only)'
+    : context.files.map(file => `### ${file.path}\n${file.content}`).join('\n\n')
   return {
-    truncated: diff.truncated,
+    truncated: diff.truncated || context.truncated,
     prompt: [
       `Review pull request #${pull.number}: ${pull.title}`,
       `Source: ${pull.sourceBranch} → ${pull.targetBranch}`,
@@ -96,6 +102,10 @@ function buildPrompt(pull: PullDetail, language: string): { prompt: string; trun
       `Changed files (${pull.files.length}${pull.filesTruncated ? '+' : ''}):`,
       diff.text === '' ? '(no textual diff)' : diff.text,
       diff.truncated ? '\n[diff truncated]' : '',
+      '',
+      'Full contents of changed files at the PR head (read from a temporary read-only checkout; nothing was executed):',
+      fullFiles,
+      context.truncated ? '\n[file contents truncated]' : '',
       '',
       'Write a code review in Markdown. Focus only on the changes above:',
       '- Correctness bugs, edge cases, and regressions.',
@@ -163,6 +173,19 @@ export function createPullAiReviewHandler(
       if (pull.files.length === 0) {
         throw new RouteError(400, 'no-diff', 'This pull request has no changed files to review.')
       }
+      const contextMode: ReviewContextMode = body.context === 'diff' || body.context === 'api' || body.context === 'worktree'
+        ? body.context
+        : 'auto'
+      const reviewContext = await readReviewContext(
+        repo.root,
+        remote.name,
+        target,
+        pull,
+        rawNumber,
+        token,
+        signal,
+        contextMode,
+      )
 
       let selection: { provider: string; model: string; reasoningEffort?: string }
       try {
@@ -177,7 +200,7 @@ export function createPullAiReviewHandler(
       const language = typeof body.language === 'string' && body.language.toLowerCase().startsWith('zh')
         ? 'Simplified Chinese'
         : 'English'
-      const { prompt, truncated } = buildPrompt(pull, language)
+      const { prompt, truncated } = buildPrompt(pull, language, reviewContext)
 
       let output = ''
       let finish: LlmStreamChunk['reason']
@@ -211,6 +234,8 @@ export function createPullAiReviewHandler(
         model: selection.model,
         files: pull.files.length,
         truncated,
+        context: reviewContext.mode,
+        contextFiles: reviewContext.files.length,
       }))
     } catch (error) {
       await send(res, failure(error))

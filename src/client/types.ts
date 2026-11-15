@@ -223,12 +223,17 @@ export interface PullMergePayload {
   branchDeleted: boolean
 }
 
+export type AiReviewMode = 'diff' | 'api' | 'worktree'
+
 export interface PullAiReviewPayload {
   ok: true
   review: string
   model: string
   files: number
   truncated: boolean
+  /** How full-file context was obtained. */
+  context: 'worktree' | 'api' | 'diff'
+  contextFiles: number
 }
 
 export interface PullsPayload {

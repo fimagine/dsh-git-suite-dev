@@ -8,11 +8,13 @@ import { useSplitSize } from '../lib/use-split-size.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type { PullFile, PullSummary, Translate } from '../types.js'
 import { Button } from './Button.js'
+import { AiReviewDialog } from './AiReviewDialog.js'
 import { CreatePullDialog } from './CreatePullDialog.js'
 import { DiffView } from './DiffView.js'
 import { Dropdown } from './Dropdown.js'
 import { ForgeAuthDialog } from './ForgeAuthDialog.js'
 import { MergePullDialog } from './MergePullDialog.js'
+import { Markdown } from './Markdown.js'
 import { PullChecksBadge } from './PullChecksBadge.js'
 import { PullReviewBadge } from './PullReviewBadge.js'
 import { PullStateDialog, type PullStateAction } from './PullStateDialog.js'
@@ -82,6 +84,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
   const [fileIndex, setFileIndex] = useState(0)
   const [stateDialog, setStateDialog] = useState<PullStateAction | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [aiDialogOpen, setAiDialogOpen] = useState(false)
   const diffMode = useDiffMode()
   const pull = view.detail
   const locale = t('localeId')
@@ -90,6 +93,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
     setFileIndex(0)
     setStateDialog(null)
     setMergeOpen(false)
+    setAiDialogOpen(false)
   }, [pull?.number, pull?.webUrl])
 
   if (view.detailStatus === 'loading') return <LoadingLine label={t('pullLoading')} />
@@ -166,7 +170,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
           </Button>
           <Button
             disabled={view.aiReviewStatus === 'loading'}
-            onClick={view.runAiReview}
+            onClick={() => setAiDialogOpen(true)}
           >
             {view.aiReviewStatus === 'loading' ? t('pullAiReviewing') : t('pullAiReview')}
           </Button>
@@ -195,7 +199,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                 <div className="dsh-gitlog-pull-ai-actions">
                   {view.aiReviewStatus === 'ready'
                     ? (
-                        <Button variant="ghost" onClick={view.runAiReview}>
+                        <Button variant="ghost" onClick={() => setAiDialogOpen(true)}>
                           {t('pullAiReviewRegenerate')}
                         </Button>
                       )
@@ -210,11 +214,10 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                       <div className="dsh-gitlog-pulls-error" role="alert">
                         <p>{t('pullAiReviewFailed')}</p>
                         <p className="dsh-gitlog-error-code">{view.aiReviewError ?? ''}</p>
-                        <Button variant="ghost" onClick={view.runAiReview}>{t('tryAgain')}</Button>
+                        <Button variant="ghost" onClick={() => setAiDialogOpen(true)}>{t('tryAgain')}</Button>
                       </div>
                     )
-                  : <pre className="dsh-gitlog-pull-ai-review">{view.aiReview}</pre>}
-              <p className="dsh-gitlog-field-hint">{t('pullAiReviewHint')}</p>
+                  : <Markdown text={view.aiReview} className="dsh-gitlog-pull-ai-review" />}
             </section>
           )}
 
@@ -230,7 +233,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                       <span>{comment.author === '' ? '—' : comment.author}</span>
                       <span>{formatDateTime(comment.createdAt, locale)}</span>
                     </header>
-                    <pre>{comment.body}</pre>
+                    <Markdown text={comment.body} />
                   </article>
                 ))}
               </div>
@@ -316,6 +319,10 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
 
       {mergeOpen
         ? <MergePullDialog view={view} pull={pull} t={t} onClose={() => setMergeOpen(false)} />
+        : null}
+
+      {aiDialogOpen
+        ? <AiReviewDialog view={view} t={t} onClose={() => setAiDialogOpen(false)} />
         : null}
 
       {stateDialog === null

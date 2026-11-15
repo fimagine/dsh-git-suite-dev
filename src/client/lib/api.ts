@@ -33,6 +33,7 @@ import type {
   PullMergePayload,
   PullMergeRequest,
   PullAiReviewPayload,
+  AiReviewMode,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -348,6 +349,7 @@ export interface PullAiReviewCall {
   remote: string
   number: number
   language?: string
+  context?: AiReviewMode
 }
 
 /** POST /git-suite/pr-ai-review: ask the default model for a read-only review. */
