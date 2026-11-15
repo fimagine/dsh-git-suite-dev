@@ -37,6 +37,7 @@ export function BranchRenameDialog({ view, branch, t, onClose }: BranchRenameDia
         newName: value,
       })
       view.selectRef(selectionAfterHeadChange(view.selection))
+      view.refresh()
       onClose()
     } catch (failure) {
       setError(toApiError(failure).message)
@@ -100,6 +101,7 @@ export function BranchDeleteDialog({ view, branch, t, onClose }: BranchDeleteDia
         ...(force ? { force: true } : {}),
       })
       view.selectRef(selectionAfterHeadChange(view.selection))
+      view.refresh()
       onClose()
     } catch (failure) {
       const message = toApiError(failure).message
