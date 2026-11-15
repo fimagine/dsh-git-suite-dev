@@ -76,11 +76,15 @@ export async function withForgePost<T extends ForgePostBody>(
 
   const controller = new AbortController()
   let timedOut = false
+  let closedByClient = false
   const timeout = setTimeout(() => {
     timedOut = true
     controller.abort()
   }, options.timeoutMs ?? 30_000)
-  const onClose = (): void => controller.abort()
+  const onClose = (): void => {
+    closedByClient = true
+    controller.abort()
+  }
   res.once('close', onClose)
   const signal = controller.signal
   let remoteName: string | null = null
@@ -117,11 +121,11 @@ export async function withForgePost<T extends ForgePostBody>(
       : error
     if (signal.aborted) {
       // A normal response close may abort the controller after the handler has
-      // already returned. A timeout gets a 504; if the response is still open,
-      // keep the original error instead of swallowing it.
+      // already returned. A timeout gets a 504; a client cancellation is
+      // silent; a still-open response keeps the original error.
       if (timedOut) {
         await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out.')))
-      } else if (!res.writableEnded && !res.destroyed) {
+      } else if (!closedByClient && !res.writableEnded && !res.destroyed) {
         await sendResponse(res, failure(annotated))
       }
       return

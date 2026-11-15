@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { deletePull } from './forge/index.js'
+import { RouteError } from './errors.js'
+import { deletePull, getPull } from './forge/index.js'
 import { resetForgeCache } from './forge/http.js'
 import { parsePullNumber, withForgePost } from './forge-post.js'
 import type { RouteContext } from './types.js'
@@ -23,7 +24,21 @@ export function createPullDeleteHandler(context: RouteContext): (req: IncomingMe
     methodMessage: 'Deleting a pull request requires POST.',
     handle: async (body, { target, token, signal }) => {
       const number = parsePullNumber(body.number)
-      await deletePull(target, number, token, signal)
+      const detail = await getPull(target, number, token, signal, true)
+      if (detail.state === 'merged') {
+        throw new RouteError(409, 'pull-delete-merged', 'Merged merge requests cannot be deleted.', { number })
+      }
+      try {
+        await deletePull(target, number, token, signal)
+      } catch (error) {
+        if (error instanceof RouteError && error.code === 'forge-request-failed') {
+          const status = error.details?.status
+          if (status === 403 || status === 405) {
+            throw new RouteError(403, 'pull-delete-forbidden', 'GitLab refused to delete this merge request; project owner or administrator permission is required.', { number })
+          }
+        }
+        throw error
+      }
       resetForgeCache()
       return { number }
     },

@@ -71,6 +71,29 @@ test('withForgePost rejects missing private headers and non-POST requests', asyn
   assert.equal(wrongMethod.statusCode, 405)
 })
 
+test('readJsonBody rejects invalid Content-Length values', async () => {
+  for (const value of ['-1', '1.5']) {
+    await assert.rejects(
+      readJsonBody(request('{}', { 'content-length': value }), 1024),
+      error => error.status === 400,
+    )
+  }
+})
+
+test('sendResponse drops hop-by-hop and cookie headers', async () => {
+  const res = response()
+  await sendResponse(res, new Response('x', {
+    headers: {
+      'content-type': 'text/plain',
+      'content-encoding': 'gzip',
+      'set-cookie': 'session=secret',
+    },
+  }))
+  assert.equal(res.headers['content-type'], 'text/plain')
+  assert.equal(res.headers['content-encoding'], undefined)
+  assert.equal(res.headers['set-cookie'], undefined)
+})
+
 test('sendResponse does not write to a finished response', async () => {
   const finished = response()
   finished.writableEnded = true

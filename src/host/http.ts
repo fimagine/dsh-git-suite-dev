@@ -34,9 +34,14 @@ export function failure(error: unknown): Response {
 export async function readJsonBody<T extends object>(req: IncomingMessage, maxBytes = 64 * 1024): Promise<T> {
   const declared = req.headers['content-length']
   const declaredLength = Array.isArray(declared) ? Number(declared[0]) : Number(declared)
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    req.resume()
-    throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+  if (Number.isFinite(declaredLength)) {
+    if (!Number.isInteger(declaredLength) || declaredLength < 0) {
+      throw new RouteError(400, 'invalid-content-length', 'The Content-Length header is invalid.')
+    }
+    if (declaredLength > maxBytes) {
+      req.resume()
+      throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+    }
   }
   const chunks: Buffer[] = []
   let size = 0
@@ -65,7 +70,7 @@ export async function sendResponse(res: ServerResponse, response: Response): Pro
   response.headers.forEach((value, key) => {
     // The body has already been decoded; forwarding these would corrupt it or
     // set a stale length on the re-encoded buffer.
-    if (key === 'content-encoding' || key === 'content-length' || key === 'transfer-encoding') return
+    if (key === 'content-encoding' || key === 'content-length' || key === 'transfer-encoding' || key === 'set-cookie') return
     res.setHeader(key, value)
   })
   res.end(Buffer.from(await response.arrayBuffer()))

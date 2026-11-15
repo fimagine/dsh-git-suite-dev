@@ -29,19 +29,30 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [approvalError, setApprovalError] = useState<string | null>(null)
+  const [refreshFailed, setRefreshFailed] = useState(false)
   const current = view.detail?.number === pull.number ? view.detail : pull
   const blocked = current.mergeable === false
   const failing = current.checks?.state === 'failure'
+  const approvalBusy = busy || view.merging !== null || view.giteeDecision !== null
+  const mergeBusy = approvalBusy || blocked || refreshFailed
 
   const approve = async (action: 'review' | 'test'): Promise<void> => {
-    if (busy || view.merging !== null || view.giteeDecision !== null) return
+    if (approvalBusy) return
     setApprovalError(null)
+    setRefreshFailed(false)
     const result = await view.decideGitee(action)
-    if (!result.ok && !result.auth) setApprovalError(result.message)
+    if (result.ok) {
+      if (result.warning !== undefined) {
+        setApprovalError(result.warning)
+        setRefreshFailed(true)
+      }
+      return
+    }
+    if (!result.auth) setApprovalError(result.message)
   }
 
   const submit = async (): Promise<void> => {
-    if (busy || blocked || view.giteeDecision !== null) return
+    if (mergeBusy) return
     setBusy(true)
     setError(null)
     const message = await view.mergePull({ method, deleteSourceBranch })
@@ -70,14 +81,14 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
                 <div className="dsh-gitlog-merge-approval-actions">
                   <Button
                     loading={view.giteeDecision === 'review'}
-                    disabled={busy || view.giteeDecision !== null || view.merging !== null}
+                    disabled={approvalBusy}
                     onClick={() => { void approve('review') }}
                   >
                     {t('pullGiteeReview')}
                   </Button>
                   <Button
                     loading={view.giteeDecision === 'test'}
-                    disabled={busy || view.giteeDecision !== null || view.merging !== null}
+                    disabled={approvalBusy}
                     onClick={() => { void approve('test') }}
                   >
                     {t('pullGiteeTest')}
@@ -130,7 +141,7 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
         <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
         <Button
           variant="primary"
-          disabled={busy || blocked || view.giteeDecision !== null}
+          disabled={mergeBusy}
           onClick={() => { void submit() }}
         >
           {busy ? t('pullMerging') : t('pullMergeAction')}

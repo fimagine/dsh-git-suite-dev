@@ -28,6 +28,14 @@ function cleanup(root) {
   }
 }
 
+function restoreEnv(t, key) {
+  const previous = process.env[key]
+  t.after(() => {
+    if (previous === undefined) delete process.env[key]
+    else process.env[key] = previous
+  })
+}
+
 async function call(handler, root, body) {
   const server = http.createServer((req, res) => { void handler(req, res) })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -44,7 +52,8 @@ async function call(handler, root, body) {
   }
 }
 
-test('delete handler rejects non-GitLab forges and missing tokens', async () => {
+test('delete handler rejects non-GitLab forges and missing tokens', async (t) => {
+  restoreEnv(t, 'GITLAB_TOKEN')
   const gitee = tempRepo('https://gitee.com/acme/demo.git')
   const giteeResult = await call(createPullDeleteHandler({ workspaces: () => [], defaultPath: () => gitee }), gitee, { number: 1 })
   assert.equal(giteeResult.status, 400)
@@ -59,7 +68,8 @@ test('delete handler rejects non-GitLab forges and missing tokens', async () => 
   cleanup(gitlab)
 })
 
-test('Gitee handler validates action and number', async () => {
+test('Gitee handler validates action and number', async (t) => {
+  restoreEnv(t, 'GITEE_TOKEN')
   const root = tempRepo('https://gitee.com/acme/demo.git')
   process.env.GITEE_TOKEN = 'token'
   const handler = createGiteeDecisionHandler({ workspaces: () => [], defaultPath: () => root })
@@ -72,7 +82,8 @@ test('Gitee handler validates action and number', async () => {
   cleanup(root)
 })
 
-test('withForgePost returns 504 when the handler exceeds its timeout', async () => {
+test('withForgePost returns 504 when the handler exceeds its timeout', async (t) => {
+  restoreEnv(t, 'GITLAB_TOKEN')
   const root = tempRepo('https://gitlab.com/acme/demo.git')
   process.env.GITLAB_TOKEN = 'token'
   const req = Readable.from([Buffer.from(JSON.stringify({ path: root, remote: 'origin', number: 1 }))])

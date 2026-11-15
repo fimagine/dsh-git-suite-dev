@@ -12,7 +12,7 @@ const PR_REFRESH_MS = 60_000
 const AI_REVIEW_MODE_KEY = 'dsh.git-suite.ai-review-mode.v1'
 
 export type PullActionResult =
-  | { ok: true }
+  | { ok: true; warning?: string }
   | { ok: false; auth: true }
   | { ok: false; auth: false; message: string }
 
@@ -554,7 +554,11 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
       if (selectedRef.current === number) {
         const refreshed = await selectPull(number, true)
-        if (!refreshed) toast(t('pullDetailRefreshFailed'))
+        if (!refreshed) {
+          const warning = t('pullDetailRefreshFailed')
+          toast(warning)
+          return { ok: true, warning }
+        }
       }
       return { ok: true }
     } catch (error) {
