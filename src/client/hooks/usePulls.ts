@@ -609,7 +609,13 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         : t('pullCheckoutDone').replace('{number}', String(number)).replace('{branch}', payload.branch))
       onCheckedOut()
     } catch (checkoutError) {
-      toast(toApiError(checkoutError).message, 'error')
+      const apiError = toApiError(checkoutError)
+      if (apiError.code === 'worktree-dirty') {
+        const count = typeof apiError.details?.count === 'number' ? apiError.details.count : 0
+        toast(t('pullCheckoutDirty').replace('{count}', String(count)), 'error')
+      } else {
+        toast(apiError.message, 'error')
+      }
     } finally {
       setCheckingOut(null)
     }

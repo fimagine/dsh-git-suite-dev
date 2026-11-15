@@ -249,6 +249,25 @@ export function createPullHandler(
         return
       }
 
+      // Preflight before any network or branch work: a dirty tree must be
+      // committed or stashed explicitly instead of relying on git switch.
+      let statusOutput = ''
+      try {
+        statusOutput = await runGit(repo.root, ['status', '--porcelain=v1', '--untracked-files=normal'], signal)
+      } catch (error) {
+        throw gitFailure(error)
+      }
+      if (statusOutput.trim() !== '') {
+        const entries = statusOutput.split(/\r?\n/).filter(line => line.trim() !== '')
+        const files = entries.slice(0, 20).map(line => line.slice(3).trim()).filter(path => path !== '')
+        throw new RouteError(
+          409,
+          'worktree-dirty',
+          'The working tree has uncommitted changes. Commit or stash them before checking out a pull request.',
+          { files, count: entries.length },
+        )
+      }
+
       // Metadata drives the source-branch fallback; a failure here is not fatal
       // when the forge's pull-request ref can still be fetched.
       let detail: PullDetail | null = null
