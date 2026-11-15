@@ -484,6 +484,7 @@ export const en = {
   pullReviewPending: 'Review pending',
   pullMerge: 'Merge',
   pullMergeTitle: 'Merge pull request',
+  pullMergeGiteeReviewRequired: 'Gitee requires the pull request to pass its review and test steps before merging. Complete both on the PR page, then merge again.',
   pullMergeMethod: 'Merge method',
   pullMergeMethodMerge: 'Create a merge commit',
   pullMergeMethodSquash: 'Squash and merge',

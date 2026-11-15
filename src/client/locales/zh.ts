@@ -486,6 +486,7 @@ export const zh: Record<LocaleKey, string> = {
   pullReviewPending: '待评审',
   pullMerge: '合并',
   pullMergeTitle: '合并 PR',
+  pullMergeGiteeReviewRequired: 'Gitee 要求 PR 先完成「审查通过」和「测试通过」才能合并。请先在 PR 页面完成这两步，再回来合并。',
   pullMergeMethod: '合并方式',
   pullMergeMethodMerge: '创建合并提交',
   pullMergeMethodSquash: '压缩合并',

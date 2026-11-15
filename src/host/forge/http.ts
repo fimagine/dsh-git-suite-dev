@@ -205,6 +205,7 @@ export async function forgeJson<T>(
     throw new RouteError(502, 'forge-request-failed', `The forge answered with HTTP ${response.status}.`, {
       ...providerDetails(target),
       detail,
+      status: response.status,
     })
   }
 

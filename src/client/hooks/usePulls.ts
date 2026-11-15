@@ -495,11 +495,18 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         promptAuth(apiError, remote)
         return null
       }
+      if (
+        apiError.code === 'forge-request-failed'
+        && apiError.details?.status === 405
+        && forgeOf(remotes, remote)?.provider === 'gitee'
+      ) {
+        return t('pullMergeGiteeReviewRequired')
+      }
       return apiError.message
     } finally {
       setMerging(null)
     }
-  }, [merging, promptAuth, remote, repoRoot, selectPull, selected, state, t])
+  }, [merging, promptAuth, remote, remotes, repoRoot, selectPull, selected, state, t])
 
   const runAiReview = useCallback((numberOverride?: number, modeOverride?: AiReviewMode): void => {
     const number = numberOverride ?? selected
