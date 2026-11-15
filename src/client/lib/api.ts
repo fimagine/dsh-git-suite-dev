@@ -33,6 +33,7 @@ import type {
   PullMergePayload,
   PullMergeRequest,
   PullGiteeDecisionPayload,
+  PullDeletePayload,
   PullAiReviewPayload,
   AiReviewMode,
   AiReviewStreamEvent,
@@ -359,6 +360,14 @@ export async function requestPullGiteeDecision(
   signal?: AbortSignal,
 ): Promise<PullGiteeDecisionPayload> {
   return postCommitJson<PullGiteeDecisionPayload>('/git-suite/pr-gitee-decision', body, signal)
+}
+
+/** POST /git-suite/pr-delete: permanently delete a GitLab merge request. */
+export async function requestPullDelete(
+  body: PullCheckoutRequest,
+  signal?: AbortSignal,
+): Promise<PullDeletePayload> {
+  return postCommitJson<PullDeletePayload>('/git-suite/pr-delete', body, signal)
 }
 
 export interface PullAiReviewCall {

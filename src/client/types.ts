@@ -229,6 +229,11 @@ export interface PullGiteeDecisionPayload {
   number: number
 }
 
+export interface PullDeletePayload {
+  ok: true
+  number: number
+}
+
 export type AiReviewMode = 'diff' | 'api' | 'worktree'
 
 export interface PullAiReviewPayload {

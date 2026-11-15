@@ -126,7 +126,7 @@ LICENSE
 
 | File | Responsibility |
 |---|---|
-| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, branch actions, credentials, pull-request checkout, close, reopen, creation, merge, AI review, and Gitee approvals |
+| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, branch actions, credentials, pull-request checkout, close, reopen, creation, merge, AI review, Gitee approvals, and deletion |
 | `host/resource.ts` | Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
 | `host/workspace-action.ts` | Node handler for stage/unstage, stage or unstage individual hunks or selected lines (`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines` via `git apply --cached [--reverse] --recount --unidiff-zero` on a patch built by `host/patch.ts`), discard one file's unstaged changes (`checkout --`), delete one untracked file, append an ignore pattern to `.gitignore`, commit (optionally amend), and the optional push |
@@ -188,6 +188,7 @@ LICENSE
 | `client/hooks/usePulls.ts` | PR view state: supported remotes and the default remote, open/closed/all filtering, list and detail requests, the token prompt on 401, and the refresh after a checkout; nothing is requested while another view is visible |
 | `client/components/PullsPane.tsx` | PR page: remote/filter toolbar, virtualized list, and detail (description, discussion, AI review, CI status, commits, files with a switchable diff layout), open-in-browser, checkout, merge, close, and reopen actions; a numbered entry appears when the current branch already has an open request |
 | `client/components/MergePullDialog.tsx` | Merge confirmation with method, source-branch deletion, blocked/failing-checks warnings; Gitee also shows **Approve review** and **Mark test passed** |
+| `client/components/DeletePullDialog.tsx` | GitLab MR deletion confirmation requiring an explicit irreversible-action check |
 | `client/components/PullChecksBadge.tsx` | CI rollup pill linking to the forge's checks page |
 | `client/components/PullReviewBadge.tsx` | Read-only review summary: approved / changes requested / pending |
 | `client/components/Markdown.tsx` | Safe Markdown rendering for discussion and AI reviews: headings, paragraphs, lists, quotes, code blocks (Prism), tables, inline code/links/emphasis; no raw HTML, links limited to http(s) |

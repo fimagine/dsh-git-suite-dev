@@ -3511,6 +3511,11 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 12px;
   }
 
+  &-danger-text {
+    color: var(--dsw-alias-state-error-primary);
+    font-weight: 600;
+  }
+
   &-pull-merge-meta {
     display: flex;
     flex-wrap: wrap;

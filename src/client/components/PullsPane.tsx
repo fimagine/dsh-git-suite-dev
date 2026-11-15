@@ -10,6 +10,7 @@ import type { PullFile, PullSummary, Translate } from '../types.js'
 import { Button } from './Button.js'
 import { AiReviewDialog } from './AiReviewDialog.js'
 import { CreatePullDialog } from './CreatePullDialog.js'
+import { DeletePullDialog } from './DeletePullDialog.js'
 import { DiffView } from './DiffView.js'
 import { Dropdown } from './Dropdown.js'
 import { ForgeAuthDialog } from './ForgeAuthDialog.js'
@@ -128,6 +129,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
   const [stateDialog, setStateDialog] = useState<PullStateAction | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [aiDialogOpen, setAiDialogOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [openSections, setOpenSections] = useState<Record<PullSectionKey, boolean>>(OPEN_SECTIONS)
   const diffMode = useDiffMode()
   const pull = view.detail
@@ -138,6 +140,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
     setStateDialog(null)
     setMergeOpen(false)
     setAiDialogOpen(false)
+    setDeleteOpen(false)
     setOpenSections(OPEN_SECTIONS)
   }, [pull?.number, pull?.webUrl])
 
@@ -236,6 +239,9 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
             : pull.state === 'closed'
               ? <Button onClick={() => setStateDialog('reopen')}>{t('pullReopen')}</Button>
               : null}
+          {forge?.provider === 'gitlab'
+            ? <Button variant="danger" onClick={() => setDeleteOpen(true)}>{t('pullDelete')}</Button>
+            : null}
         </div>
       </header>
 
@@ -432,6 +438,10 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
 
       {aiDialogOpen
         ? <AiReviewDialog view={view} t={t} onClose={() => setAiDialogOpen(false)} />
+        : null}
+
+      {deleteOpen
+        ? <DeletePullDialog view={view} number={pull.number} t={t} onClose={() => setDeleteOpen(false)} />
         : null}
 
       {stateDialog === null

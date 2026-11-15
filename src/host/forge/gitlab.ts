@@ -317,8 +317,7 @@ export async function mergeGitlabPull(
   token: string,
   input: PullMergeInput,
   signal?: AbortSignal,
-): Promise<PullMergeResult> {
-  const pull = await forgeJson<GitLabMergeRequest>(
+): Promise<PullMergeResult> {  const pull = await forgeJson<GitLabMergeRequest>(
     target,
     `${projectId(target)}/merge_requests/${number}/merge`,
     token,
@@ -338,4 +337,16 @@ export async function mergeGitlabPull(
     sha: typeof pull.merge_commit_sha === 'string' ? pull.merge_commit_sha : null,
     branchDeleted: merged && input.deleteSourceBranch,
   }
+}
+
+/** Permanently delete a merge request (GitLab owners/admins only). */
+export async function deleteGitlabPull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${projectId(target)}/merge_requests/${number}`, token, signal, {
+    method: 'DELETE',
+  })
 }

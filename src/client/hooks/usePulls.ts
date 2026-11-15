@@ -1,7 +1,7 @@
 import type { ForgeAuthPrompt } from '../components/ForgeAuthDialog.js'
 import { toast } from '../components/Toast.js'
 import { useCallback, useEffect, useRef, useState } from '../runtime.js'
-import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullGiteeDecision, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
+import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullDelete, requestPullGiteeDecision, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
 import { defaultForgeRemote, forgeOf, supportedRemotes } from '../lib/forge.js'
 import type { AiReviewMode, DetailStatus, LoadStatus, PullCreateRequest, PullDetail, PullMergeRequest, PullSummary, RemoteGroup, Translate } from '../types.js'
 
@@ -65,6 +65,10 @@ export interface PullsView {
   giteeDecision: 'review' | 'test' | null
   /** Mark Gitee review or test as passed; resolves with an error message, or null. */
   decideGitee(action: 'review' | 'test'): Promise<string | null>
+  /** Non-null while a delete request is in flight. */
+  deleting: number | null
+  /** Permanently delete a GitLab merge request; resolves with an error message, or null. */
+  deletePull(number: number): Promise<string | null>
   /** Read-only AI review of the selected request. */
   aiReview: string
   aiReviewReasoning: string
@@ -129,6 +133,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const [reopening, setReopening] = useState<number | null>(null)
   const [merging, setMerging] = useState<number | null>(null)
   const [giteeDecision, setGiteeDecision] = useState<'review' | 'test' | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
   const [aiReview, setAiReview] = useState('')
   const [aiReviewReasoning, setAiReviewReasoning] = useState('')
   const [aiReviewAttempt, setAiReviewAttempt] = useState(1)
@@ -145,6 +150,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const pendingMerge = useRef<{ number: number; input: PullMergeRequest } | null>(null)
   /** Gitee approval that failed on auth; retried after saving the token. */
   const pendingGiteeDecision = useRef<{ number: number; action: 'review' | 'test' } | null>(null)
+  /** Delete that failed on auth; retried after saving the token. */
+  const pendingDelete = useRef<number | null>(null)
   /** AI review that failed on auth; retried after saving the token. */
   const pendingAiReview = useRef<{ number: number; mode: AiReviewMode } | null>(null)
   const aiAbort = useRef<AbortController | null>(null)
@@ -190,6 +197,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     pendingCreate.current = null
     pendingMerge.current = null
     pendingGiteeDecision.current = null
+    pendingDelete.current = null
     pendingAiReview.current = null
     aiAbort.current?.abort()
     aiAbort.current = null
@@ -537,6 +545,32 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     }
   }, [giteeDecision, promptAuth, remote, repoRoot, selected, t])
 
+  const deletePull = useCallback(async (number: number): Promise<string | null> => {
+    if (deleting !== null || repoRoot === '' || remote === '') return null
+    setDeleting(number)
+    try {
+      await requestPullDelete({ path: repoRoot, remote, number })
+      toast(t('pullDeleted').replace('{number}', String(number)))
+      setPulls(current => current.filter(item => item.number !== number))
+      setSelected(null)
+      setDetail(null)
+      setDetailStatus('idle')
+      freshRef.current = true
+      setReload(value => value + 1)
+      return null
+    } catch (error) {
+      const apiError = toApiError(error)
+      if (apiError.code === 'forge-auth-required') {
+        pendingDelete.current = number
+        promptAuth(apiError, remote)
+        return null
+      }
+      return apiError.message
+    } finally {
+      setDeleting(null)
+    }
+  }, [deleting, promptAuth, remote, repoRoot, t])
+
   const runAiReview = useCallback((numberOverride?: number, modeOverride?: AiReviewMode): void => {
     const number = numberOverride ?? selected
     const mode = modeOverride ?? aiReviewMode
@@ -664,6 +698,12 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         await decideGitee(pendingApproval.action)
         return
       }
+      const pendingRemoval = pendingDelete.current
+      pendingDelete.current = null
+      if (pendingRemoval !== null) {
+        await deletePull(pendingRemoval)
+        return
+      }
       const pendingReview = pendingAiReview.current
       pendingAiReview.current = null
       if (pendingReview !== null) {
@@ -682,7 +722,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     } finally {
       setAuthBusy(false)
     }
-  }, [authBusy, authPrompt, changePullState, createPull, decideGitee, mergePull, repoRoot, runAiReview, selected, selectPull])
+  }, [authBusy, authPrompt, changePullState, createPull, decideGitee, deletePull, mergePull, repoRoot, runAiReview, selected, selectPull])
 
   const dismissAuth = useCallback((): void => {
     setAuthPrompt(null)
@@ -752,6 +792,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     mergePull,
     giteeDecision,
     decideGitee,
+    deleting,
+    deletePull,
     aiReview,
     aiReviewReasoning,
     aiReviewAttempt,
