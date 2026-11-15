@@ -86,8 +86,10 @@ export interface BranchDeleteDialogProps {
 export function BranchDeleteDialog({ view, branch, t, onClose }: BranchDeleteDialogProps): React.ReactElement {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [forcePrompt, setForcePrompt] = useState(false)
+  const [forceConfirmed, setForceConfirmed] = useState(false)
 
-  const confirm = async (): Promise<void> => {
+  const confirm = async (force = false): Promise<void> => {
     setBusy(true)
     setError(null)
     try {
@@ -95,11 +97,18 @@ export function BranchDeleteDialog({ view, branch, t, onClose }: BranchDeleteDia
         action: 'delete',
         path: view.repo?.repoRoot ?? view.pathInput.trim(),
         branch: branch.name,
+        ...(force ? { force: true } : {}),
       })
       view.selectRef(selectionAfterHeadChange(view.selection))
       onClose()
     } catch (failure) {
-      setError(toApiError(failure).message)
+      const message = toApiError(failure).message
+      if (!force && /not fully merged/i.test(message)) {
+        setForcePrompt(true)
+        setError(null)
+      } else {
+        setError(message)
+      }
       setBusy(false)
     }
   }
@@ -107,12 +116,39 @@ export function BranchDeleteDialog({ view, branch, t, onClose }: BranchDeleteDia
   return (
     <DialogShell title={t('branchDeleteTitle')} t={t} onClose={onClose}>
       <p className="dsh-gitlog-note">{t('branchDeleteConfirm').replace('{branch}', branch.name)}</p>
+      {forcePrompt
+        ? (
+            <div className="dsh-gitlog-branch-delete-warning">
+              <p className="dsh-gitlog-danger-text">{t('branchDeleteUnmerged')}</p>
+              <label className="dsh-gitlog-check">
+                <input
+                  type="checkbox"
+                  checked={forceConfirmed}
+                  onChange={event => setForceConfirmed(event.target.checked)}
+                />
+                {t('branchDeleteForceConfirm')}
+              </label>
+            </div>
+          )
+        : null}
       {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
       <DialogActions>
         <Button onClick={onClose}>{t('cancel')}</Button>
-        <Button variant="danger" disabled={busy} onClick={() => { void confirm() }}>
-          {busy ? t('branchDeleting') : t('branchDeleteAction')}
-        </Button>
+        {forcePrompt
+          ? (
+              <Button
+                variant="danger"
+                disabled={busy || !forceConfirmed}
+                onClick={() => { void confirm(true) }}
+              >
+                {busy ? t('branchDeleting') : t('branchDeleteForceAction')}
+              </Button>
+            )
+          : (
+              <Button variant="danger" disabled={busy} onClick={() => { void confirm() }}>
+                {busy ? t('branchDeleting') : t('branchDeleteAction')}
+              </Button>
+            )}
       </DialogActions>
     </DialogShell>
   )

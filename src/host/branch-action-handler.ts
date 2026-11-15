@@ -13,6 +13,7 @@ interface BranchActionBody {
   remote?: unknown
   newName?: unknown
   target?: unknown
+  force?: unknown
 }
 
 const MAX_BODY_BYTES = 16 * 1024
@@ -186,7 +187,7 @@ export function createBranchActionHandler(context: RouteContext): (req: Incoming
         }
       } else {
         try {
-          await runGit(repo.root, ['branch', '-d', branch], controller.signal)
+          await runGit(repo.root, ['branch', body.force === true ? '-D' : '-d', branch], controller.signal)
         } catch (error) {
           throw gitFailure(error).withDetails({ branch })
         }

@@ -784,6 +784,8 @@ export interface BranchActionRequest {
   newName?: string
   /** ebase-onto only: any commit, tag, or branch to rebase onto. */
   target?: string
+  /** Delete only: force deletion even when the branch is not fully merged. */
+  force?: boolean
 }
 
 /** POST /git-suite/branch-action: merge, rebase, rename, or delete a local branch. */

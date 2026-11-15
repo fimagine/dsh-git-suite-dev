@@ -3532,6 +3532,12 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 12px;
   }
 
+  &-branch-delete-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   &-danger-text {
     color: var(--dsw-alias-state-error-primary);
     font-weight: 600;
