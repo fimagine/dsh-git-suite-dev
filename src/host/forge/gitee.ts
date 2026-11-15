@@ -252,8 +252,7 @@ export async function mergeGiteePull(
   token: string,
   input: PullMergeInput,
   signal?: AbortSignal,
-): Promise<PullMergeResult> {
-  const result = await forgeJson<{ merged?: boolean; message?: string; sha?: string }>(
+): Promise<PullMergeResult> {  const result = await forgeJson<{ merged?: boolean; message?: string; sha?: string }>(
     target,
     `${repoPath(target)}/pulls/${number}/merge`,
     token,
@@ -272,4 +271,28 @@ export async function mergeGiteePull(
     sha: typeof result?.sha === 'string' ? result.sha : null,
     branchDeleted: input.deleteSourceBranch,
   }
+}
+
+/** Mark the PR review step as passed (`POST …/pulls/{number}/review`). */
+export async function reviewGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${repoPath(target)}/pulls/${number}/review`, token, signal, {
+    method: 'POST',
+  })
+}
+
+/** Mark the PR test step as passed (`POST …/pulls/{number}/test`). */
+export async function testGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${repoPath(target)}/pulls/${number}/test`, token, signal, {
+    method: 'POST',
+  })
 }

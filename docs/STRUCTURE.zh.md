@@ -126,7 +126,7 @@ LICENSE
 
 | 文件 | 职责 |
 |---|---|
-| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr / pr-close / pr-reopen / pr-create / pr-merge / pr-ai-review POST handler |
+| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr / pr-close / pr-reopen / pr-create / pr-merge / pr-ai-review / pr-gitee-decision POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、按 hunk 或按选中行暂存/取消暂存（`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines`，由 `host/patch.ts` 组装补丁后 `git apply --cached [--reverse] --recount --unidiff-zero`）、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
@@ -187,7 +187,7 @@ LICENSE
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
 | `client/hooks/usePulls.ts` | PR 视图状态：受支持的远端与默认远端、开放中/已关闭/全部筛选、列表与详情请求、401 时的令牌对话框、检出后的刷新；只有 PR 视图可见时才请求 |
 | `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、虚拟列表、详情（描述、讨论、AI 审查、CI 状态、提交、文件与可切换布局的差异）、在浏览器打开、检出到本地、合并、关闭/重新打开；当前分支已有 PR 时显示编号入口 |
-| `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示 |
+| `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示；Gitee 额外提供「审查通过」「测试通过」按钮 |
 | `client/components/PullChecksBadge.tsx` | CI 汇总胶囊，带平台检查页链接 |
 | `client/components/PullReviewBadge.tsx` | 评审只读汇总：已批准/有修改意见/待评审 |
 | `client/components/Markdown.tsx` | 安全 Markdown 渲染：标题、段落、列表、引用、代码块（Prism 高亮）、表格、行内代码/链接/粗斜体；不渲染原始 HTML，链接仅允许 http(s)；用于讨论与 AI 审查 |

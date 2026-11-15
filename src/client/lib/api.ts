@@ -32,6 +32,7 @@ import type {
   PullCreatePayload,
   PullMergePayload,
   PullMergeRequest,
+  PullGiteeDecisionPayload,
   PullAiReviewPayload,
   AiReviewMode,
   AiReviewStreamEvent,
@@ -343,6 +344,21 @@ export async function requestPullMerge(
   signal?: AbortSignal,
 ): Promise<PullMergePayload> {
   return postCommitJson<PullMergePayload>('/git-suite/pr-merge', body, signal)
+}
+
+export interface PullGiteeDecisionCall {
+  path: string
+  remote: string
+  number: number
+  action: 'review' | 'test'
+}
+
+/** POST /git-suite/pr-gitee-decision: mark Gitee review or test as passed. */
+export async function requestPullGiteeDecision(
+  body: PullGiteeDecisionCall,
+  signal?: AbortSignal,
+): Promise<PullGiteeDecisionPayload> {
+  return postCommitJson<PullGiteeDecisionPayload>('/git-suite/pr-gitee-decision', body, signal)
 }
 
 export interface PullAiReviewCall {

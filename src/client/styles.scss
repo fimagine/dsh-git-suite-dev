@@ -3518,6 +3518,22 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 8px;
   }
 
+  &-merge-approvals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+  }
+
+  &-merge-approval-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   &-pull-merge-warning {
     color: var(--dsw-alias-state-error-primary);
     font-size: $font-tiny;

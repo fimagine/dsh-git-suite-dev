@@ -28,8 +28,15 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
   const [deleteSourceBranch, setDeleteSourceBranch] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
   const blocked = pull.mergeable === false
   const failing = pull.checks?.state === 'failure'
+
+  const approve = async (action: 'review' | 'test'): Promise<void> => {
+    setApprovalError(null)
+    const message = await view.decideGitee(action)
+    if (message !== null) setApprovalError(message)
+  }
 
   const submit = async (): Promise<void> => {
     if (busy || blocked) return
@@ -54,6 +61,34 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
           {blocked ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeBlocked')}</span> : null}
           {failing ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeChecksFailing')}</span> : null}
         </div>
+        {provider === 'gitee'
+          ? (
+              <div className="dsh-gitlog-merge-approvals">
+                <p className="dsh-gitlog-field-hint">{t('pullGiteeApprovalsHint')}</p>
+                <div className="dsh-gitlog-merge-approval-actions">
+                  <Button
+                    variant="ghost"
+                    loading={view.giteeDecision === 'review'}
+                    disabled={busy || view.giteeDecision !== null}
+                    onClick={() => { void approve('review') }}
+                  >
+                    {t('pullGiteeReview')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    loading={view.giteeDecision === 'test'}
+                    disabled={busy || view.giteeDecision !== null}
+                    onClick={() => { void approve('test') }}
+                  >
+                    {t('pullGiteeTest')}
+                  </Button>
+                </div>
+                {approvalError === null
+                  ? null
+                  : <p className="dsh-gitlog-note" role="alert">{approvalError}</p>}
+              </div>
+            )
+          : null}
         <label className="dsh-gitlog-field">
           <span>{t('pullMergeMethod')}</span>
           <Dropdown

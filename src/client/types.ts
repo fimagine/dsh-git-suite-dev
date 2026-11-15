@@ -223,6 +223,12 @@ export interface PullMergePayload {
   branchDeleted: boolean
 }
 
+export interface PullGiteeDecisionPayload {
+  ok: true
+  action: 'review' | 'test'
+  number: number
+}
+
 export type AiReviewMode = 'diff' | 'api' | 'worktree'
 
 export interface PullAiReviewPayload {
