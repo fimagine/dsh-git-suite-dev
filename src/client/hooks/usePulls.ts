@@ -11,6 +11,11 @@ const MAX_PULLS = 300
 const PR_REFRESH_MS = 60_000
 const AI_REVIEW_MODE_KEY = 'dsh.git-suite.ai-review-mode.v1'
 
+export type PullActionResult =
+  | { ok: true }
+  | { ok: false; auth: true }
+  | { ok: false; auth: false; message: string }
+
 function readAiReviewMode(): AiReviewMode {
   try {
     const value = window.localStorage.getItem(AI_REVIEW_MODE_KEY)
@@ -63,12 +68,12 @@ export interface PullsView {
   mergePull(input: PullMergeRequest): Promise<string | null>
   /** Non-null while a Gitee review/test approval is in flight. */
   giteeDecision: 'review' | 'test' | null
-  /** Mark Gitee review or test as passed; resolves with an error message, or null. */
-  decideGitee(action: 'review' | 'test', numberOverride?: number): Promise<string | null>
+  /** Mark Gitee review or test as passed; resolves with the action result. */
+  decideGitee(action: 'review' | 'test', numberOverride?: number): Promise<PullActionResult>
   /** Non-null while a delete request is in flight. */
   deleting: number | null
-  /** Permanently delete a GitLab merge request; resolves with an error message, or null. */
-  deletePull(number: number): Promise<string | null>
+  /** Permanently delete a GitLab merge request; resolves with the action result. */
+  deletePull(number: number): Promise<PullActionResult>
   /** Read-only AI review of the selected request. */
   aiReview: string
   aiReviewReasoning: string
@@ -524,35 +529,40 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     }
   }, [merging, promptAuth, remote, remotes, repoRoot, selectPull, selected, state, t])
 
-  const decideGitee = useCallback(async (action: 'review' | 'test', numberOverride?: number): Promise<string | null> => {
+  const decideGitee = useCallback(async (action: 'review' | 'test', numberOverride?: number): Promise<PullActionResult> => {
     const number = numberOverride ?? selected
-    if (number === null || giteeDecision !== null || repoRoot === '' || remote === '') return null
+    if (number === null || repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullGiteeBusy') }
+    }
+    if (giteeDecision !== null) return { ok: false, auth: false, message: t('pullGiteeBusy') }
     setGiteeDecision(action)
     try {
       await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
       if (selected === number) void selectPull(number, true)
-      return null
+      return { ok: true }
     } catch (error) {
       const apiError = toApiError(error)
       if (apiError.code === 'forge-auth-required') {
         pendingGiteeDecision.current = { number, action }
         promptAuth(apiError, remote)
-        return null
+        return { ok: false, auth: true }
       }
-      return apiError.message
+      return { ok: false, auth: false, message: apiError.message }
     } finally {
       setGiteeDecision(null)
     }
   }, [giteeDecision, promptAuth, remote, repoRoot, selectPull, selected, t])
 
-  const deletePull = useCallback(async (number: number): Promise<string | null> => {
-    if (repoRoot === '' || remote === '') return null
-    if (deleting !== null) return t('pullDeleteBusy')
+  const deletePull = useCallback(async (number: number): Promise<PullActionResult> => {
+    if (repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullDeleteBusy') }
+    }
+    if (deleting !== null) return { ok: false, auth: false, message: t('pullDeleteBusy') }
     setDeleting(number)
     try {
       await requestPullDelete({ path: repoRoot, remote, number })
-      toast(t('pullDeleted').replace('{number}', String(number)))
+      toast(t('pullDeleted').replaceAll('{number}', String(number)))
       pendingDelete.current = null
       detailAbort.current?.abort()
       detailAbort.current = null
@@ -560,17 +570,18 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       setSelected(null)
       setDetail(null)
       setDetailStatus('idle')
+      setDetailError(null)
       freshRef.current = true
       setReload(value => value + 1)
-      return null
+      return { ok: true }
     } catch (error) {
       const apiError = toApiError(error)
       if (apiError.code === 'forge-auth-required') {
         pendingDelete.current = number
         promptAuth(apiError, remote)
-        return null
+        return { ok: false, auth: true }
       }
-      return apiError.message
+      return { ok: false, auth: false, message: apiError.message }
     } finally {
       setDeleting(null)
     }

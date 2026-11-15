@@ -16,17 +16,17 @@ export interface DeletePullDialogProps {
 export function DeletePullDialog({ view, number, t, onClose }: DeletePullDialogProps): React.ReactElement {
   const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const busy = view.deleting !== null
+  const busy = view.deleting === number
 
   const submit = async (): Promise<void> => {
     if (busy || !confirmed) return
     setError(null)
-    const message = await view.deletePull(number)
-    if (message === null) {
+    const result = await view.deletePull(number)
+    if (result.ok) {
       onClose()
       return
     }
-    setError(message)
+    if (!result.auth) setError(result.message)
   }
 
   return (

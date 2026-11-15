@@ -143,7 +143,8 @@ LICENSE
 | `host/remote-handler.ts` | `POST /git-suite/remote`：新增（`action: 'add'`）、改名和/或修改地址（`action: 'set-url'`）或删除（`action: 'remove'`）指定远端，会校验名称、地址格式以及是否已存在 |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；把当前分支变基到任意引用（`rebase-onto`，目标用 `rev-parse --verify` 解析，遇到冲突返回 `409 operation-conflict`）；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` |
-| `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验 |
+| `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验；`readJsonBody`（Content-Length/实际字节上限）与 `sendResponse`（已关闭响应保护） |
+| `host/forge-post.ts` | 写操作路由公共流程：私有头、POST、body 上限、超时、repository/remote/forge/token 解析与错误回写 |
 | `host/git.ts` | 执行只读 git 命令并把失败映射为错误码 |
 | `host/repository.ts` | 校验路径并用 `rev-parse` 解析仓库根目录 |
 | `host/remote-url.ts` | 接受 https/ssh/git/file 与绝对本地路径，拒绝 `ext::` 之类的命令型传输 |
@@ -158,6 +159,8 @@ LICENSE
 | `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（`state=open|closed|all`，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
 | `host/pr-handler.ts` | `POST /git-suite/pr`：`action: 'checkout'`（默认）检出 PR——依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`（工作区有冲突改动时返回 `409 worktree-dirty`）；`POST /git-suite/pr-close`、`POST /git-suite/pr-reopen` 与 `POST /git-suite/pr-merge` 复用同一个 handler（默认 `close` / `reopen` / `merge`）：前两者调平台 API 改变状态并保留源分支，合并按 merge/squash/rebase（仅 GitHub 支持 rebase）并可删除源分支；缺少令牌时返回 `401 forge-auth-required` |
 | `host/pr-create-handler.ts` | `POST /git-suite/pr-create`：校验标题/描述，目标远端由 `remote` 指定；源分支取当前分支的 upstream 远端与分支名，两个远端必须同平台同主机。校验 head/base 都存在于各自远端，缺少令牌返回 `401 forge-auth-required`；同仓库时直接提交分支，跨仓库时 GitHub/Gitee 提交 `owner:branch`、GitLab 先解析 `source_project_id`；分支未推送返回 `409 branch-not-pushed` |
+| `host/pr-gitee-decision-handler.ts` | `POST /git-suite/pr-gitee-decision`：把 Gitee PR 的审查/测试标记为通过；provider 必须是 Gitee |
+| `host/pr-delete-handler.ts` | `POST /git-suite/pr-delete`：删除 GitLab MR（GitHub/Gitee 只能关闭）；provider 必须是 GitLab |
 | `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`：按模型的 `contextWindow` 动态分配 diff/完整文件预算（源码优先，无元数据时回退 120k/80k），按 `context` 获取上下文，调用默认模型；支持 JSON 或 `stream:true` 的 NDJSON（`start`/`reasoning`/`text`/`retry`/`done`/`error`）；不写平台 |
 | `host/pr-review-context.ts` | 按用户选择读取完整文件：临时 worktree（不执行代码，随即清理）、平台 contents API 或仅 diff；限制文件数/单文件/总字符数 |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |

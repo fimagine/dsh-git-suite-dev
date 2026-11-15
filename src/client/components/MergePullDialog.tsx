@@ -34,12 +34,12 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
 
   const approve = async (action: 'review' | 'test'): Promise<void> => {
     setApprovalError(null)
-    const message = await view.decideGitee(action)
-    if (message !== null) setApprovalError(message)
+    const result = await view.decideGitee(action)
+    if (!result.ok && !result.auth) setApprovalError(result.message)
   }
 
   const submit = async (): Promise<void> => {
-    if (busy || blocked) return
+    if (busy || blocked || view.giteeDecision !== null) return
     setBusy(true)
     setError(null)
     const message = await view.mergePull({ method, deleteSourceBranch })
@@ -68,14 +68,14 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
                 <div className="dsh-gitlog-merge-approval-actions">
                   <Button
                     loading={view.giteeDecision === 'review'}
-                    disabled={busy || view.giteeDecision !== null}
+                    disabled={busy || view.giteeDecision !== null || view.merging !== null}
                     onClick={() => { void approve('review') }}
                   >
                     {t('pullGiteeReview')}
                   </Button>
                   <Button
                     loading={view.giteeDecision === 'test'}
-                    disabled={busy || view.giteeDecision !== null}
+                    disabled={busy || view.giteeDecision !== null || view.merging !== null}
                     onClick={() => { void approve('test') }}
                   >
                     {t('pullGiteeTest')}

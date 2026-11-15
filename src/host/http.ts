@@ -32,6 +32,11 @@ export function failure(error: unknown): Response {
 
 /** Read one bounded JSON object body from a POST handler. */
 export async function readJsonBody<T extends object>(req: IncomingMessage, maxBytes = 64 * 1024): Promise<T> {
+  const declared = req.headers['content-length']
+  const declaredLength = Array.isArray(declared) ? Number(declared[0]) : Number(declared)
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+  }
   const chunks: Buffer[] = []
   let size = 0
   for await (const chunk of req) {
@@ -51,6 +56,7 @@ export async function readJsonBody<T extends object>(req: IncomingMessage, maxBy
 
 /** Write a fetched Response back through the Node response. */
 export async function sendResponse(res: ServerResponse, response: Response): Promise<void> {
+  if (res.writableEnded || res.destroyed) return
   res.statusCode = response.status
   response.headers.forEach((value, key) => {
     res.setHeader(key, value)
