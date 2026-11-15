@@ -3674,7 +3674,7 @@ $brand: var(--dsw-alias-brand-primary);
     }
   }
 
-  &-pull-body {
+  &-pull-description {
     max-height: 220px;
     overflow: auto;
     padding: 10px 12px;
@@ -3682,11 +3682,9 @@ $brand: var(--dsw-alias-brand-primary);
     border-radius: 8px;
     background: $bg-base;
     color: $label-primary;
-    font: inherit;
     font-size: $font-meta;
     line-height: 1.55;
     overflow-wrap: anywhere;
-    white-space: pre-wrap;
   }
 
   &-pull-files {

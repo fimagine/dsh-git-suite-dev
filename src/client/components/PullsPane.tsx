@@ -187,7 +187,9 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
 
       <section className="dsh-gitlog-pull-section">
         <h3>{t('pullDescription')}</h3>
-        <pre className="dsh-gitlog-pull-body">{pull.body.trim() === '' ? t('pullNoBody') : pull.body}</pre>
+        {pull.body.trim() === ''
+          ? <p className="dsh-gitlog-pulls-hint">{t('pullNoBody')}</p>
+          : <Markdown text={pull.body} className="dsh-gitlog-pull-description" />}
       </section>
 
       {view.aiReviewStatus === 'idle' && view.aiReview === ''
