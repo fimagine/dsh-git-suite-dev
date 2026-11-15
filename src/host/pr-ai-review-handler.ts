@@ -7,11 +7,11 @@ import { resolveRemote } from './forge/remote.js'
 import { resolveForgeToken } from './forge/token.js'
 import { admitHeaders, failure, json } from './http.js'
 import { resolveRepository } from './repository.js'
-import type { PullDetail, RouteContext } from './types.js'
+import type { PullDetail, PullFile, RouteContext } from './types.js'
 import { readReviewContext, type ReviewContext, type ReviewContextMode } from './pr-review-context.js'
 
 const MAX_BODY_BYTES = 64 * 1024
-const MAX_PATCH_CHARS = 36_000
+const MAX_PATCH_CHARS = 120_000
 const MAX_DESCRIPTION_CHARS = 4_000
 const MAX_REVIEW_CHARS = 20_000
 
@@ -58,11 +58,22 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
   res.end(Buffer.from(await response.arrayBuffer()))
 }
 
+/** Source files first, so a large documentation tail cannot hide code patches. */
+function reviewPriority(file: PullFile): number {
+  const path = file.path.toLowerCase()
+  if (/(^|\/)(package-lock|pnpm-lock|yarn\.lock|composer\.lock)/.test(path)) return 4
+  if (/(^|\/)docs\//.test(path) || /\.(md|mdx|txt|rst)$/.test(path)) return 3
+  if (/\.(json|ya?ml|toml|ini|lock)$/.test(path)) return 2
+  if (/\.(tsx?|jsx?|mjs|cjs|vue|svelte|py|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|rb|php|sh|lua|dart|scala|ex|exs|hs|erl|clj|jl|ml|sql)$/.test(path)) return 0
+  return 1
+}
+
 function diffExcerpt(pull: PullDetail): { text: string; truncated: boolean } {
   let remaining = MAX_PATCH_CHARS
   let truncated = false
   const parts: string[] = []
-  for (const file of pull.files.slice(0, 60)) {
+  const files = [...pull.files].sort((a, b) => reviewPriority(a) - reviewPriority(b))
+  for (const file of files.slice(0, 80)) {
     const header = `### ${file.path} (${file.status}, +${file.additions ?? '?'} -${file.deletions ?? '?'})`
     if (remaining <= header.length + 2) {
       truncated = true
@@ -71,7 +82,7 @@ function diffExcerpt(pull: PullDetail): { text: string; truncated: boolean } {
     const patch = file.patch.trim()
     const room = Math.max(0, remaining - header.length - 2)
     const body = patch.slice(0, room)
-    parts.push(`${header}\n${body === '' ? '(no textual diff, likely binary)' : body}`)
+    parts.push(`${header}\n${body === '' ? '(no textual patch from the forge; this does not necessarily mean the file is binary)' : body}`)
     remaining -= header.length + body.length + 2
     if (body.length < patch.length) {
       truncated = true
@@ -104,6 +115,8 @@ function buildPrompt(pull: PullDetail, language: string, context: ReviewContext)
       `Changed files (${pull.files.length}${pull.filesTruncated ? '+' : ''}):`,
       diff.text === '' ? '(no textual diff)' : diff.text,
       diff.truncated ? '\n[diff truncated]' : '',
+      '',
+      'Some patches may be unavailable from the forge; when complete file contents are supplied below, trust them over missing patches.',
       '',
       'Full contents of changed files at the PR head (read from a temporary read-only checkout; nothing was executed):',
       fullFiles,
