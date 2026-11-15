@@ -139,6 +139,14 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const [merging, setMerging] = useState<number | null>(null)
   const [giteeDecision, setGiteeDecision] = useState<'review' | 'test' | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
+  /** Synchronous guards: React state may still be stale on a fast second click. */
+  const giteeDecisionRef = useRef<'review' | 'test' | null>(null)
+  const deletingRef = useRef<number | null>(null)
+  const selectedRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
   const [aiReview, setAiReview] = useState('')
   const [aiReviewReasoning, setAiReviewReasoning] = useState('')
   const [aiReviewAttempt, setAiReviewAttempt] = useState(1)
@@ -535,11 +543,13 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       return { ok: false, auth: false, message: t('pullGiteeBusy') }
     }
     if (giteeDecision !== null) return { ok: false, auth: false, message: t('pullGiteeBusy') }
+    if (giteeDecisionRef.current !== null) return { ok: false, auth: false, message: t('pullGiteeBusy') }
+    giteeDecisionRef.current = action
     setGiteeDecision(action)
     try {
       await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
-      if (selected === number) void selectPull(number, true)
+      if (selectedRef.current === number) await selectPull(number, true)
       return { ok: true }
     } catch (error) {
       const apiError = toApiError(error)
@@ -548,17 +558,21 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         promptAuth(apiError, remote)
         return { ok: false, auth: true }
       }
+      pendingGiteeDecision.current = null
       return { ok: false, auth: false, message: apiError.message }
     } finally {
+      giteeDecisionRef.current = null
       setGiteeDecision(null)
     }
-  }, [giteeDecision, promptAuth, remote, repoRoot, selectPull, selected, t])
+  }, [giteeDecision, promptAuth, remote, repoRoot, selectPull, t])
 
   const deletePull = useCallback(async (number: number): Promise<PullActionResult> => {
     if (repoRoot === '' || remote === '') {
       return { ok: false, auth: false, message: t('pullDeleteBusy') }
     }
     if (deleting !== null) return { ok: false, auth: false, message: t('pullDeleteBusy') }
+    if (deletingRef.current !== null) return { ok: false, auth: false, message: t('pullDeleteBusy') }
+    deletingRef.current = number
     setDeleting(number)
     try {
       await requestPullDelete({ path: repoRoot, remote, number })
@@ -581,8 +595,10 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         promptAuth(apiError, remote)
         return { ok: false, auth: true }
       }
+      pendingDelete.current = null
       return { ok: false, auth: false, message: apiError.message }
     } finally {
+      deletingRef.current = null
       setDeleting(null)
     }
   }, [deleting, promptAuth, remote, repoRoot, t])

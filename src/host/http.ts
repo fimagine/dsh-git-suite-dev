@@ -51,7 +51,7 @@ export async function readJsonBody<T extends object>(req: IncomingMessage, maxBy
   }
   try {
     const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    if (typeof parsed !== 'object' || parsed === null) throw new Error('not an object')
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('not an object')
     return parsed as T
   } catch {
     throw new RouteError(400, 'invalid-body', 'The request body must be a JSON object.')

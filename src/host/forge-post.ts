@@ -15,7 +15,21 @@ export interface ForgePostEnv {
   signal: AbortSignal
 }
 
-export interface ForgePostOptions<T extends object> {
+/** Validate the shared `number` field used by pull-request write routes. */
+export function parsePullNumber(value: unknown): number {
+  const number = typeof value === 'number' ? value : Number.NaN
+  if (!Number.isInteger(number) || number <= 0 || number > 2_147_483_647) {
+    throw new RouteError(400, 'invalid-number', 'That pull request number is not valid.')
+  }
+  return number
+}
+
+export interface ForgePostBody {
+  path?: unknown
+  remote?: unknown
+}
+
+export interface ForgePostOptions<T extends ForgePostBody> {
   forbidden: string
   methodMessage: string
   maxBytes?: number
@@ -36,7 +50,7 @@ function header(req: IncomingMessage, name: string): string | null {
  * Shared POST plumbing for forge write routes: same-origin admission, body
  * limits, repository/remote/forge/token resolution, timeout, and response.
  */
-export async function withForgePost<T extends object>(
+export async function withForgePost<T extends ForgePostBody>(
   req: IncomingMessage,
   res: ServerResponse,
   context: RouteContext,
@@ -58,16 +72,19 @@ export async function withForgePost<T extends object>(
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000)
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, options.timeoutMs ?? 30_000)
   const onClose = (): void => controller.abort()
   res.once('close', onClose)
   const signal = controller.signal
   let remoteName: string | null = null
   try {
     const body = await readJsonBody<T>(req, options.maxBytes ?? 64 * 1024)
-    const paths = body as { path?: unknown; remote?: unknown }
-    const repo = await resolveRepository(context, typeof paths.path === 'string' ? paths.path : '', signal)
-    const remote = await resolveRemote(repo.root, typeof paths.remote === 'string' ? paths.remote : '', signal)
+    const repo = await resolveRepository(context, typeof body.path === 'string' ? body.path : '', signal)
+    const remote = await resolveRemote(repo.root, typeof body.remote === 'string' ? body.remote : '', signal)
     remoteName = remote.name
     const target = detectForge(remote.url)
     if (target === null) {
@@ -93,7 +110,11 @@ export async function withForgePost<T extends object>(
     await sendResponse(res, json({ ok: true, ...payload }))
   } catch (error) {
     if (signal.aborted) {
-      await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out or was cancelled.')))
+      // A normal response close may abort the controller after the handler has
+      // already returned; only a real timeout should produce an HTTP error.
+      if (timedOut) {
+        await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out.')))
+      }
       return
     }
     const annotated = error instanceof RouteError && remoteName !== null && error.details?.remote === undefined

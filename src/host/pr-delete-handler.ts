@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { RouteError } from './errors.js'
 import { deletePull } from './forge/index.js'
-import { withForgePost } from './forge-post.js'
+import { parsePullNumber, withForgePost } from './forge-post.js'
 import type { RouteContext } from './types.js'
 
 interface DeleteBody {
@@ -22,10 +21,7 @@ export function createPullDeleteHandler(context: RouteContext): (req: IncomingMe
     forbidden: 'This request is not allowed to delete a pull request.',
     methodMessage: 'Deleting a pull request requires POST.',
     handle: async (body, { target, token, signal }) => {
-      const number = typeof body.number === 'number' ? body.number : Number.NaN
-      if (!Number.isInteger(number) || number <= 0 || number > 2_147_483_647) {
-        throw new RouteError(400, 'invalid-number', 'That pull request number is not valid.')
-      }
+      const number = parsePullNumber(body.number)
       await deletePull(target, number, token, signal)
       return { number }
     },
