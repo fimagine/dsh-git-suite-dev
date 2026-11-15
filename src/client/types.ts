@@ -169,6 +169,14 @@ export interface PullReview {
   changesRequested: number
 }
 
+/** Gitee's separate review/test approval gate. */
+export interface PullApproval {
+  review: 'none' | 'pending' | 'partial' | 'passed'
+  test: 'none' | 'pending' | 'partial' | 'passed'
+  reviewers: number
+  testers: number
+}
+
 /** CI status rolled up for a pull request head commit. */
 export interface PullChecks {
   state: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown'
@@ -207,6 +215,7 @@ export interface PullDetail extends PullSummary {
   filesTruncated: boolean
   checks: PullChecks | null
   review: PullReview | null
+  approval?: PullApproval | null
   comments: PullComment[]
 }
 

@@ -6,6 +6,7 @@ import { Button, DialogActions } from './Button.js'
 import { DialogShell } from './DialogShell.js'
 import { Dropdown } from './Dropdown.js'
 import { PullChecksBadge } from './PullChecksBadge.js'
+import { PullApprovalBadges } from './PullApprovalBadges.js'
 import { PullReviewBadge } from './PullReviewBadge.js'
 
 export interface MergePullDialogProps {
@@ -71,6 +72,9 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
         <div className="dsh-gitlog-pull-merge-meta">
           <PullChecksBadge checks={current.checks} t={t} />
           <PullReviewBadge review={current.review ?? null} t={t} />
+          {current.approval === undefined || current.approval === null
+            ? null
+            : <PullApprovalBadges approval={current.approval} t={t} />}
           {blocked ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeBlocked')}</span> : null}
           {failing ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeChecksFailing')}</span> : null}
         </div>

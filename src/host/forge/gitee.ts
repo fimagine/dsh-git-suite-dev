@@ -1,9 +1,10 @@
-import type { PullComment, PullCommit, PullCreateInput, PullDetail, PullFile, PullMergeInput, PullMergeResult, PullSummary } from '../types.js'
+import type { PullApproval, PullComment, PullCommit, PullCreateInput, PullDetail, PullFile, PullMergeInput, PullMergeResult, PullSummary } from '../types.js'
 import type { ForgeTarget } from './detect.js'
 import { forgeJson } from './http.js'
 
 interface GiteeUser {
   login?: string
+  accept?: boolean
 }
 
 interface GiteePull {
@@ -20,6 +21,8 @@ interface GiteePull {
   html_url?: string
   body?: string | null
   mergeable?: boolean | null
+  assignees?: GiteeUser[] | null
+  testers?: GiteeUser[] | null
 }
 
 interface GiteeFile {
@@ -190,8 +193,22 @@ export async function getGiteePull(
     filesTruncated: Array.isArray(files) && files.length >= MAX_FILES,
     checks: null,
     review: null,
+    approval: {
+      review: approvalOf(pull.assignees),
+      test: approvalOf(pull.testers),
+      reviewers: Array.isArray(pull.assignees) ? pull.assignees.length : 0,
+      testers: Array.isArray(pull.testers) ? pull.testers.length : 0,
+    },
     comments: commentList,
   }
+}
+
+function approvalOf(users: GiteeUser[] | null | undefined): PullApproval['review'] {
+  const list = (Array.isArray(users) ? users : []).filter(user => typeof user.login === 'string' && user.login !== '')
+  if (list.length === 0) return 'none'
+  const accepted = list.filter(user => user.accept === true).length
+  if (accepted === 0) return 'pending'
+  return accepted === list.length ? 'passed' : 'partial'
 }
 
 function headRepositoryUrl(pull: GiteePull): string | null {

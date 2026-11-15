@@ -17,6 +17,7 @@ import { ForgeAuthDialog } from './ForgeAuthDialog.js'
 import { MergePullDialog } from './MergePullDialog.js'
 import { Markdown } from './Markdown.js'
 import { PullChecksBadge } from './PullChecksBadge.js'
+import { PullApprovalBadges } from './PullApprovalBadges.js'
 import { PullReviewBadge } from './PullReviewBadge.js'
 import { PullStateDialog, type PullStateAction } from './PullStateDialog.js'
 import { RefreshIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
@@ -204,6 +205,9 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
           {counts.length === 0 ? null : <span className="dsh-gitlog-pull-counts">{counts.join(' ')}</span>}
           <PullChecksBadge checks={checks} t={t} />
           <PullReviewBadge review={pull.review ?? null} t={t} />
+          {pull.approval === undefined || pull.approval === null
+            ? null
+            : <PullApprovalBadges approval={pull.approval} t={t} />}
         </p>
         <div className="dsh-gitlog-pull-actions">
           {webUrl === ''

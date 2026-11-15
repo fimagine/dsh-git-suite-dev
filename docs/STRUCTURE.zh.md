@@ -199,6 +199,7 @@ LICENSE
 | `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、虚拟列表、详情（描述、讨论、AI 审查、CI 状态、提交、文件与可切换布局的差异）、在浏览器打开、检出到本地、合并、关闭/重新打开；当前分支已有 PR 时显示编号入口 |
 | `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示；Gitee 额外提供「审查通过」「测试通过」按钮 |
 | `client/components/DeletePullDialog.tsx` | GitLab MR 的危险删除确认，必须勾选不可恢复提示 |
+| `client/components/PullApprovalBadges.tsx` | Gitee 审查/测试状态徽章（未指派/待通过/部分通过/已通过） |
 | `client/components/PullChecksBadge.tsx` | CI 汇总胶囊，带平台检查页链接 |
 | `client/components/PullReviewBadge.tsx` | 评审只读汇总：已批准/有修改意见/待评审 |
 | `client/components/Markdown.tsx` | 安全 Markdown 渲染：标题、段落、列表、引用、代码块（Prism 高亮）、表格、行内代码/链接/粗斜体；不渲染原始 HTML，链接仅允许 http(s)；用于讨论与 AI 审查 |

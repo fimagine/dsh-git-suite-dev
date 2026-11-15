@@ -266,6 +266,14 @@ export interface PullCreateInput {
 }
 
 /** One pull request with its description, files, and commits. */
+/** Gitee's separate review/test approval gate. */
+export interface PullApproval {
+  review: 'none' | 'pending' | 'partial' | 'passed'
+  test: 'none' | 'pending' | 'partial' | 'passed'
+  reviewers: number
+  testers: number
+}
+
 export interface PullDetail extends PullSummary {
   body: string
   additions: number | null
@@ -280,6 +288,7 @@ export interface PullDetail extends PullSummary {
   /** Rolled-up CI status of the head commit, when the forge exposes it. */
   checks: PullChecks | null
   review: PullReview | null
+  approval?: PullApproval | null
   comments: PullComment[]
 }
 

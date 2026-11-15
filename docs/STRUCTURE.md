@@ -199,6 +199,7 @@ LICENSE
 | `client/components/PullsPane.tsx` | PR page: remote/filter toolbar, virtualized list, and detail (description, discussion, AI review, CI status, commits, files with a switchable diff layout), open-in-browser, checkout, merge, close, and reopen actions; a numbered entry appears when the current branch already has an open request |
 | `client/components/MergePullDialog.tsx` | Merge confirmation with method, source-branch deletion, blocked/failing-checks warnings; Gitee also shows **Approve review** and **Mark test passed** |
 | `client/components/DeletePullDialog.tsx` | GitLab MR deletion confirmation requiring an explicit irreversible-action check |
+| `client/components/PullApprovalBadges.tsx` | Gitee review/test state badges (not assigned, pending, partial, passed) |
 | `client/components/PullChecksBadge.tsx` | CI rollup pill linking to the forge's checks page |
 | `client/components/PullReviewBadge.tsx` | Read-only review summary: approved / changes requested / pending |
 | `client/components/Markdown.tsx` | Safe Markdown rendering for discussion and AI reviews: headings, paragraphs, lists, quotes, code blocks (Prism), tables, inline code/links/emphasis; no raw HTML, links limited to http(s) |
