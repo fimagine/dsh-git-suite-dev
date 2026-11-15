@@ -59,7 +59,8 @@ export async function withForgePost<T extends object>(
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000)
-  res.once('close', () => controller.abort())
+  const onClose = (): void => controller.abort()
+  res.once('close', onClose)
   const signal = controller.signal
   let remoteName: string | null = null
   try {
@@ -91,11 +92,16 @@ export async function withForgePost<T extends object>(
     const payload = await options.handle(body, { repoRoot: repo.root, remote: remote.name, target, token, signal })
     await sendResponse(res, json({ ok: true, ...payload }))
   } catch (error) {
+    if (signal.aborted) {
+      await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out or was cancelled.')))
+      return
+    }
     const annotated = error instanceof RouteError && remoteName !== null && error.details?.remote === undefined
       ? error.withDetails({ remote: remoteName })
       : error
     await sendResponse(res, failure(annotated))
   } finally {
     clearTimeout(timeout)
+    res.off('close', onClose)
   }
 }

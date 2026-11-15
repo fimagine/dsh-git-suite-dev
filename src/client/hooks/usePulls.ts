@@ -743,6 +743,11 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const dismissAuth = useCallback((): void => {
     setAuthPrompt(null)
     setAuthError(null)
+    pendingState.current = null
+    pendingCreate.current = null
+    pendingMerge.current = null
+    pendingGiteeDecision.current = null
+    pendingDelete.current = null
   }, [])
 
   const checkout = useCallback(async (number: number): Promise<void> => {

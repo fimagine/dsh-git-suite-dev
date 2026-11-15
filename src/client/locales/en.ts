@@ -500,6 +500,7 @@ export const en = {
   pullGiteeReviewPassed: 'Gitee review marked as passed.',
   pullGiteeTestPassed: 'Gitee test marked as passed.',
   pullGiteeBusy: 'A Gitee approval is already running.',
+  pullGiteeApprovalRunning: 'Gitee approval is running; wait before merging.',
   pullMergeMethod: 'Merge method',
   pullMergeMethodMerge: 'Create a merge commit',
   pullMergeMethodSquash: 'Squash and merge',

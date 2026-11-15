@@ -29,10 +29,12 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [approvalError, setApprovalError] = useState<string | null>(null)
-  const blocked = pull.mergeable === false
-  const failing = pull.checks?.state === 'failure'
+  const current = view.detail?.number === pull.number ? view.detail : pull
+  const blocked = current.mergeable === false
+  const failing = current.checks?.state === 'failure'
 
   const approve = async (action: 'review' | 'test'): Promise<void> => {
+    if (busy || view.merging !== null || view.giteeDecision !== null) return
     setApprovalError(null)
     const result = await view.decideGitee(action)
     if (!result.ok && !result.auth) setApprovalError(result.message)
@@ -56,8 +58,8 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
       <div className="dsh-gitlog-pull-merge">
         <p className="dsh-gitlog-note">{`${repo === '' ? '' : `${repo} · `}#${pull.number} · ${pull.title}`}</p>
         <div className="dsh-gitlog-pull-merge-meta">
-          <PullChecksBadge checks={pull.checks} t={t} />
-          <PullReviewBadge review={pull.review ?? null} t={t} />
+          <PullChecksBadge checks={current.checks} t={t} />
+          <PullReviewBadge review={current.review ?? null} t={t} />
           {blocked ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeBlocked')}</span> : null}
           {failing ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeChecksFailing')}</span> : null}
         </div>
@@ -84,6 +86,9 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
                 {approvalError === null
                   ? null
                   : <p className="dsh-gitlog-note" role="alert">{approvalError}</p>}
+                {view.giteeDecision === null
+                  ? null
+                  : <p className="dsh-gitlog-field-hint">{t('pullGiteeApprovalRunning')}</p>}
               </div>
             )
           : null}

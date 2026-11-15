@@ -502,6 +502,7 @@ export const zh: Record<LocaleKey, string> = {
   pullGiteeReviewPassed: '已标记 Gitee 审查通过。',
   pullGiteeTestPassed: '已标记 Gitee 测试通过。',
   pullGiteeBusy: '已有 Gitee 审批操作正在进行。',
+  pullGiteeApprovalRunning: 'Gitee 审批进行中，请等待后再合并。',
   pullMergeMethod: '合并方式',
   pullMergeMethodMerge: '创建合并提交',
   pullMergeMethodSquash: '压缩合并',

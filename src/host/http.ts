@@ -35,6 +35,7 @@ export async function readJsonBody<T extends object>(req: IncomingMessage, maxBy
   const declared = req.headers['content-length']
   const declaredLength = Array.isArray(declared) ? Number(declared[0]) : Number(declared)
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    req.resume()
     throw new RouteError(413, 'body-too-large', 'The request body is too large.')
   }
   const chunks: Buffer[] = []
@@ -42,7 +43,10 @@ export async function readJsonBody<T extends object>(req: IncomingMessage, maxBy
   for await (const chunk of req) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += buffer.length
-    if (size > maxBytes) throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+    if (size > maxBytes) {
+      req.resume()
+      throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+    }
     chunks.push(buffer)
   }
   try {

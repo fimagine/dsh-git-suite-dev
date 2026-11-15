@@ -16,6 +16,13 @@ src/
     clone-handler.ts
     commit-actions.ts
     generate-handler.ts
+    forge-post.ts
+    pr-handler.ts
+    pr-create-handler.ts
+    pr-ai-review-handler.ts
+    pr-review-context.ts
+    pr-gitee-decision-handler.ts
+    pr-delete-handler.ts
     pick-handler.ts
     sync-handler.ts
     remote-handler.ts
