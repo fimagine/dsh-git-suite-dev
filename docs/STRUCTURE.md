@@ -15,15 +15,15 @@ src/
     workspace-action.ts
     clone-handler.ts
     commit-actions.ts
-    generate-handler.ts
     forge-post.ts
-    pr-handler.ts
-    pr-create-handler.ts
-    pr-ai-review-handler.ts
-    pr-review-context.ts
-    pr-gitee-decision-handler.ts
-    pr-delete-handler.ts
+    generate-handler.ts
     pick-handler.ts
+    pr-ai-review-handler.ts
+    pr-create-handler.ts
+    pr-delete-handler.ts
+    pr-gitee-decision-handler.ts
+    pr-handler.ts
+    pr-review-context.ts
     sync-handler.ts
     remote-handler.ts
     remote-url.ts

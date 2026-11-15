@@ -54,7 +54,7 @@ export interface PullsView {
   refresh(): void
   /** Fetch the next page and append it (no-op when there is nothing left). */
   loadMore(): void
-  selectPull(number: number): void
+  selectPull(number: number, fresh?: boolean): Promise<boolean>
   submitToken(username: string, token: string): Promise<void>
   dismissAuth(): void
   checkout(number: number): Promise<void>
@@ -243,7 +243,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     })
   }, [remotes])
 
-  const selectPull = useCallback(async (number: number, fresh = false): Promise<void> => {
+  const selectPull = useCallback(async (number: number, fresh = false): Promise<boolean> => {
     setSelected(number)
     setDetail(null)
     setDetailStatus('loading')
@@ -253,15 +253,17 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     detailAbort.current = controller
     try {
       const payload = await requestPull({ path: repoRoot, remote, number, state, fresh }, controller.signal)
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted) return false
       setDetail(payload.pull)
       setDetailStatus('ready')
+      return true
     } catch (loadError) {
-      if (controller.signal.aborted || isAbortError(loadError)) return
+      if (controller.signal.aborted || isAbortError(loadError)) return false
       const apiError = toApiError(loadError)
       setDetailError(apiError)
       setDetailStatus('error')
       if (apiError.code === 'forge-auth-required') promptAuth(apiError, remote)
+      return false
     }
   }, [promptAuth, remote, repoRoot, state])
 
@@ -540,16 +542,20 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const decideGitee = useCallback(async (action: 'review' | 'test', numberOverride?: number): Promise<PullActionResult> => {
     const number = numberOverride ?? selected
     if (number === null || repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullNoSelection') }
+    }
+    if (giteeDecision !== null || giteeDecisionRef.current !== null || deletingRef.current !== null) {
       return { ok: false, auth: false, message: t('pullGiteeBusy') }
     }
-    if (giteeDecision !== null) return { ok: false, auth: false, message: t('pullGiteeBusy') }
-    if (giteeDecisionRef.current !== null) return { ok: false, auth: false, message: t('pullGiteeBusy') }
     giteeDecisionRef.current = action
     setGiteeDecision(action)
     try {
       await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
-      if (selectedRef.current === number) await selectPull(number, true)
+      if (selectedRef.current === number) {
+        const refreshed = await selectPull(number, true)
+        if (!refreshed) toast(t('pullDetailRefreshFailed'))
+      }
       return { ok: true }
     } catch (error) {
       const apiError = toApiError(error)
@@ -568,10 +574,11 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
 
   const deletePull = useCallback(async (number: number): Promise<PullActionResult> => {
     if (repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullNoSelection') }
+    }
+    if (deleting !== null || deletingRef.current !== null || giteeDecisionRef.current !== null) {
       return { ok: false, auth: false, message: t('pullDeleteBusy') }
     }
-    if (deleting !== null) return { ok: false, auth: false, message: t('pullDeleteBusy') }
-    if (deletingRef.current !== null) return { ok: false, auth: false, message: t('pullDeleteBusy') }
     deletingRef.current = number
     setDeleting(number)
     try {
@@ -581,6 +588,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       detailAbort.current?.abort()
       detailAbort.current = null
       setPulls(current => current.filter(item => item.number !== number))
+      selectedRef.current = null
       setSelected(null)
       setDetail(null)
       setDetailStatus('idle')
@@ -820,7 +828,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     setState,
     refresh,
     loadMore,
-    selectPull: number => { void selectPull(number) },
+    selectPull,
     submitToken,
     dismissAuth,
     checkout,

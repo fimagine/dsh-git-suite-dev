@@ -63,6 +63,9 @@ export async function sendResponse(res: ServerResponse, response: Response): Pro
   if (res.writableEnded || res.destroyed) return
   res.statusCode = response.status
   response.headers.forEach((value, key) => {
+    // The body has already been decoded; forwarding these would corrupt it or
+    // set a stale length on the re-encoded buffer.
+    if (key === 'content-encoding' || key === 'content-length' || key === 'transfer-encoding') return
     res.setHeader(key, value)
   })
   res.end(Buffer.from(await response.arrayBuffer()))

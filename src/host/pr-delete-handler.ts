@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { deletePull } from './forge/index.js'
+import { resetForgeCache } from './forge/http.js'
 import { parsePullNumber, withForgePost } from './forge-post.js'
 import type { RouteContext } from './types.js'
 
@@ -23,6 +24,7 @@ export function createPullDeleteHandler(context: RouteContext): (req: IncomingMe
     handle: async (body, { target, token, signal }) => {
       const number = parsePullNumber(body.number)
       await deletePull(target, number, token, signal)
+      resetForgeCache()
       return { number }
     },
   })

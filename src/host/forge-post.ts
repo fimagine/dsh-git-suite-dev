@@ -15,10 +15,13 @@ export interface ForgePostEnv {
   signal: AbortSignal
 }
 
+/** Gitee/GitLab request numbers are signed 32-bit integers. */
+const MAX_PULL_NUMBER = 2_147_483_647
+
 /** Validate the shared `number` field used by pull-request write routes. */
 export function parsePullNumber(value: unknown): number {
   const number = typeof value === 'number' ? value : Number.NaN
-  if (!Number.isInteger(number) || number <= 0 || number > 2_147_483_647) {
+  if (!Number.isInteger(number) || number <= 0 || number > MAX_PULL_NUMBER) {
     throw new RouteError(400, 'invalid-number', 'That pull request number is not valid.')
   }
   return number
@@ -109,17 +112,20 @@ export async function withForgePost<T extends ForgePostBody>(
     const payload = await options.handle(body, { repoRoot: repo.root, remote: remote.name, target, token, signal })
     await sendResponse(res, json({ ok: true, ...payload }))
   } catch (error) {
-    if (signal.aborted) {
-      // A normal response close may abort the controller after the handler has
-      // already returned; only a real timeout should produce an HTTP error.
-      if (timedOut) {
-        await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out.')))
-      }
-      return
-    }
     const annotated = error instanceof RouteError && remoteName !== null && error.details?.remote === undefined
       ? error.withDetails({ remote: remoteName })
       : error
+    if (signal.aborted) {
+      // A normal response close may abort the controller after the handler has
+      // already returned. A timeout gets a 504; if the response is still open,
+      // keep the original error instead of swallowing it.
+      if (timedOut) {
+        await sendResponse(res, failure(new RouteError(504, 'forge-timeout', 'The forge request timed out.')))
+      } else if (!res.writableEnded && !res.destroyed) {
+        await sendResponse(res, failure(annotated))
+      }
+      return
+    }
     await sendResponse(res, failure(annotated))
   } finally {
     clearTimeout(timeout)
