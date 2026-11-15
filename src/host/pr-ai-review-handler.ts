@@ -202,30 +202,64 @@ export function createPullAiReviewHandler(
         : 'English'
       const { prompt, truncated } = buildPrompt(pull, language, reviewContext)
 
-      let output = ''
-      let finish: LlmStreamChunk['reason']
-      try {
-        for await (const chunk of llm.stream({
-          provider: selection.provider,
-          model: selection.model,
-          ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort }),
-          system: 'You are a senior software engineer reviewing a pull request. Be specific, skeptical, and concise. Output Markdown only.',
-          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
-          maxTokens: 2_400,
-          temperature: 0.2,
-          signal,
-        })) {
-          if (chunk.type === 'text-delta' && typeof chunk.text === 'string') output += chunk.text
-          else if (chunk.type === 'finish') finish = chunk.reason
+      const runAttempt = async (
+        maxTokens: number,
+        includeReasoning: boolean,
+      ): Promise<{ text: string; finish: LlmStreamChunk['reason']; reasoningChars: number }> => {
+        let delta = ''
+        let blockText = ''
+        let reasoning = ''
+        let finish: LlmStreamChunk['reason']
+        try {
+          for await (const chunk of llm.stream({
+            provider: selection.provider,
+            model: selection.model,
+            ...(includeReasoning && selection.reasoningEffort !== undefined
+              ? { reasoningEffort: selection.reasoningEffort }
+              : {}),
+            system: 'You are a senior software engineer reviewing a pull request. Be specific, skeptical, and concise. Output Markdown only.',
+            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+            maxTokens,
+            temperature: 0.2,
+            signal,
+          })) {
+            if (chunk.type === 'text-delta' && typeof chunk.text === 'string') delta += chunk.text
+            else if (chunk.type === 'reasoning-delta' && typeof chunk.text === 'string') reasoning += chunk.text
+            else if (
+              chunk.type === 'block-end'
+              && chunk.block?.type === 'text'
+              && typeof chunk.block.text === 'string'
+            ) {
+              blockText += chunk.block.text
+            } else if (chunk.type === 'finish') {
+              finish = chunk.reason
+            }
+          }
+        } catch (error) {
+          throw new RouteError(502, 'llm-failed', error instanceof Error ? error.message : 'The model request failed.')
         }
-      } catch (error) {
-        throw new RouteError(502, 'llm-failed', error instanceof Error ? error.message : 'The model request failed.')
+        if (finish?.kind === 'error' || finish?.kind === 'aborted') {
+          throw new RouteError(502, 'llm-failed', finish.failure?.message ?? 'The model request failed.')
+        }
+        return { text: delta === '' ? blockText : delta, finish, reasoningChars: reasoning.length }
       }
-      if (finish?.kind === 'error' || finish?.kind === 'aborted') {
-        throw new RouteError(502, 'llm-failed', finish.failure?.message ?? 'The model request failed.')
+
+      // Reasoning models can consume the whole output budget before emitting
+      // visible text. Start with room for both, then retry once without the
+      // reasoning effort if the first attempt produced no review.
+      let attempt = await runAttempt(6_000, true)
+      if (attempt.text.trim() === '' && !signal.aborted) {
+        attempt = await runAttempt(8_000, false)
       }
-      const review = output.trim().slice(0, MAX_REVIEW_CHARS)
+      const review = attempt.text.trim().slice(0, MAX_REVIEW_CHARS)
       if (review === '') {
+        if (attempt.finish?.kind === 'max-tokens' || attempt.reasoningChars > 0) {
+          throw new RouteError(
+            502,
+            'review-truncated',
+            'The model used its output budget before writing the review. Try diff-only mode or a smaller context.',
+          )
+        }
         throw new RouteError(502, 'empty-review', 'The model returned an empty review.')
       }
       await send(res, json({

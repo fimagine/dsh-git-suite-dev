@@ -523,7 +523,13 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
           promptAuth(apiError, remote)
           return
         }
-        setAiReviewError(apiError.message)
+        if (apiError.code === 'review-truncated') {
+          setAiReviewError(t('pullAiReviewTruncated'))
+        } else if (apiError.code === 'empty-review') {
+          setAiReviewError(t('pullAiReviewEmpty'))
+        } else {
+          setAiReviewError(apiError.message)
+        }
         setAiReviewStatus('error')
       })
   }, [aiReviewMode, aiReviewStatus, promptAuth, remote, repoRoot, selected, t])

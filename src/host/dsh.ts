@@ -65,6 +65,8 @@ export interface WorkingDirectoryService {
 export interface LlmStreamChunk {
   type: string
   text?: string
+  /** Present on `block-end`: the fully assembled block. */
+  block?: { type?: string; text?: string }
   reason?: {
     kind?: string
     failure?: { message?: string; code?: string }

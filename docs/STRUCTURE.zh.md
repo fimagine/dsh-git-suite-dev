@@ -158,7 +158,7 @@ LICENSE
 | `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（`state=open|closed|all`，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
 | `host/pr-handler.ts` | `POST /git-suite/pr`：`action: 'checkout'`（默认）检出 PR——依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`（工作区有冲突改动时返回 `409 worktree-dirty`）；`POST /git-suite/pr-close`、`POST /git-suite/pr-reopen` 与 `POST /git-suite/pr-merge` 复用同一个 handler（默认 `close` / `reopen` / `merge`）：前两者调平台 API 改变状态并保留源分支，合并按 merge/squash/rebase（仅 GitHub 支持 rebase）并可删除源分支；缺少令牌时返回 `401 forge-auth-required` |
 | `host/pr-create-handler.ts` | `POST /git-suite/pr-create`：校验标题/描述，目标远端由 `remote` 指定；源分支取当前分支的 upstream 远端与分支名，两个远端必须同平台同主机。校验 head/base 都存在于各自远端，缺少令牌返回 `401 forge-auth-required`；同仓库时直接提交分支，跨仓库时 GitHub/Gitee 提交 `owner:branch`、GitLab 先解析 `source_project_id`；分支未推送返回 `409 branch-not-pushed` |
-| `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`：按 `context`（`worktree`/`api`/`diff`）获取完整文件上下文，截断后用默认模型生成只读 Markdown 审查；不写平台；无模型或空输出返回 5xx |
+| `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`：按 `context`（`worktree`/`api`/`diff`）获取完整文件上下文，截断后用默认模型生成只读 Markdown 审查；流式读取 `text-delta`，并用 `block-end` 文本兜底；空结果会去掉 reasoning effort 重试一次；仍为空且额度耗尽时返回 `review-truncated`；不写平台 |
 | `host/pr-review-context.ts` | 按用户选择读取完整文件：临时 worktree（不执行代码，随即清理）、平台 contents API 或仅 diff；限制文件数/单文件/总字符数 |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
