@@ -1,4 +1,4 @@
-import type { PullCommit, PullDetail, PullFile, PullSummary } from '../types.js'
+import type { PullChecks, PullComment, PullCommit, PullCreateInput, PullDetail, PullFile, PullMergeInput, PullMergeResult, PullReview, PullSummary } from '../types.js'
 import type { ForgeTarget } from './detect.js'
 import { forgeJson } from './http.js'
 
@@ -22,6 +22,28 @@ interface GitLabMergeRequest {
   description?: string | null
   has_conflicts?: boolean
   changes_count?: string
+  head_pipeline?: { status?: string; web_url?: string } | null
+  merge_commit_sha?: string | null
+  detailed_merge_status?: string
+  source_project_id?: number
+}
+
+interface GitLabProject {
+  path_with_namespace?: string
+  http_url_to_repo?: string
+  web_url?: string
+}
+
+interface GitLabNote {
+  id?: number
+  author?: GitLabUser | null
+  body?: string | null
+  created_at?: string
+  system?: boolean
+}
+
+interface GitLabApprovals {
+  approved_by?: Array<{ user?: GitLabUser | null }>
 }
 
 interface GitLabChange {
@@ -123,17 +145,46 @@ function changedFiles(pull: GitLabMergeRequest, fallback: number): number {
   return fallback
 }
 
+function checksOf(pull: GitLabMergeRequest): PullChecks | null {
+  const pipeline = pull.head_pipeline
+  const status = pipeline?.status
+  if (typeof status !== 'string' || status === '') return null
+  const state = status === 'failed' || status === 'canceled' || status === 'cancelled'
+    ? 'failure'
+    : status === 'success'
+      ? 'success'
+      : status === 'skipped' || status === 'manual'
+        ? 'neutral'
+        : 'pending'
+  return {
+    state,
+    total: 1,
+    url: typeof pipeline?.web_url === 'string' ? pipeline.web_url : null,
+  }
+}
+
+function reviewOf(approvals: GitLabApprovals | null): PullReview | null {
+  if (approvals === null) return null
+  const approved = Array.isArray(approvals.approved_by) ? approvals.approved_by.length : 0
+  return {
+    state: approved > 0 ? 'approved' : 'pending',
+    approvals: approved,
+    changesRequested: 0,
+  }
+}
+
 export async function listGitlabPulls(
   target: ForgeTarget,
   token: string | null,
-  state: 'open' | 'all',
+  state: 'open' | 'closed' | 'all',
   signal?: AbortSignal,
   fresh = false,
+  page = 1,
 ): Promise<PullSummary[]> {
-  const query = state === 'all' ? 'state=all' : 'state=opened'
+  const query = state === 'all' ? 'state=all' : state === 'closed' ? 'state=closed' : 'state=opened'
   const pulls = await forgeJson<GitLabMergeRequest[]>(
     target,
-    `${projectId(target)}/merge_requests?${query}&order_by=updated_at&sort=desc&per_page=${PAGE_SIZE}`,
+    `${projectId(target)}/merge_requests?${query}&order_by=updated_at&sort=desc&per_page=${PAGE_SIZE}&page=${page}`,
     token,
     signal,
     { fresh },
@@ -149,15 +200,45 @@ export async function getGitlabPull(
   fresh = false,
 ): Promise<PullDetail> {
   const base = `${projectId(target)}/merge_requests/${number}`
-  const [pull, changes, commits] = await Promise.all([
+  const [pull, changes, commits, notes, approvals] = await Promise.all([
     forgeJson<GitLabMergeRequest>(target, base, token, signal, { fresh }),
     forgeJson<GitLabChanges>(target, `${base}/changes`, token, signal, { fresh }).catch(() => ({} as GitLabChanges)),
     forgeJson<GitLabCommit[]>(target, `${base}/commits?per_page=100`, token, signal, { fresh }).catch(() => [] as GitLabCommit[]),
+    forgeJson<GitLabNote[]>(target, `${base}/notes?per_page=100&sort=asc&order_by=created_at`, token, signal, { fresh }).catch(() => [] as GitLabNote[]),
+    forgeJson<GitLabApprovals>(target, `${base}/approvals`, token, signal, { fresh }).catch(() => null),
   ])
   const fileList = (Array.isArray(changes.changes) ? changes.changes : []).map(fileOf)
   const commitList = (Array.isArray(commits) ? commits : []).map(commitOf)
+  const commentList: PullComment[] = (Array.isArray(notes) ? notes : [])
+    .filter(note => note.system !== true)
+    .map(note => ({
+      id: String(note.id ?? ''),
+      author: note.author?.name ?? note.author?.username ?? '',
+      body: typeof note.body === 'string' ? note.body : '',
+      createdAt: note.created_at ?? '',
+      url: null,
+    }))
   const additions = fileList.reduce((total, file) => total + (file.additions ?? 0), 0)
   const deletions = fileList.reduce((total, file) => total + (file.deletions ?? 0), 0)
+  let headRepoUrl: string | null = null
+  if (typeof pull.source_project_id === 'number') {
+    try {
+      const project = await forgeJson<GitLabProject>(
+        target,
+        `/projects/${pull.source_project_id}`,
+        token,
+        signal,
+        { fresh },
+      )
+      if (typeof project.path_with_namespace === 'string' && project.path_with_namespace.toLowerCase() !== target.projectPath.toLowerCase()) {
+        headRepoUrl = typeof project.http_url_to_repo === 'string'
+          ? project.http_url_to_repo
+          : typeof project.web_url === 'string' ? project.web_url : null
+      }
+    } catch {
+      // No access or no project: treat it as the same repository.
+    }
+  }
   const countText = changes.changes_count ?? pull.changes_count
   return {
     ...summary(pull),
@@ -166,9 +247,95 @@ export async function getGitlabPull(
     deletions,
     changedFiles: changedFiles(pull, fileList.length),
     mergeable: pull.has_conflicts === true ? false : pull.has_conflicts === false ? true : null,
-    headRepoUrl: null,
+    headRepoUrl,
     files: fileList,
     commits: commitList,
     filesTruncated: changes.overflow === true || (typeof countText === 'string' && countText.endsWith('+')),
+    checks: checksOf(pull),
+    review: reviewOf(approvals),
+    comments: commentList,
+  }
+}
+
+export async function closeGitlabPull(
+  target: ForgeTarget,
+  number: number,
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${projectId(target)}/merge_requests/${number}`, token, signal, {
+    method: 'PUT',
+    body: { state_event: 'close' },
+  })
+}
+
+export async function reopenGitlabPull(
+  target: ForgeTarget,
+  number: number,
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${projectId(target)}/merge_requests/${number}`, token, signal, {
+    method: 'PUT',
+    body: { state_event: 'reopen' },
+  })
+}
+
+export async function createGitlabPull(
+  target: ForgeTarget,
+  token: string,
+  input: PullCreateInput,
+  signal?: AbortSignal,
+): Promise<PullSummary> {
+  let sourceProjectId: number | null = null
+  if (input.headProjectPath !== undefined && input.headProjectPath !== null && input.headProjectPath !== target.projectPath) {
+    const project = await forgeJson<{ id?: number }>(
+      target,
+      `/projects/${encodeURIComponent(input.headProjectPath)}`,
+      token,
+      signal,
+    )
+    if (typeof project.id === 'number') sourceProjectId = project.id
+  }
+  const pull = await forgeJson<GitLabMergeRequest>(target, `${projectId(target)}/merge_requests`, token, signal, {
+    method: 'POST',
+    body: {
+      source_branch: input.head,
+      target_branch: input.base,
+      title: input.title,
+      description: input.body,
+      draft: input.draft,
+      ...(sourceProjectId === null ? {} : { source_project_id: sourceProjectId }),
+    },
+  })
+  return summary(pull)
+}
+
+export async function mergeGitlabPull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  input: PullMergeInput,
+  signal?: AbortSignal,
+): Promise<PullMergeResult> {
+  const pull = await forgeJson<GitLabMergeRequest>(
+    target,
+    `${projectId(target)}/merge_requests/${number}/merge`,
+    token,
+    signal,
+    {
+      method: 'PUT',
+      body: {
+        squash: input.method === 'squash',
+        should_remove_source_branch: input.deleteSourceBranch,
+      },
+    },
+  )
+  const merged = pull.state === 'merged'
+  return {
+    merged,
+    message: typeof pull.detailed_merge_status === 'string' ? pull.detailed_merge_status : '',
+    sha: typeof pull.merge_commit_sha === 'string' ? pull.merge_commit_sha : null,
+    branchDeleted: merged && input.deleteSourceBranch,
   }
 }

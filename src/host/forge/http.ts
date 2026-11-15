@@ -90,25 +90,30 @@ function providerDetails(target: ForgeTarget): { provider: ForgeProvider; host: 
 }
 
 /**
- * Call one read-only forge API endpoint and parse its JSON body. Token handling,
- * timeouts, response limits, rate limits, error codes, and a short cache all
- * live here so the provider adapters only map payloads.
+ * Call one forge API endpoint and parse its JSON body. Token handling, timeouts,
+ * response limits, rate limits, error codes, and a short GET cache all live here
+ * so the provider adapters only map payloads.
  */
 export async function forgeJson<T>(
   target: ForgeTarget,
   path: string,
   token: string | null,
   signal?: AbortSignal,
-  options?: { fresh?: boolean },
+  options?: {
+    fresh?: boolean
+    method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+    body?: unknown
+  },
 ): Promise<T> {
+  const method = options?.method ?? 'GET'
   const url = new URL(`${target.apiBase}${path}`)
   if (target.provider === 'gitee' && token !== null && token !== '') {
     url.searchParams.set('access_token', token)
   }
   // The cache key never contains the token.
   const key = `${target.provider} ${url.origin} ${url.pathname}${url.search.replace(/[?&]access_token=[^&]*/g, '')}`
-  const fresh = options?.fresh === true
-  const cached = fresh ? undefined : cacheGet(key)
+  const canCache = method === 'GET' && options?.fresh !== true
+  const cached = canCache ? cacheGet(key) : undefined
   if (cached !== undefined) return cached as T
 
   const controller = new AbortController()
@@ -121,9 +126,12 @@ export async function forgeJson<T>(
 
   let response: Response
   try {
+    const headers = authHeaders(target, token)
+    if (options?.body !== undefined) headers['content-type'] = 'application/json'
     response = await fetch(url, {
-      method: 'GET',
-      headers: authHeaders(target, token),
+      method,
+      headers,
+      body: options?.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
       redirect: 'follow',
     })
@@ -200,9 +208,12 @@ export async function forgeJson<T>(
     })
   }
 
+  // A successful mutation may answer 204/empty; only GET must be JSON.
+  if (body.trim() === '' && method !== 'GET') return undefined as T
+
   try {
     const parsed = JSON.parse(body) as T
-    if (!fresh) cacheSet(key, parsed)
+    if (canCache) cacheSet(key, parsed)
     return parsed
   } catch {
     throw new RouteError(502, 'forge-invalid-response', 'The forge sent a response this viewer cannot read.', providerDetails(target))

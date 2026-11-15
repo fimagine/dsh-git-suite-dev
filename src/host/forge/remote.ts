@@ -68,3 +68,26 @@ export async function resolveRemote(
   }
   return { name, url }
 }
+
+/**
+ * Best guess at the remote's default branch: its symbolic HEAD, then `main`,
+ * then `master`. Returns '' when none of those refs exist locally.
+ */
+export async function readDefaultBase(root: string, remote: string, signal?: AbortSignal): Promise<string> {
+  try {
+    const ref = (await runGit(root, ['symbolic-ref', '--short', `refs/remotes/${remote}/HEAD`], signal)).trim()
+    const prefix = `${remote}/`
+    if (ref.startsWith(prefix)) return ref.slice(prefix.length)
+  } catch {
+    // No remote HEAD locally: fall back to the usual branch names.
+  }
+  for (const name of ['main', 'master']) {
+    try {
+      await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}/${name}`], signal)
+      return name
+    } catch {
+      // Try the next one.
+    }
+  }
+  return ''
+}

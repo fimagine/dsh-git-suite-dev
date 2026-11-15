@@ -9,6 +9,7 @@ import { CommitRow, COMMIT_ROW_HEIGHT } from './CommitRow.js'
 import { Dropdown, type DropdownOption } from './Dropdown.js'
 import { LoadingLine, useMinimumSpin } from './States.js'
 import { RefreshIcon } from './GitLogIcon.js'
+import { VirtualList } from './VirtualList.js'
 
 interface ColumnWidths {
   graph: number
@@ -34,9 +35,6 @@ const MIN_DESCRIPTION_WIDTH = 120
 const NARROW_WIDTH = 760
 /** Date column width when the panel is too narrow to keep the user's width. */
 const COMPACT_DATE_WIDTH = 132
-const OVERSCAN_ROWS = 6
-const INITIAL_RENDERED_ROWS = 40
-const AUTO_LOAD_ROWS = 5
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -148,18 +146,13 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
   onContextMenu?(commit: Commit, event: React.MouseEvent): void
   onRefContextMenu?(ref: string, event: React.MouseEvent): boolean
 }): React.ReactElement {
-  const { commits, selected, graph, status, hasMore } = view
+  const { commits, selected, graph, status } = view
   const showLoadingLine = useMinimumSpin(status === 'loading')
-  const listRef = useRef<HTMLDivElement | null>(null)
-  const headerRef = useRef<HTMLDivElement | null>(null)
   const [widths, setWidths] = useState<ColumnWidths>(readColumnWidths)
   const [chosen, setChosen] = useState<CommitColumns>(readColumnVisibility)
   const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 900px)').matches)
   const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
-  const [range, setRange] = useState({ start: 0, end: Math.min(commits.length, INITIAL_RENDERED_ROWS) })
   const startWidths = useRef<ColumnWidths>(widths)
-  const loadMoreRef = useRef(view.loadMore)
-  loadMoreRef.current = view.loadMore
 
   useEffect(() => {
     try {
@@ -177,68 +170,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
     }
   }, [chosen])
 
-  useEffect(() => {
-    // Width-based: the right-sidebar tab is narrow even in a wide window.
-    const list = listRef.current
-    if (list === null) return undefined
-    const update = (): void => setNarrow(list.clientWidth < NARROW_WIDTH)
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(list)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const list = listRef.current
-    if (list === null) return undefined
-    const check = (): void => {
-      if (!hasMore || status === 'loading') return
-      const distance = list.scrollHeight - list.scrollTop - list.clientHeight
-      if (distance <= COMMIT_ROW_HEIGHT * AUTO_LOAD_ROWS) loadMoreRef.current()
-    }
-    const onScroll = (): void => {
-      check()
-    }
-    list.addEventListener('scroll', onScroll, { passive: true })
-    const observer = new ResizeObserver(check)
-    observer.observe(list)
-    check()
-    return () => {
-      list.removeEventListener('scroll', onScroll)
-      observer.disconnect()
-    }
-  }, [hasMore, status, commits.length])
-
-  useEffect(() => {
-    const list = listRef.current
-    if (list === null) return undefined
-    const update = (): void => {
-      const visibleHeight = Math.max(0, list.clientHeight)
-      const start = Math.min(commits.length, Math.max(0, Math.floor(list.scrollTop / COMMIT_ROW_HEIGHT) - OVERSCAN_ROWS))
-      const end = Math.min(commits.length, Math.ceil((list.scrollTop + visibleHeight) / COMMIT_ROW_HEIGHT) + OVERSCAN_ROWS)
-      setRange(previous => previous.start === start && previous.end === end
-        ? previous
-        : { start, end: Math.max(start, end) })
-    }
-    const onScroll = (): void => {
-      update()
-    }
-    update()
-    list.addEventListener('scroll', onScroll, { passive: true })
-    const observer = new ResizeObserver(update)
-    observer.observe(list)
-    const header = headerRef.current
-    if (header !== null) observer.observe(header)
-    return () => {
-      list.removeEventListener('scroll', onScroll)
-      observer.disconnect()
-    }
-  }, [commits.length])
-
   const geometry = graphGeometry(graph.maxLanes)
-  const visible = commits
-    .slice(range.start, range.end)
-    .map((commit, offset) => ({ commit, index: range.start + offset }))
 
   const beginResize = (): void => {
     startWidths.current = widths
@@ -358,7 +290,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
 
   return (
     <section className="dsh-gitlog-list" aria-label={t('commits')} style={style}>
-      <div ref={headerRef} className="dsh-gitlog-list-header">
+      <div className="dsh-gitlog-list-header">
         <div className="dsh-gitlog-history-toolbar">
           <Dropdown
             className="dsh-gitlog-history-branch"
@@ -449,34 +381,33 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
             : null}
         </div>
       </div>
-      <div ref={listRef} className="dsh-gitlog-list-scroll">
-        <div className="dsh-gitlog-list-body" style={{ height: commits.length * COMMIT_ROW_HEIGHT }}>
-        {visible.map(({ commit, index }) => {
+      <VirtualList
+        className="dsh-gitlog-list-scroll"
+        items={commits}
+        rowHeight={COMMIT_ROW_HEIGHT}
+        resetKey={commits[0]?.hash ?? ''}
+        onReachEnd={view.loadMore}
+        onViewportChange={width => setNarrow(width < NARROW_WIDTH)}
+        footer={showLoadingLine ? <LoadingLine label={t('loadingCommits')} active={status === 'loading'} /> : null}
+        renderRow={(commit, index) => {
           const row = graph.rows[index]
           if (row === undefined) return null
           return (
-            <div
+            <CommitRow
               key={commit.hash}
-              className="dsh-gitlog-commit-slot"
-              style={{ top: index * COMMIT_ROW_HEIGHT }}
-            >
-              <CommitRow
-                commit={commit}
-                selected={selected === commit.hash}
-                onSelect={view.selectCommit}
-                onContextMenu={onContextMenu}
-                onRefContextMenu={onRefContextMenu}
-                t={t}
-                row={row}
-                geometry={geometry}
-                columns={columns}
-              />
-            </div>
+              commit={commit}
+              selected={selected === commit.hash}
+              onSelect={view.selectCommit}
+              onContextMenu={onContextMenu}
+              onRefContextMenu={onRefContextMenu}
+              t={t}
+              row={row}
+              geometry={geometry}
+              columns={columns}
+            />
           )
-        })}
-      </div>
-      {showLoadingLine ? <LoadingLine label={t('loadingCommits')} active={status === 'loading'} /> : null}
-      </div>
+        }}
+      />
       <CommitColumnsMenu
         context={columnsMenu}
         columns={columns}

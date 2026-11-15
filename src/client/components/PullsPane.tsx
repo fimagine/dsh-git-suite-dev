@@ -8,14 +8,20 @@ import { useSplitSize } from '../lib/use-split-size.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type { PullFile, PullSummary, Translate } from '../types.js'
 import { Button } from './Button.js'
+import { CreatePullDialog } from './CreatePullDialog.js'
 import { DiffView } from './DiffView.js'
 import { Dropdown } from './Dropdown.js'
 import { ForgeAuthDialog } from './ForgeAuthDialog.js'
+import { MergePullDialog } from './MergePullDialog.js'
+import { PullChecksBadge } from './PullChecksBadge.js'
+import { PullReviewBadge } from './PullReviewBadge.js'
+import { PullStateDialog, type PullStateAction } from './PullStateDialog.js'
 import { RefreshIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
-import { LoadingLine } from './States.js'
+import { LoadingLine, Spinner } from './States.js'
 import { Splitter } from './Splitter.js'
 import { Switch } from './Switch.js'
 import { tooltipProps } from './Tooltip.js'
+import { VirtualList } from './VirtualList.js'
 
 export interface PullsPaneProps {
   view: PullsView
@@ -25,6 +31,9 @@ export interface PullsPaneProps {
   /** Repository key used to persist the splitter sizes. */
   repoKey: string
 }
+
+/** Fixed row height, shared by the CSS and the virtual list. */
+const PULL_ROW_HEIGHT = 48
 
 function statusLabel(status: string, t: Translate): string {
   if (status === 'added') return t('statusAdded')
@@ -49,6 +58,16 @@ function patchText(file: PullFile): string {
   return `diff --git a/${file.path} b/${file.path}\n--- a/${file.path}\n+++ b/${file.path}\n${file.patch}`
 }
 
+/** Extract `owner/repo` from a forge URL (clone or web). */
+function repositoryFromUrl(url: string | null): string {
+  if (url === null) return ''
+  try {
+    return new URL(url).pathname.replace(/^\/+/, '').replace(/\.git$/i, '')
+  } catch {
+    return ''
+  }
+}
+
 function PullBadge({ pull, t }: { pull: PullSummary; t: Translate }): React.ReactElement {
   if (pull.draft) return <span className="dsh-gitlog-pull-badge is-draft">{t('pullDraft')}</span>
   const label = pull.state === 'merged'
@@ -61,12 +80,16 @@ function PullBadge({ pull, t }: { pull: PullSummary; t: Translate }): React.Reac
 
 function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.ReactElement {
   const [fileIndex, setFileIndex] = useState(0)
+  const [stateDialog, setStateDialog] = useState<PullStateAction | null>(null)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const diffMode = useDiffMode()
   const pull = view.detail
   const locale = t('localeId')
 
   useEffect(() => {
     setFileIndex(0)
+    setStateDialog(null)
+    setMergeOpen(false)
   }, [pull?.number, pull?.webUrl])
 
   if (view.detailStatus === 'loading') return <LoadingLine label={t('pullLoading')} />
@@ -84,6 +107,13 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
   if (pull === null) return <p className="dsh-gitlog-pulls-hint">{t('pullSelectHint')}</p>
 
   const file = pull.files[fileIndex]
+  const comments = pull.comments ?? []
+  const checks = pull.checks ?? null
+  const forge = view.remotes.find(item => item.name === view.remote)?.forge ?? null
+  const baseRepo = forge === null ? '' : `${forge.owner}/${forge.repo}`
+  const headRepo = repositoryFromUrl(pull.headRepoUrl) || baseRepo
+  const crossRepo = baseRepo !== '' && headRepo !== '' && headRepo !== baseRepo
+  const repoLabel = crossRepo ? `${headRepo} → ${baseRepo}` : baseRepo
   const webUrl = /^https?:\/\//i.test(pull.webUrl) ? pull.webUrl : ''
   const counts: string[] = []
   if (pull.additions !== null) counts.push(`+${pull.additions}`)
@@ -101,9 +131,18 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
         </div>
         <p className="dsh-gitlog-pull-head-meta">
           <span>{pull.author === '' ? '—' : pull.author}</span>
+          {repoLabel === ''
+            ? null
+            : (
+                <span className="dsh-gitlog-pull-repo" title={repoLabel}>
+                  {`${t('project')}: ${repoLabel}`}
+                </span>
+              )}
           <span>{`${pull.sourceBranch} → ${pull.targetBranch}`}</span>
           <span>{`${t('pullUpdated')} ${formatDateTime(pull.updatedAt, locale)}`}</span>
           {counts.length === 0 ? null : <span className="dsh-gitlog-pull-counts">{counts.join(' ')}</span>}
+          <PullChecksBadge checks={checks} t={t} />
+          <PullReviewBadge review={pull.review ?? null} t={t} />
         </p>
         <div className="dsh-gitlog-pull-actions">
           {webUrl === ''
@@ -125,12 +164,77 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
           >
             {view.checkingOut === pull.number ? t('pullCheckingOut') : t('pullCheckout')}
           </Button>
+          <Button
+            disabled={view.aiReviewStatus === 'loading'}
+            onClick={view.runAiReview}
+          >
+            {view.aiReviewStatus === 'loading' ? t('pullAiReviewing') : t('pullAiReview')}
+          </Button>
+          {pull.state === 'open'
+            ? <Button onClick={() => setMergeOpen(true)}>{t('pullMerge')}</Button>
+            : null}
+          {pull.state === 'open'
+            ? <Button variant="danger" onClick={() => setStateDialog('close')}>{t('pullClose')}</Button>
+            : pull.state === 'closed'
+              ? <Button onClick={() => setStateDialog('reopen')}>{t('pullReopen')}</Button>
+              : null}
         </div>
       </header>
 
       <section className="dsh-gitlog-pull-section">
         <h3>{t('pullDescription')}</h3>
         <pre className="dsh-gitlog-pull-body">{pull.body.trim() === '' ? t('pullNoBody') : pull.body}</pre>
+      </section>
+
+      {view.aiReviewStatus === 'idle' && view.aiReview === ''
+        ? null
+        : (
+            <section className="dsh-gitlog-pull-section">
+              <div className="dsh-gitlog-pull-ai-head">
+                <h3>{t('pullAiReviewTitle')}</h3>
+                <div className="dsh-gitlog-pull-ai-actions">
+                  {view.aiReviewStatus === 'ready'
+                    ? (
+                        <Button variant="ghost" onClick={view.runAiReview}>
+                          {t('pullAiReviewRegenerate')}
+                        </Button>
+                      )
+                    : null}
+                  <Button variant="ghost" onClick={view.clearAiReview}>{t('pullAiReviewClear')}</Button>
+                </div>
+              </div>
+              {view.aiReviewStatus === 'loading'
+                ? <LoadingLine label={t('pullAiReviewing')} />
+                : view.aiReviewStatus === 'error'
+                  ? (
+                      <div className="dsh-gitlog-pulls-error" role="alert">
+                        <p>{t('pullAiReviewFailed')}</p>
+                        <p className="dsh-gitlog-error-code">{view.aiReviewError ?? ''}</p>
+                        <Button variant="ghost" onClick={view.runAiReview}>{t('tryAgain')}</Button>
+                      </div>
+                    )
+                  : <pre className="dsh-gitlog-pull-ai-review">{view.aiReview}</pre>}
+              <p className="dsh-gitlog-field-hint">{t('pullAiReviewHint')}</p>
+            </section>
+          )}
+
+      <section className="dsh-gitlog-pull-section">
+        <h3>{`${t('pullComments')} (${comments.length})`}</h3>
+        {comments.length === 0
+          ? <p className="dsh-gitlog-pulls-hint">{t('pullNoComments')}</p>
+          : (
+              <div className="dsh-gitlog-pull-comments">
+                {comments.map(comment => (
+                  <article key={comment.id} className="dsh-gitlog-pull-comment">
+                    <header>
+                      <span>{comment.author === '' ? '—' : comment.author}</span>
+                      <span>{formatDateTime(comment.createdAt, locale)}</span>
+                    </header>
+                    <pre>{comment.body}</pre>
+                  </article>
+                ))}
+              </div>
+            )}
       </section>
 
       <section className="dsh-gitlog-pull-section">
@@ -209,6 +313,22 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
               </div>
             )}
       </section>
+
+      {mergeOpen
+        ? <MergePullDialog view={view} pull={pull} t={t} onClose={() => setMergeOpen(false)} />
+        : null}
+
+      {stateDialog === null
+        ? null
+        : (
+            <PullStateDialog
+              view={view}
+              number={pull.number}
+              action={stateDialog}
+              t={t}
+              onClose={() => setStateDialog(null)}
+            />
+          )}
     </div>
   )
 }
@@ -216,7 +336,18 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
 /** The PR view: a remote and state filter, the request list, and the detail. */
 export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.ReactElement {
   const forge = view.remotes.find(item => item.name === view.remote)?.forge ?? null
+  const currentPull = view.pulls.find(pull => pull.state === 'open' && (
+    pull.sourceBranch === view.headBranch || pull.sourceBranch.endsWith(`:${view.headBranch}`)
+  ))
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const [query, setQuery] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+
+  // A different repository, remote, or filter starts with a clear search.
+  useEffect(() => {
+    setQuery('')
+    setCreateOpen(false)
+  }, [repoKey, view.remote, view.state])
 
   const listWidth = useSplitSize({
     initial: () => Math.min(720, Math.max(220, readRepoUiState(repoKey).pullsListWidth ?? 320)),
@@ -244,6 +375,15 @@ export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.R
     '--gitlog-pulls-h': `${listHeight.size}px`,
   } as unknown as React.CSSProperties
 
+  const needle = query.trim().toLowerCase()
+  const visiblePulls = needle === ''
+    ? view.pulls
+    : view.pulls.filter(pull => `${pull.number} ${pull.title} ${pull.author} ${pull.sourceBranch} ${pull.targetBranch}`
+      .toLowerCase()
+      .includes(needle))
+
+  const total = visiblePulls.length
+
   return (
     <div className="dsh-gitlog-pulls">
       <div className="dsh-gitlog-pulls-toolbar">
@@ -263,18 +403,45 @@ export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.R
           ariaLabel={t('pullFilter')}
           options={[
             { value: 'open' as const, label: t('pullOpen') },
+            { value: 'closed' as const, label: t('pullClosedFilter') },
             { value: 'all' as const, label: t('pullAll') },
           ]}
           onChange={view.setState}
+        />
+        <input
+          type="search"
+          className="dsh-gitlog-pulls-search"
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+          placeholder={t('pullSearch')}
+          aria-label={t('pullSearch')}
+          spellCheck={false}
+          autoComplete="off"
         />
         <div className="dsh-gitlog-pulls-end">
           {forge === null
             ? null
             : (
-                <span className="dsh-gitlog-pulls-forge">
+                <span
+                  className="dsh-gitlog-pulls-forge"
+                  title={`${t('project')}: ${forge.owner}/${forge.repo}`}
+                  aria-label={`${t('project')}: ${forge.owner}/${forge.repo}`}
+                >
                   <span className="dsh-gitlog-pulls-provider">{forgeLabel(forge.provider)}</span>
                   <span className="dsh-gitlog-pulls-repo">{`${forge.owner}/${forge.repo}`}</span>
                 </span>
+              )}
+          <Button onClick={() => setCreateOpen(true)}>{t('pullCreate')}</Button>
+          {currentPull === undefined
+            ? null
+            : (
+                <Button
+                  variant="ghost"
+                  title={t('pullCurrentBranch')}
+                  onClick={() => view.selectPull(currentPull.number)}
+                >
+                  {`#${currentPull.number}`}
+                </Button>
               )}
           <Button
             variant="ghost"
@@ -292,31 +459,58 @@ export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.R
         className={`dsh-gitlog-pulls-body${narrow ? ' is-narrow' : ''}`}
         style={bodyStyle}
       >
-        <div className="dsh-gitlog-pulls-list" role="listbox" aria-label={t('pulls')}>
-          {view.status === 'loading' && view.pulls.length === 0
-            ? <LoadingLine label={t('pullLoading')} />
-            : null}
-          {view.status === 'error'
+        <VirtualList
+          className="dsh-gitlog-pulls-list"
+          role="listbox"
+          ariaLabel={t('pulls')}
+          items={visiblePulls}
+          rowHeight={PULL_ROW_HEIGHT}
+          resetKey={`${repoKey}\u0000${view.remote}\u0000${view.state}\u0000${query}`}
+          onReachEnd={query.trim() === '' ? view.loadMore : undefined}
+          empty={
+            view.status === 'loading' && view.pulls.length === 0
+              ? <LoadingLine label={t('pullLoading')} />
+              : view.status === 'error'
+                ? (
+                    <div className="dsh-gitlog-pulls-error" role="alert">
+                      <p>{t('pullFailed')}</p>
+                      <p className="dsh-gitlog-error-code">{view.error?.message ?? ''}</p>
+                      {view.error?.code === 'forge-rate-limited' || view.error?.code === 'forge-not-found'
+                        ? <p className="dsh-gitlog-note">{t('pullAuthHint')}</p>
+                        : null}
+                      <Button variant="ghost" onClick={view.refresh}>{t('tryAgain')}</Button>
+                    </div>
+                  )
+                : (
+                    <p className="dsh-gitlog-pulls-empty">
+                      {needle === ''
+                        ? t(view.state === 'all' ? 'pullEmptyAll' : view.state === 'closed' ? 'pullEmptyClosed' : 'pullEmpty')
+                        : t('pullNoMatches')}
+                    </p>
+                  )
+          }
+          footer={view.hasMore && view.status === 'ready'
             ? (
-                <div className="dsh-gitlog-pulls-error" role="alert">
-                  <p>{t('pullFailed')}</p>
-                  <p className="dsh-gitlog-error-code">{view.error?.message ?? ''}</p>
-                  {view.error?.code === 'forge-rate-limited' || view.error?.code === 'forge-not-found'
-                    ? <p className="dsh-gitlog-note">{t('pullAuthHint')}</p>
-                    : null}
-                  <Button variant="ghost" onClick={view.refresh}>{t('tryAgain')}</Button>
+                <div className="dsh-gitlog-pulls-more">
+                  {view.loadingMore
+                    ? (
+                        <span className="dsh-gitlog-pulls-more-label">
+                          <Spinner size={14} />
+                          {t('pullLoadingMore')}
+                        </span>
+                      )
+                    : <Button variant="ghost" onClick={view.loadMore}>{t('pullLoadMore')}</Button>}
                 </div>
               )
             : null}
-          {view.status === 'ready' && view.pulls.length === 0
-            ? <p className="dsh-gitlog-pulls-empty">{t(view.state === 'all' ? 'pullEmptyAll' : 'pullEmpty')}</p>
-            : null}
-          {view.pulls.map(pull => (
+          renderRow={(pull, index) => (
             <button
               key={pull.number}
               type="button"
               role="option"
               aria-selected={view.selected === pull.number}
+              aria-posinset={index + 1}
+              aria-setsize={total}
               className={`dsh-gitlog-pull${view.selected === pull.number ? ' is-selected' : ''}`}
               onClick={() => view.selectPull(pull.number)}
             >
@@ -331,11 +525,8 @@ export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.R
                 <span>{`${t('pullUpdated')} ${formatDateTime(pull.updatedAt, t('localeId'))}`}</span>
               </span>
             </button>
-          ))}
-          {view.hasMore && view.status === 'ready'
-            ? <p className="dsh-gitlog-pulls-note">{t('pullMore')}</p>
-            : null}
-        </div>
+          )}
+        />
         <Splitter
           orientation={narrow ? 'horizontal' : 'vertical'}
           label={t('resizePullList')}
@@ -347,6 +538,10 @@ export function PullsPane({ view, t, narrow, repoKey }: PullsPaneProps): React.R
           <PullDetail view={view} t={t} />
         </div>
       </div>
+
+      {createOpen
+        ? <CreatePullDialog view={view} t={t} onClose={() => setCreateOpen(false)} />
+        : null}
 
       {view.authPrompt === null
         ? null

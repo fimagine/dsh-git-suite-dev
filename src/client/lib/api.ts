@@ -27,6 +27,12 @@ import type {
   PullsPayload,
   PullPayload,
   PullCheckoutPayload,
+  PullStatePayload,
+  PullCreateRequest,
+  PullCreatePayload,
+  PullMergePayload,
+  PullMergeRequest,
+  PullAiReviewPayload,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -68,9 +74,11 @@ export interface RequestParams {
   /** session-repo: which Session's working directory to resolve. */
   session?: string
   /** pulls/pull: open pull requests only, or every state. */
-  state?: 'open' | 'all'
+  state?: 'open' | 'closed' | 'all'
   /** pull: the pull request number. */
   number?: string
+  /** pulls: the 1-based page to request. */
+  page?: string
   /** pulls/pull: skip the host's 60-second response cache for a manual refresh. */
   fresh?: '1'
 }
@@ -250,7 +258,7 @@ export async function requestOpenApp(body: OpenAppRequest, signal?: AbortSignal)
 
 /** GET /git-suite?mode=pulls: one page of pull requests for one remote. */
 export async function requestPulls(
-  params: { path: string; remote: string; state?: 'open' | 'all'; fresh?: boolean },
+  params: { path: string; remote: string; state?: 'open' | 'closed' | 'all'; page?: number; fresh?: boolean },
   signal?: AbortSignal,
 ): Promise<PullsPayload> {
   return requestJson<PullsPayload>({
@@ -258,13 +266,14 @@ export async function requestPulls(
     path: params.path,
     remote: params.remote,
     state: params.state ?? 'open',
+    ...(params.page === undefined ? {} : { page: String(params.page) }),
     ...(params.fresh === true ? { fresh: '1' as const } : {}),
   }, signal)
 }
 
 /** GET /git-suite?mode=pull: one pull request with its files and commits. */
 export async function requestPull(
-  params: { path: string; remote: string; number: number; state?: 'open' | 'all'; fresh?: boolean },
+  params: { path: string; remote: string; number: number; state?: 'open' | 'closed' | 'all'; fresh?: boolean },
   signal?: AbortSignal,
 ): Promise<PullPayload> {
   return requestJson<PullPayload>({
@@ -289,6 +298,64 @@ export async function requestPullCheckout(
   signal?: AbortSignal,
 ): Promise<PullCheckoutPayload> {
   return postCommitJson<PullCheckoutPayload>('/git-suite/pr', body, signal)
+}
+
+/** POST /git-suite/pr-close: close the request on the forge. */
+export async function requestPullClose(
+  body: PullCheckoutRequest,
+  signal?: AbortSignal,
+): Promise<PullStatePayload> {
+  return postCommitJson<PullStatePayload>('/git-suite/pr-close', body, signal)
+}
+
+/** POST /git-suite/pr-reopen: reopen a closed request on the forge. */
+export async function requestPullReopen(
+  body: PullCheckoutRequest,
+  signal?: AbortSignal,
+): Promise<PullStatePayload> {
+  return postCommitJson<PullStatePayload>('/git-suite/pr-reopen', body, signal)
+}
+
+export interface PullCreateCall extends PullCreateRequest {
+  path: string
+  remote: string
+}
+
+/** POST /git-suite/pr-create: open a new request from the current branch. */
+export async function requestPullCreate(
+  body: PullCreateCall,
+  signal?: AbortSignal,
+): Promise<PullCreatePayload> {
+  return postCommitJson<PullCreatePayload>('/git-suite/pr-create', body, signal)
+}
+
+export interface PullMergeCall extends PullMergeRequest {
+  path: string
+  remote: string
+  number: number
+}
+
+/** POST /git-suite/pr-merge: merge the request on the forge. */
+export async function requestPullMerge(
+  body: PullMergeCall,
+  signal?: AbortSignal,
+): Promise<PullMergePayload> {
+  return postCommitJson<PullMergePayload>('/git-suite/pr-merge', body, signal)
+}
+
+export interface PullAiReviewCall {
+  path: string
+  remote: string
+  number: number
+  language?: string
+}
+
+/** POST /git-suite/pr-ai-review: ask the default model for a read-only review. */
+export async function requestPullAiReview(
+  body: PullAiReviewCall,
+  signal?: AbortSignal,
+): Promise<PullAiReviewPayload> {
+  return postCommitJson<PullAiReviewPayload>('/git-suite/pr-ai-review', body, signal)
 }
 
 export interface RevealFileRequest {

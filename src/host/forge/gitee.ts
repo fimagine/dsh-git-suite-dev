@@ -1,4 +1,4 @@
-import type { PullCommit, PullDetail, PullFile, PullSummary } from '../types.js'
+import type { PullComment, PullCommit, PullCreateInput, PullDetail, PullFile, PullMergeInput, PullMergeResult, PullSummary } from '../types.js'
 import type { ForgeTarget } from './detect.js'
 import { forgeJson } from './http.js'
 
@@ -43,6 +43,14 @@ interface GiteeCommit {
     author?: { name?: string; date?: string } | null
   }
   author?: GiteeUser | null
+}
+
+interface GiteeComment {
+  id?: number
+  user?: { login?: string; name?: string } | null
+  body?: string | null
+  created_at?: string
+  html_url?: string
 }
 
 const PAGE_SIZE = 30
@@ -122,14 +130,15 @@ function commitOf(commit: GiteeCommit): PullCommit {
 export async function listGiteePulls(
   target: ForgeTarget,
   token: string | null,
-  state: 'open' | 'all',
+  state: 'open' | 'closed' | 'all',
   signal?: AbortSignal,
   fresh = false,
+  page = 1,
 ): Promise<PullSummary[]> {
-  const query = state === 'all' ? 'state=all' : 'state=open'
+  const query = state === 'all' ? 'state=all' : state === 'closed' ? 'state=closed' : 'state=open'
   const pulls = await forgeJson<GiteePull[]>(
     target,
-    `${repoPath(target)}/pulls?${query}&sort=updated&direction=desc&per_page=${PAGE_SIZE}&page=1`,
+    `${repoPath(target)}/pulls?${query}&sort=updated&direction=desc&per_page=${PAGE_SIZE}&page=${page}`,
     token,
     signal,
     { fresh },
@@ -145,13 +154,21 @@ export async function getGiteePull(
   fresh = false,
 ): Promise<PullDetail> {
   const base = `${repoPath(target)}/pulls/${number}`
-  const [pull, files, commits] = await Promise.all([
+  const [pull, files, commits, comments] = await Promise.all([
     forgeJson<GiteePull>(target, base, token, signal, { fresh }),
     forgeJson<GiteeFile[]>(target, `${base}/files?per_page=100&page=1`, token, signal, { fresh }).catch(() => [] as GiteeFile[]),
     forgeJson<GiteeCommit[]>(target, `${base}/commits?per_page=100&page=1`, token, signal, { fresh }).catch(() => [] as GiteeCommit[]),
+    forgeJson<GiteeComment[]>(target, `${repoPath(target)}/issues/${number}/comments?per_page=100&page=1`, token, signal, { fresh }).catch(() => [] as GiteeComment[]),
   ])
   const fileList = (Array.isArray(files) ? files : []).slice(0, MAX_FILES).map(fileOf)
   const commitList = (Array.isArray(commits) ? commits : []).map(commitOf)
+  const commentList: PullComment[] = (Array.isArray(comments) ? comments : []).map(comment => ({
+    id: String(comment.id ?? ''),
+    author: comment.user?.login ?? comment.user?.name ?? '',
+    body: typeof comment.body === 'string' ? comment.body : '',
+    createdAt: comment.created_at ?? '',
+    url: typeof comment.html_url === 'string' ? comment.html_url : null,
+  }))
   const additions = fileList.reduce<number | null>((total, file) => {
     if (file.additions === null) return total
     return (total ?? 0) + file.additions
@@ -171,6 +188,9 @@ export async function getGiteePull(
     files: fileList,
     commits: commitList,
     filesTruncated: Array.isArray(files) && files.length >= MAX_FILES,
+    checks: null,
+    review: null,
+    comments: commentList,
   }
 }
 
@@ -180,4 +200,76 @@ function headRepositoryUrl(pull: GiteePull): string | null {
   const fullName = pull.head?.repo?.full_name
   if (typeof fullName === 'string' && fullName !== '') return `https://gitee.com/${fullName}.git`
   return null
+}
+
+export async function closeGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${repoPath(target)}/pulls/${number}`, token, signal, {
+    method: 'PATCH',
+    body: { state: 'closed' },
+  })
+}
+
+export async function reopenGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${repoPath(target)}/pulls/${number}`, token, signal, {
+    method: 'PATCH',
+    body: { state: 'open' },
+  })
+}
+
+export async function createGiteePull(
+  target: ForgeTarget,
+  token: string,
+  input: PullCreateInput,
+  signal?: AbortSignal,
+): Promise<PullSummary> {
+  const pull = await forgeJson<GiteePull>(target, `${repoPath(target)}/pulls`, token, signal, {
+    method: 'POST',
+    body: {
+      title: input.title,
+      head: input.head,
+      base: input.base,
+      body: input.body,
+      draft: input.draft,
+      prune_source_branch: false,
+    },
+  })
+  return summary(pull)
+}
+
+export async function mergeGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  input: PullMergeInput,
+  signal?: AbortSignal,
+): Promise<PullMergeResult> {
+  const result = await forgeJson<{ merged?: boolean; message?: string; sha?: string }>(
+    target,
+    `${repoPath(target)}/pulls/${number}/merge`,
+    token,
+    signal,
+    {
+      method: 'PUT',
+      body: {
+        merge_method: input.method,
+        prune_source_branch: input.deleteSourceBranch,
+      },
+    },
+  )
+  return {
+    merged: result?.merged !== false,
+    message: typeof result?.message === 'string' ? result.message : '',
+    sha: typeof result?.sha === 'string' ? result.sha : null,
+    branchDeleted: input.deleteSourceBranch,
+  }
 }

@@ -353,3 +353,25 @@ export function EditorIcon({ size = 18 }: { size?: number }): React.ReactElement
   )
 }
 
+/** Warning triangle beside a conflicted file's status letter. */
+export function ConflictIcon({ size = 12 }: { size?: number }): React.ReactElement {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+      focusable={false}
+    >
+      <path d="M8 2.2 14.2 13H1.8L8 2.2Z" />
+      <path d="M8 6.1v3.2" />
+      <circle cx="8" cy="11.2" r="0.7" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+

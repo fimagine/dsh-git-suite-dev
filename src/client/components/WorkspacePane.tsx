@@ -7,7 +7,7 @@ import { useDiffMode } from '../lib/use-diff-mode.js'
 import { useSplitSize } from '../lib/use-split-size.js'
 import { fileManagerName } from '../lib/platform.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
-import { MinusIcon, PlusIcon, RefreshIcon, SparkleIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
+import { ConflictIcon, MinusIcon, PlusIcon, RefreshIcon, SparkleIcon, SplitDiffIcon, UnifiedDiffIcon } from './GitLogIcon.js'
 import { Button } from './Button.js'
 import { Splitter } from './Splitter.js'
 import { Spinner, useMinimumSpin } from './States.js'
@@ -315,9 +315,19 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
           onChange={() => toggleCheck(group, file.path)}
           aria-label={file.path}
         />
+        <span className={`dsh-gitlog-workspace-status ${statusTone(file.status)}${conflicted ? ' is-conflict' : ''}`}>
+          {file.status}
+        </span>
         {conflicted
-          ? <span className="dsh-gitlog-workspace-status is-conflict">{t('conflictBadge')}</span>
-          : <span className={`dsh-gitlog-workspace-status ${statusTone(file.status)}`}>{file.status}</span>}
+          ? (
+              <span
+                className="dsh-gitlog-workspace-conflict"
+                {...tooltipProps(t('statusConflicted'))}
+              >
+                <ConflictIcon size={12} />
+              </span>
+            )
+          : null}
         <span className="dsh-gitlog-workspace-path">
           {file.path}
         </span>

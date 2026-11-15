@@ -162,6 +162,29 @@ export interface PullFile {
   binary: boolean
 }
 
+/** Read-only review summary: approvals and change requests. */
+export interface PullReview {
+  state: 'approved' | 'changes_requested' | 'pending' | 'none'
+  approvals: number
+  changesRequested: number
+}
+
+/** CI status rolled up for a pull request head commit. */
+export interface PullChecks {
+  state: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown'
+  total: number
+  url: string | null
+}
+
+/** One discussion comment on a pull request. */
+export interface PullComment {
+  id: string
+  author: string
+  body: string
+  createdAt: string
+  url: string | null
+}
+
 /** One commit of a pull request. */
 export interface PullCommit {
   hash: string
@@ -182,21 +205,61 @@ export interface PullDetail extends PullSummary {
   files: PullFile[]
   commits: PullCommit[]
   filesTruncated: boolean
+  checks: PullChecks | null
+  review: PullReview | null
+  comments: PullComment[]
+}
+
+export interface PullMergeRequest {
+  method: 'merge' | 'squash' | 'rebase'
+  deleteSourceBranch: boolean
+}
+
+export interface PullMergePayload {
+  ok: true
+  merged: boolean
+  message: string
+  sha: string | null
+  branchDeleted: boolean
+}
+
+export interface PullAiReviewPayload {
+  ok: true
+  review: string
+  model: string
+  files: number
+  truncated: boolean
 }
 
 export interface PullsPayload {
   ok: true
   remote: string
-  state: 'open' | 'all'
+  state: 'open' | 'closed' | 'all'
   forge: ForgeInfo
+  page: number
   pulls: PullSummary[]
+  defaultBase: string
   hasMore: boolean
+}
+
+export interface PullCreateRequest {
+  title: string
+  body: string
+  base: string
+  draft: boolean
+}
+
+export interface PullCreatePayload {
+  ok: true
+  pull: PullSummary
+  number: number
+  webUrl: string
 }
 
 export interface PullPayload {
   ok: true
   remote: string
-  state: 'open' | 'all'
+  state: 'open' | 'closed' | 'all'
   forge: ForgeInfo
   pull: PullDetail
 }
@@ -207,6 +270,12 @@ export interface PullCheckoutPayload {
   hash: string
   /** The local branch already existed and was reused. */
   existing: boolean
+}
+
+export interface PullStatePayload {
+  ok: true
+  action: 'close' | 'reopen'
+  number: number
 }
 
 export interface RemoteGroup {

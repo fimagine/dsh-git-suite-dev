@@ -126,7 +126,7 @@ LICENSE
 
 | 文件 | 职责 |
 |---|---|
-| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr POST handler |
+| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr / pr-close / pr-reopen / pr-create / pr-merge / pr-ai-review POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、按 hunk 或按选中行暂存/取消暂存（`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines`，由 `host/patch.ts` 组装补丁后 `git apply --cached [--reverse] --recount --unidiff-zero`）、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
@@ -155,8 +155,10 @@ LICENSE
 | `host/routes/apps.ts` | `mode=apps`：返回 `host/editors.ts` 探测到的编辑器（id + 显示名，按优先级）以及旧客户端读取的 `vscode` 布尔值；客户端只显示一个编辑器按钮，装了多个时点开是菜单，切换仓库时重新探测 |
 | `host/credential-handler.ts` | `POST /git-suite/credential`：把 HTTPS 的用户名/令牌交给仓库配置的凭据助手保存（`git credential approve`，密码只走 stdin），保存前校验远端为 HTTPS 且存在 helper（否则 `409 no-credential-helper`）；`forge: true` 时也接受 SSH 远端，把令牌按平台 host 存成 HTTPS 凭据；接口从不回传密码 |
 | `host/forge/` | 托管平台适配层：`detect.ts` 从 remote URL 识别 GitHub/Gitee/GitLab（含 `github.*`、`gitlab.*`、`gitee.*` 自建实例）并推导 API 基址；`token.ts` 按环境变量 → `gh auth token` → `git credential fill` 取令牌（5 分钟缓存）；`http.ts` 负责超时、大小上限、鉴权头、限流/401/404 映射与 60 秒缓存；`github.ts`/`gitee.ts`/`gitlab.ts` 把各自 payload 归一成 `PullSummary`/`PullDetail`；`remote.ts` 解析默认远端（当前分支 upstream → origin → 第一个） |
-| `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（打开/全部，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
-| `host/pr-handler.ts` | `POST /git-suite/pr`：检出 PR。先取 PR 元数据，再依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`；工作区有冲突改动时返回 `409 worktree-dirty` |
+| `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（`state=open|closed|all`，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
+| `host/pr-handler.ts` | `POST /git-suite/pr`：`action: 'checkout'`（默认）检出 PR——依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`（工作区有冲突改动时返回 `409 worktree-dirty`）；`POST /git-suite/pr-close`、`POST /git-suite/pr-reopen` 与 `POST /git-suite/pr-merge` 复用同一个 handler（默认 `close` / `reopen` / `merge`）：前两者调平台 API 改变状态并保留源分支，合并按 merge/squash/rebase（仅 GitHub 支持 rebase）并可删除源分支；缺少令牌时返回 `401 forge-auth-required` |
+| `host/pr-create-handler.ts` | `POST /git-suite/pr-create`：校验标题/描述，目标远端由 `remote` 指定；源分支取当前分支的 upstream 远端与分支名，两个远端必须同平台同主机。校验 head/base 都存在于各自远端，缺少令牌返回 `401 forge-auth-required`；同仓库时直接提交分支，跨仓库时 GitHub/Gitee 提交 `owner:branch`、GitLab 先解析 `source_project_id`；分支未推送返回 `409 branch-not-pushed` |
+| `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`：拉取 PR 详情，截断描述/diff（40k 字符）后用默认模型生成只读 Markdown 审查；不写平台；无模型或空输出返回 5xx |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
 | `host/routes/` | 分支、引用树、日志分页、提交详情、文件状态/diff 读取，以及本地分支切换 |
@@ -182,8 +184,13 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
-| `client/hooks/usePulls.ts` | PR 视图状态：受支持的远端与默认远端、打开/全部筛选、列表与详情请求、401 时的令牌对话框、检出后的刷新；只有 PR 视图可见时才请求 |
-| `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、列表、详情（描述、提交、文件与可切换布局的差异）、在浏览器打开与检出到本地；`ForgeAuthDialog.tsx` 负责输入平台令牌 |
+| `client/hooks/usePulls.ts` | PR 视图状态：受支持的远端与默认远端、开放中/已关闭/全部筛选、列表与详情请求、401 时的令牌对话框、检出后的刷新；只有 PR 视图可见时才请求 |
+| `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、虚拟列表、详情（描述、讨论、AI 审查、CI 状态、提交、文件与可切换布局的差异）、在浏览器打开、检出到本地、合并、关闭/重新打开；当前分支已有 PR 时显示编号入口 |
+| `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示 |
+| `client/components/PullChecksBadge.tsx` | CI 汇总胶囊，带平台检查页链接 |
+| `client/components/PullReviewBadge.tsx` | 评审只读汇总：已批准/有修改意见/待评审 |
+| `client/components/CreatePullDialog.tsx` | 创建 PR 表单：源分支只读、目标分支下拉、标题/描述/草稿，跨仓库时提示 head/base 远端 |
+| `client/components/VirtualList.tsx` | 固定行高的窗口化列表组件：自管滚动容器、`ResizeObserver` 测量、可见切片 + overscan、上下占位高度、`resetKey` 回顶、`onReachEnd`、`onViewportChange`；PR 列表与提交列表都使用它 |
 | `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序，右侧另有刷新按钮）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数、可录制的打开快捷键、版本检查更新）、工作区/提交面板、第二行操作栏（Ant Design 5 风格 text 按钮：默认无边框无背景，悬停出现中性底色，按下时底色更重；「历史/提交」是带边框轨道的 `Switch`，保留文字标签，其余只保留图标 + tooltip：拉取/推送/获取、命令行、按平台命名的文件管理器，以及 `mode=apps` 探测到时的 VS Code）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出/拣选/反向提交/重置/最近操作）、标签右键菜单（检出）、贮藏右键菜单（应用/弹出/丢弃）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、`Spinner`（唯一的加载动画组件，配合 `useMinimumSpin` 保证转满三圈才消失，避免闪烁）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、`DiffView`（统一或左右分栏 diff：粘性新旧行号栏、增删着色、分批「显示更多」、行号拖选、hunk/行级操作；布局用图标按钮切换，偏好持久化为 `diffMode`）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
@@ -240,7 +247,7 @@ LICENSE
   - `stage` / `unstage`，带 `paths` 或 `all`，分别执行 `git add -A` / `git reset -q HEAD`。
   - `commit`，带 `message`、`amend`、`push`，执行 `git commit -m`（可选 `--amend`），可选 `git push` 到当前上游。
 - 暂存以文件为单位（暂不提供 hunk/区块级暂存）；每个文件行最右侧有 **+**（暂存该文件）或 **−**（取消暂存）按钮，双击文件行也会在已暂存/未暂存之间切换（行文字 `user-select: none`，双击不会选中文本）；提交成功后刷新状态并重新加载 HEAD/引用树。工具栏的拉取/推送可选择远端与分支，强制推送仅在明确勾选时使用；提交后的推送仍只推送到当前上游。
-- 状态字母带颜色：**M** 黄、**U**（未跟踪，原先显示 `?`）绿、**D** 红、**R**/**C** 蓝、**A** 绿。未合并路径由 `mode=status` 的 `unmerged` 标志标识，显示为红色「冲突」胶囊而不是字母。
+- 状态字母带颜色：**M** 黄、**U**（未跟踪，原先显示 `?`）绿、**D** 红、**R**/**C** 蓝、**A** 绿。未合并路径由 `mode=status` 的 `unmerged` 标志标识：状态字母保留（未合并显示 `U`），旁边另加红色警告图标。
 - 提交信息输入框按仓库保存草稿（存于该仓库的 `ui-state` 分桶，去抖写入，只有提交成功后才清空）。标题行左侧是「提交信息」，右侧显示已配置的 Git 作者（`姓名 <邮箱>`）。**光标在 0 位按 ↑** 开始遍历该仓库最近的提交信息（`mode=commit-messages`，新→旧）；插入后**光标在末位、且未编辑时按 ↓** 继续遍历，遍历完最旧一条后回到开始遍历前输入的内容。任何编辑都视为新提交信息并重置遍历。
 - 悬停文件行显示插件 tooltip，格式为 `<绝对路径> - <状态词>`（重命名会追加 `(from <旧路径>)`）；行的提示取代了原先只在路径上的提示。
 - 提交信息旁的 **AI 生成** 通过 `POST /git-suite/generate-message` 读取 staged（无暂存时 unstaged）diff，调用 `ctx.llm.stream()`（provider/model 来自 `ctx.agentDefaultModel.currentSelection()`）生成提交信息；文件列表与 diff 会发送给配置的模型提供方，生成结果只填入输入框，不写仓库。没有默认模型、没有改动或模型失败时返回明确错误。
@@ -266,7 +273,7 @@ LICENSE
 
 ## 冲突善后
 
-当 merge / rebase / cherry-pick / revert 停在半途时，`mode=operation` 会返回该状态与未合并文件。冲突文件**直接出现在「未暂存」列表里**（未合并路径不再进入已暂存列表——`U` 是冲突标记而不是已暂存的改动），状态位显示为「冲突」胶囊；行末按钮用于标记已解决（`git add`），右键菜单多出「用 ours」「用 theirs」（`git checkout --ours|--theirs` 后 `git add`，该侧不存在时置灰）。
+当 merge / rebase / cherry-pick / revert 停在半途时，`mode=operation` 会返回该状态与未合并文件。冲突文件**直接出现在「未暂存」列表里**（未合并路径不再进入已暂存列表——`U` 是冲突标记而不是已暂存的改动），状态字母保留，旁边显示红色警告图标；行末按钮用于标记已解决（`git add`），右键菜单多出「用 ours」「用 theirs」（`git checkout --ours|--theirs` 后 `git add`，该侧不存在时置灰）。
 
 列表上方保留一条紧凑提示条，显示操作名称、剩余冲突数与：
 
@@ -281,10 +288,10 @@ LICENSE
 第二行的视图切换在 **历史 / 提交** 之外增加 **PR**，但它只在 `mode=tree` 报告至少一个受支持的远端（`remotes[].forge` 非空）时出现；本地仓库、SSH 到不支持的主机，以及只有 `file://` 远端的仓库都不会看到这个入口。`forge` 由宿主在读取引用树时顺带算好，因此不需要额外探测请求。
 
 - **远端**：默认取当前分支 upstream 所属远端，其次 `origin`，再其次第一个受支持远端；有多个时工具栏出现远端下拉。
-- **加载**：只有 PR 视图可见时才请求 `mode=pulls`；打开/全部筛选与刷新按钮都会重新取一页（最多 30 条，`hasMore` 时提示还有更多）。宿主对 GET 响应做 60 秒缓存，但刷新按钮带 `fresh=1` 跳过缓存，新建或合并 PR 后能立刻看到。
-- **列表**：编号、标题、作者、源分支 → 目标分支、更新时间与状态胶囊（打开/草稿/已合并/已关闭）。
+- **加载**：只有 PR 视图可见时才请求 `mode=pulls`；首次取 30 条，滚到底或列表未填满时自动用 `page` 取下一页并追加（客户端上限 300 条）。列表按固定行高虚拟滚动，只渲染可见窗口；刷新按钮重置到第一页并带 `fresh=1` 跳过宿主缓存，开放中/已关闭/全部筛选和切换远端也会重置分页。
+- **列表**：编号、标题、作者、源分支 → 目标分支、更新时间与状态胶囊（打开/草稿/已合并/已关闭）；工具栏搜索框按编号/标题/作者/分支过滤已加载的条目；行高固定，列表虚拟滚动。
 - **调整大小**：列表与详情之间是一条可拖拽分割线；宽布局调列表宽度，窄布局调列表高度，双击复位，尺寸按仓库分别记住。
-- **详情**：`mode=pull&number=…` 返回描述、改动文件（含补丁）、提交与可合并状态；文件差异复用 `DiffView`，并把文件路径传给它做语法高亮；分栏/统一布局沿用全局 `diffMode` 偏好。「在浏览器打开」是普通链接（只接受 http/https），「检出到本地」走 `POST /git-suite/pr`。
+- **详情**：`mode=pull&number=…` 返回描述、讨论、改动文件（含补丁）、提交、CI 状态与可合并状态；文件差异复用 `DiffView`，并把文件路径传给它做语法高亮；分栏/统一布局沿用全局 `diffMode` 偏好。详情元信息显示仓库归属（跨仓库为 `head → base`），工具栏也以胶囊显示当前列表所属仓库，避免多远端/ fork 场景下混淆。「在浏览器打开」是普通链接（只接受 http/https），「检出到本地」走 `POST /git-suite/pr`；打开状态显示「合并」（`POST /git-suite/pr-merge`，可选 merge/squash/rebase 与删除源分支）和「关闭」（`POST /git-suite/pr-close`），已关闭状态显示「重新打开」（`POST /git-suite/pr-reopen`），都会先二次确认。工具栏的「创建 PR」打开表单：源分支为当前分支（必须是远端已有分支），目标分支从远端分支中选择，可填标题/描述/草稿，提交走 `POST /git-suite/pr-create`。详情工具栏的「AI 审查」调用 `POST /git-suite/pr-ai-review`，宿主拉取 PR 的 diff/提交后用 `ctx.llm` 的默认模型生成只读 Markdown，不写平台；客户端显示 loading/错误/结果，可重新审查或清除。列表与详情在视图活跃时每 60 秒静默刷新第一页与当前详情。
 - **认证**：平台返回 401 时弹出 `ForgeAuthDialog`；令牌是必填项，账号名可选（Gitee 个人仓库会预填 owner，留空时宿主调用平台 `/user` 解析出真实登录名）。令牌经 `POST /git-suite/credential { forge: true }` 交给仓库的凭据助手保存（SSH 远端也按平台 host 存成 HTTPS 凭据），随后自动重试。也可以改用 `GITHUB_TOKEN`/`GITEE_TOKEN`/`GITLAB_TOKEN` 或 `gh` 的登录态；令牌只在宿主进程使用。
 - **检出**：成功后刷新工作区与引用树；本地分支名固定为 `pr/<编号>`，已存在时直接切换而不移动它。
 

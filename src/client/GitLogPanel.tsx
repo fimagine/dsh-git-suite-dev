@@ -60,6 +60,17 @@ const MIN_TREE_HEIGHT = 140
 const MAX_TREE_HEIGHT = 460
 const MIN_DETAIL_RATIO = 0.2
 const MAX_DETAIL_RATIO = 0.8
+/** Conflicts can be created from a terminal; poll often enough to notice. */
+const OPERATION_POLL_MS = 3000
+
+/** Identity of the current operation, including the remaining conflict stages. */
+function operationSignature(payload: OperationPayload | null): string {
+  if (payload === null || payload.operation === null) return ''
+  const files = payload.conflicts
+    .map(file => `${file.path}:${file.ours ? '2' : ''}${file.theirs ? '3' : ''}`)
+    .join('|')
+  return `${payload.operation}|${files}`
+}
 
 /** Split `origin/feature/x` into the remote name and the branch name on that remote. */
 function splitRemoteBranch(name: string): { remote: string; branch: string } {
@@ -83,6 +94,9 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
   const workspacePath = view.repo?.repoRoot ?? view.pathInput.trim()
   const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
   const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
+  /** Latest view/workspace objects for the conflict poll, which outlives one render. */
+  const liveRefresh = useRef({ view, ws })
+  liveRefresh.current = { view, ws }
   const repoRoot = view.repo?.repoRoot ?? ''
   const [narrow, setNarrow] = useState(isNarrowViewport)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -92,6 +106,7 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
     repoRoot,
     remotes: view.tree?.remotes ?? [],
     upstream: ws.status?.upstream ?? '',
+    branch: view.repo?.branch ?? '',
     t,
     onCheckedOut: () => {
       view.refresh()
@@ -114,6 +129,10 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
   const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null)
   const [stashMenu, setStashMenu] = useState<StashMenuState | null>(null)
   const [operation, setOperation] = useState<OperationPayload | null>(null)
+  /** Signature of the last operation state, so the poll reacts only to changes. */
+  const operationRef = useRef('')
+  /** Conflict set the panel already switched to the commit view for. */
+  const autoSwitched = useRef('')
   const [conflictBusy, setConflictBusy] = useState(false)
   const [tagStatus, setTagStatus] = useState<TagStatusPayload | null>(null)
   const [addTagOpen, setAddTagOpen] = useState(false)
@@ -379,13 +398,16 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
   const refreshOperation = async (signal?: AbortSignal): Promise<void> => {
     const target = view.repo?.repoRoot ?? view.pathInput.trim()
     if (target === '') {
+      operationRef.current = ''
       setOperation(null)
       return
     }
     try {
-      setOperation(await requestOperation({ path: target }, signal))
+      const payload = await requestOperation({ path: target }, signal)
+      operationRef.current = operationSignature(payload)
+      setOperation(payload)
     } catch {
-      setOperation(null)
+      // Keep the last known state; a transient failure should not hide a banner.
     }
   }
 
@@ -395,6 +417,72 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the repository matters here
   }, [view.repo?.repoRoot])
+
+  // A merge/rebase/pick can be started from a terminal while this panel is
+  // open. Poll the operation state (and once on focus) so its conflict banner
+  // and file lists appear without a manual reload.
+  useEffect(() => {
+    const target = view.repo?.repoRoot ?? ''
+    if (target === '') return undefined
+    let disposed = false
+    let busy = false
+    const check = async (): Promise<void> => {
+      if (busy || disposed) return
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      busy = true
+      try {
+        const next = await requestOperation({ path: target })
+        if (disposed) return
+        const signature = operationSignature(next)
+        if (signature === operationRef.current) return
+        operationRef.current = signature
+        setOperation(next)
+        // The commit list and working-tree files predate this state change.
+        liveRefresh.current.view.refresh()
+        liveRefresh.current.ws.refresh()
+      } catch {
+        // Retry on the next tick; a transient failure must not clear the banner.
+      } finally {
+        busy = false
+      }
+    }
+    const timer = window.setInterval(() => { void check() }, OPERATION_POLL_MS)
+    const onFocus = (): void => { void check() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- liveRefresh ref holds current view/ws
+  }, [view.repo?.repoRoot])
+
+  // Opening the commit view re-reads its status, so changes made in a terminal
+  // (conflict stages included) show up without another manual refresh.
+  useEffect(() => {
+    if (viewMode !== 'workspace') return
+    ws.refresh()
+    void refreshOperation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on entering the view
+  }, [viewMode])
+
+  // A conflict created anywhere (terminal included) opens the commit page,
+  // where the banner and the conflict files are actionable. Only a newly seen
+  // conflict set switches; going back to history afterwards is allowed.
+  useEffect(() => {
+    if (operation === null) {
+      autoSwitched.current = ''
+      return
+    }
+    if (operation.conflicts.length === 0) return
+    const signature = operationSignature(operation)
+    if (signature === autoSwitched.current) return
+    autoSwitched.current = signature
+    if (viewMode !== 'workspace') setViewMode('workspace')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the switch is the point
+  }, [operation, viewMode])
 
   // A pull can end in a conflicted merge; re-read the state once syncing settles.
   useEffect(() => {

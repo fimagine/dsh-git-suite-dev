@@ -222,6 +222,29 @@ export interface PullFile {
   binary: boolean
 }
 
+/** Read-only review summary: approvals and change requests. */
+export interface PullReview {
+  state: 'approved' | 'changes_requested' | 'pending' | 'none'
+  approvals: number
+  changesRequested: number
+}
+
+/** CI status rolled up for a pull request head commit. */
+export interface PullChecks {
+  state: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown'
+  total: number
+  url: string | null
+}
+
+/** One discussion comment on a pull request. */
+export interface PullComment {
+  id: string
+  author: string
+  body: string
+  createdAt: string
+  url: string | null
+}
+
 /** One commit of a pull request. */
 export interface PullCommit {
   hash: string
@@ -229,6 +252,17 @@ export interface PullCommit {
   subject: string
   author: string
   date: string
+}
+
+/** What a new pull request needs: both branches live on the same remote. */
+export interface PullCreateInput {
+  title: string
+  body: string
+  head: string
+  base: string
+  draft: boolean
+  /** GitLab only: the fork project path when the source is another repository. */
+  headProjectPath?: string | null
 }
 
 /** One pull request with its description, files, and commits. */
@@ -243,6 +277,23 @@ export interface PullDetail extends PullSummary {
   files: PullFile[]
   commits: PullCommit[]
   filesTruncated: boolean
+  /** Rolled-up CI status of the head commit, when the forge exposes it. */
+  checks: PullChecks | null
+  review: PullReview | null
+  comments: PullComment[]
+}
+
+/** How to merge a pull request. */
+export interface PullMergeInput {
+  method: 'merge' | 'squash' | 'rebase'
+  deleteSourceBranch: boolean
+}
+
+export interface PullMergeResult {
+  merged: boolean
+  message: string
+  sha: string | null
+  branchDeleted: boolean
 }
 
 /** What the route needs from the host context: the workspace registry and a fallback directory. */

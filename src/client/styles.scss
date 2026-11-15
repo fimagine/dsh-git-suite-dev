@@ -1327,17 +1327,6 @@ $brand: var(--dsw-alias-brand-primary);
     font-family: var(--gitlog-mono);
   }
 
-  &-list-body {
-    position: relative;
-  }
-
-  &-commit-slot {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 26px;
-  }
-
   &-commit {
     position: relative;
     display: grid;
@@ -2638,16 +2627,22 @@ $brand: var(--dsw-alias-brand-primary);
       color: var(--dsw-alias-state-info-primary, #4c8dff);
     }
 
-    // Conflicted files carry a word instead of git's single status letter.
+    // Conflicted files keep git's status letter; the warning icon marks them.
     &.is-conflict {
-      flex: 0 0 auto;
-      padding: 0 5px;
-      border: 1px solid currentColor;
-      border-radius: 999px;
       color: var(--dsw-alias-state-error-primary, #f85149);
-      font-family: inherit;
-      font-weight: 600;
-      line-height: 15px;
+      font-weight: 700;
+    }
+  }
+
+  &-workspace-conflict {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: var(--dsw-alias-state-error-primary, #f85149);
+
+    svg {
+      display: block;
     }
   }
 
@@ -3064,6 +3059,21 @@ $brand: var(--dsw-alias-brand-primary);
     min-width: 120px;
   }
 
+  &-pulls-search {
+    @include control-surface(10px);
+    flex: 1 1 160px;
+    min-width: 120px;
+    max-width: 260px;
+
+    &:focus {
+      border-color: $brand;
+    }
+
+    &::-webkit-search-cancel-button {
+      cursor: pointer;
+    }
+  }
+
   &-pulls-end {
     display: flex;
     align-items: center;
@@ -3077,6 +3087,11 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: center;
     gap: 6px;
     min-width: 0;
+    max-width: 300px;
+    padding: 2px 8px;
+    border: 1px solid $border-l1;
+    border-radius: 999px;
+    background: $bg-layer-1;
     color: $label-secondary;
     font-size: $font-tiny;
   }
@@ -3088,6 +3103,8 @@ $brand: var(--dsw-alias-brand-primary);
   }
 
   &-pulls-repo {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3106,11 +3123,28 @@ $brand: var(--dsw-alias-brand-primary);
     grid-template-rows: minmax(0, var(--gitlog-pulls-h, 220px)) 6px minmax(0, 1fr);
   }
 
+  // Virtual rows only: spacers preserve the scrollbar height.
   &-pulls-list {
     min-width: 0;
     min-height: 0;
     overflow: auto;
-    padding: 4px 0;
+    padding: 0;
+  }
+
+  &-pulls-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 4px 12px;
+  }
+
+  &-pulls-more-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: $label-secondary;
+    font-size: $font-tiny;
   }
 
   &-pulls-body.is-narrow &-pulls-list {
@@ -3120,9 +3154,12 @@ $brand: var(--dsw-alias-brand-primary);
   &-pull {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     width: 100%;
-    padding: 8px 12px;
+    // Fixed height: the list is windowed by PULL_ROW_HEIGHT.
+    height: 48px;
+    padding: 5px 12px;
+    overflow: hidden;
     border: 0;
     background: transparent;
     color: inherit;
@@ -3199,12 +3236,14 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-pull-meta {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 4px 10px;
+    overflow: hidden;
     color: $label-secondary;
     font-size: $font-tiny;
 
     span {
+      min-width: 0;
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3281,6 +3320,190 @@ $brand: var(--dsw-alias-brand-primary);
       color: $label-secondary;
       font-size: $font-meta;
       font-weight: 600;
+    }
+  }
+
+  &-pull-create {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &-pull-create-branches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+
+    > .dsh-gitlog-field {
+      flex: 1 1 180px;
+    }
+  }
+
+  &-pull-create-head {
+    @include control-surface(10px);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pull-create-body {
+    @include control-surface(10px);
+    height: 120px;
+    padding: 8px 10px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  &-pull-checks {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid $border-l1;
+    border-radius: 999px;
+    font-size: $font-tiny;
+    line-height: 1.5;
+    white-space: nowrap;
+
+    &.is-success {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #3fb950) 45%, transparent);
+      color: var(--dsw-alias-state-success-primary);
+    }
+
+    &.is-failure {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent);
+      color: var(--dsw-alias-state-error-primary);
+    }
+
+    &.is-pending {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 45%, transparent);
+      color: var(--dsw-alias-state-warn-primary);
+    }
+
+    &.is-neutral,
+    &.is-unknown {
+      color: $label-secondary;
+    }
+  }
+
+  &-pull-checks-link {
+    text-decoration: none;
+  }
+
+  &-pull-review {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid $border-l1;
+    border-radius: 999px;
+    font-size: $font-tiny;
+    line-height: 1.5;
+    white-space: nowrap;
+
+    &.is-approved {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #3fb950) 45%, transparent);
+      color: var(--dsw-alias-state-success-primary);
+    }
+
+    &.is-changes_requested {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent);
+      color: var(--dsw-alias-state-error-primary);
+    }
+
+    &.is-pending {
+      border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 45%, transparent);
+      color: var(--dsw-alias-state-warn-primary);
+    }
+  }
+
+  &-pull-repo {
+    max-width: 100%;
+    padding: 1px 6px;
+    overflow: hidden;
+    border: 1px solid $border-l1;
+    border-radius: 999px;
+    background: $bg-layer-1;
+    color: $label-primary;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pull-merge {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &-pull-merge-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &-pull-merge-warning {
+    color: var(--dsw-alias-state-error-primary);
+    font-size: $font-tiny;
+  }
+
+  &-pull-comments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &-pull-ai-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  &-pull-ai-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &-pull-ai-review {
+    max-height: 520px;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+    color: $label-primary;
+    font: inherit;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  &-pull-comment {
+    padding: 8px 10px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: $label-secondary;
+      font-size: $font-tiny;
+    }
+
+    pre {
+      margin: 4px 0 0;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      color: $label-primary;
+      font: inherit;
     }
   }
 

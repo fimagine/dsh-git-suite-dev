@@ -1,7 +1,7 @@
 import { RouteError } from '../errors.js'
 import { detectForge, toForgeInfo, type ForgeTarget } from '../forge/detect.js'
 import { getPull, listPulls, PULL_PAGE_SIZE } from '../forge/index.js'
-import { resolveRemote } from '../forge/remote.js'
+import { resolveRemote, readDefaultBase } from '../forge/remote.js'
 import { resolveForgeToken } from '../forge/token.js'
 import { resolveRepository } from '../repository.js'
 import type { ForgeInfo, PullDetail, PullSummary, RouteContext } from '../types.js'
@@ -9,9 +9,12 @@ import type { ForgeInfo, PullDetail, PullSummary, RouteContext } from '../types.
 export interface PullsPayload {
   ok: true
   remote: string
-  state: 'open' | 'all'
+  state: 'open' | 'closed' | 'all'
   forge: ForgeInfo
+  page: number
   pulls: PullSummary[]
+  /** The remote's default branch, used to prefill the create form. */
+  defaultBase: string
   /** The page was full, so older pull requests may exist. */
   hasMore: boolean
 }
@@ -19,7 +22,7 @@ export interface PullsPayload {
 export interface PullPayload {
   ok: true
   remote: string
-  state: 'open' | 'all'
+  state: 'open' | 'closed' | 'all'
   forge: ForgeInfo
   pull: PullDetail
 }
@@ -48,15 +51,23 @@ function annotate(error: unknown, resolved: ResolvedForge): unknown {
   return error
 }
 
-/** Read one page of open (or all) pull requests for this repository. */
+function stateFilter(url: URL): 'open' | 'closed' | 'all' {
+  const value = url.searchParams.get('state')
+  return value === 'closed' || value === 'all' ? value : 'open'
+}
+
+/** Read one page of open, closed, or all pull requests for this repository. */
 export async function readPulls(context: RouteContext, url: URL, signal: AbortSignal): Promise<PullsPayload> {
   const resolved = await resolveForge(context, url, signal)
-  const state = url.searchParams.get('state') === 'all' ? 'all' as const : 'open' as const
+  const state = stateFilter(url)
   const fresh = url.searchParams.get('fresh') === '1'
+  const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10)
+  const page = Number.isFinite(requestedPage) && requestedPage >= 1 && requestedPage <= 100 ? requestedPage : 1
+  const defaultBase = await readDefaultBase(resolved.root, resolved.remote, signal)
   let pulls: PullSummary[]
   try {
     const token = await resolveForgeToken(resolved.root, resolved.target, signal)
-    pulls = await listPulls(resolved.target, token, state, signal, fresh)
+    pulls = await listPulls(resolved.target, token, state, signal, fresh, page)
   } catch (error) {
     throw annotate(error, resolved)
   }
@@ -65,7 +76,9 @@ export async function readPulls(context: RouteContext, url: URL, signal: AbortSi
     remote: resolved.remote,
     state,
     forge: toForgeInfo(resolved.target),
+    page,
     pulls,
+    defaultBase,
     hasMore: pulls.length >= PULL_PAGE_SIZE,
   }
 }
@@ -78,7 +91,7 @@ export async function readPull(context: RouteContext, url: URL, signal: AbortSig
   if (!Number.isInteger(number) || number <= 0 || number > 2_147_483_647 || String(number) !== raw) {
     throw new RouteError(400, 'invalid-number', 'That pull request number is not valid.', { remote: resolved.remote })
   }
-  const state = url.searchParams.get('state') === 'all' ? 'all' as const : 'open' as const
+  const state = stateFilter(url)
   const fresh = url.searchParams.get('fresh') === '1'
   let pull: PullDetail
   try {

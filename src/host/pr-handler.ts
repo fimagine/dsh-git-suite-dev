@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { RouteError } from './errors.js'
 import { detectForge, type ForgeTarget } from './forge/detect.js'
-import { getPull } from './forge/index.js'
+import { closePull, getPull, mergePull, reopenPull } from './forge/index.js'
 import { resolveRemote } from './forge/remote.js'
 import { resolveForgeToken } from './forge/token.js'
 import { gitFailure, runGit, type GitExecError } from './git.js'
@@ -13,7 +13,14 @@ interface PullBody {
   path?: unknown
   remote?: unknown
   number?: unknown
+  /** `checkout` (default), `close`, `reopen`, or `merge`. */
+  action?: unknown
+  /** merge: `merge`, `squash`, or `rebase` (GitHub only). */
+  mergeMethod?: unknown
+  deleteSourceBranch?: unknown
 }
+
+type PullAction = 'checkout' | 'close' | 'reopen' | 'merge'
 
 const MAX_BODY_BYTES = 16 * 1024
 const FETCH_TIMEOUT_MS = 120_000
@@ -122,24 +129,38 @@ function switchFailure(error: unknown, branch: string): RouteError {
   return gitFailure(error).withDetails({ branch })
 }
 
+/** True when a head repository URL points at the same owner/repo as the target. */
+function headRepoMatches(url: string, target: ForgeTarget): boolean {
+  try {
+    const path = new URL(url).pathname.replace(/^\/+/, '').replace(/\.git$/i, '')
+    return path.toLowerCase() === `${target.owner}/${target.repo}`.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
 /**
- * POST /git-suite/pr: check out one pull request locally. The forge's PR ref is
- * fetched into a remote-tracking ref, then a local `pr/<number>` branch is
- * created (or reused) and switched to. Nothing is pushed.
+ * POST /git-suite/pr: `action: 'checkout'` fetches one pull request into a local
+ * `pr/<number>` branch and switches to it; `POST /git-suite/pr-close` and
+ * `POST /git-suite/pr-reopen` change its state on the forge.
  */
-export function createPullHandler(context: RouteContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+export function createPullHandler(
+  context: RouteContext,
+  options?: { defaultAction?: PullAction },
+): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+  const fallback = options?.defaultAction ?? 'checkout'
   return async (req, res) => {
     if (!admitHeaders(name => header(req, name))) {
       await send(res, json({
         ok: false,
-        error: { code: 'forbidden', message: 'This request is not allowed to change the working tree.' },
+        error: { code: 'forbidden', message: 'This request is not allowed to change a pull request.' },
       }, 403))
       return
     }
     if (req.method !== 'POST') {
       await send(res, json({
         ok: false,
-        error: { code: 'method-not-allowed', message: 'Checking out a pull request requires POST.' },
+        error: { code: 'method-not-allowed', message: 'Changing a pull request requires POST.' },
       }, 405))
       return
     }
@@ -150,12 +171,82 @@ export function createPullHandler(context: RouteContext): (req: IncomingMessage,
     const signal = controller.signal
     try {
       const body = await readJson(req)
+      const requested = body.action === undefined ? fallback : body.action
+      const action = requested === 'checkout' || requested === 'close' || requested === 'reopen' || requested === 'merge'
+        ? requested
+        : null
+      if (action === null) throw new RouteError(400, 'invalid-action', 'Choose the checkout, close, reopen, or merge action.')
       const number = numberFrom(body.number)
       const repo = await resolveRepository(context, typeof body.path === 'string' ? body.path : '', signal)
       const remote = await resolveRemote(repo.root, typeof body.remote === 'string' ? body.remote : '', signal)
       const target = detectForge(remote.url)
       if (target === null) {
         throw new RouteError(400, 'forge-unsupported', 'This remote is not hosted on a supported forge.', { remote: remote.name })
+      }
+
+      if (action === 'merge') {
+        const method = body.mergeMethod === 'squash' || body.mergeMethod === 'rebase' ? body.mergeMethod : 'merge'
+        if (target.provider !== 'github' && method === 'rebase') {
+          throw new RouteError(400, 'unsupported-merge-method', 'Rebase merging is only available on GitHub.')
+        }
+        const token = await resolveForgeToken(repo.root, target, signal)
+        if (token === null) {
+          throw new RouteError(401, 'forge-auth-required', 'The forge requires an access token.', {
+            remote: remote.name,
+            provider: target.provider,
+            host: target.host,
+          })
+        }
+        const deleteSourceBranch = body.deleteSourceBranch === true
+        let sourceBranch = ''
+        let canDeleteBranch = deleteSourceBranch
+        if (target.provider === 'github' && deleteSourceBranch) {
+          try {
+            const detail = await getPull(target, number, token, signal)
+            sourceBranch = detail.sourceBranch
+            // Only delete a branch in this repository, never a same-named branch
+            // in the base repository of a fork pull request.
+            canDeleteBranch = detail.headRepoUrl !== null && headRepoMatches(detail.headRepoUrl, target)
+          } catch {
+            sourceBranch = ''
+            canDeleteBranch = false
+          }
+        }
+        try {
+          const result = await mergePull(
+            target,
+            number,
+            token,
+            { method, deleteSourceBranch: canDeleteBranch },
+            sourceBranch,
+            signal,
+          )
+          await send(res, json({ ok: true, ...result }))
+        } catch (error) {
+          if (error instanceof RouteError) throw error.withDetails({ remote: remote.name })
+          throw error
+        }
+        return
+      }
+
+      if (action !== 'checkout') {
+        const token = await resolveForgeToken(repo.root, target, signal)
+        if (token === null) {
+          throw new RouteError(401, 'forge-auth-required', 'The forge requires an access token.', {
+            remote: remote.name,
+            provider: target.provider,
+            host: target.host,
+          })
+        }
+        try {
+          if (action === 'close') await closePull(target, number, token, signal)
+          else await reopenPull(target, number, token, signal)
+        } catch (error) {
+          if (error instanceof RouteError) throw error.withDetails({ remote: remote.name })
+          throw error
+        }
+        await send(res, json({ ok: true, action, number }))
+        return
       }
 
       // Metadata drives the source-branch fallback; a failure here is not fatal
