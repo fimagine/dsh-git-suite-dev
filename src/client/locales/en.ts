@@ -504,7 +504,7 @@ export const en = {
   pullAiReviewTitle: 'AI review',
   pullAiReviewFailed: 'AI review failed.',
   pullAiReviewEmpty: 'The model returned no review. Try again or use a smaller context.',
-  pullAiReviewTruncated: 'The model used its output budget before writing the review. Try diff-only mode or a smaller context.',
+  pullAiReviewTruncated: 'The model used its output budget before writing the review. Try diff-only mode, a smaller context, or a model with less reasoning.',
   pullAiReviewRegenerate: 'Review again',
   pullAiReviewClear: 'Clear',
   pullAiReviewMode: 'Review mode',

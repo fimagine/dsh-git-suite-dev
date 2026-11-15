@@ -87,6 +87,17 @@ export interface LlmGenerateOptions {
 /** The provider-neutral model-call service (`ctx.llm`). */
 export interface LlmService {
   stream(options: LlmGenerateOptions): AsyncIterable<LlmStreamChunk>
+  /** Exact model capability metadata, when this DSH build exposes it. */
+  resolveModelInfo?(
+    provider: string,
+    model: string,
+    signal?: AbortSignal,
+  ): Promise<{
+    reasoning?: {
+      efforts?: readonly { id: string }[]
+      defaultEffort?: string
+    }
+  }>
 }
 
 /** The deployment default model selection (`ctx.agentDefaultModel`). */

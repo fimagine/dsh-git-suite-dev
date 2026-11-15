@@ -215,6 +215,23 @@ export function createPullAiReviewHandler(
         ? 'Simplified Chinese'
         : 'English'
       const { prompt, truncated } = buildPrompt(pull, language, reviewContext)
+
+      // A large review plus high reasoning can consume the whole output budget
+      // before any visible text. Use the model's least reasoning effort when
+      // the DSH build exposes model capabilities.
+      let reviewReasoningEffort = selection.reasoningEffort
+      try {
+        if (llm.resolveModelInfo !== undefined) {
+          const info = await llm.resolveModelInfo(selection.provider, selection.model, signal)
+          const efforts = info.reasoning?.efforts ?? []
+          if (efforts.length > 0 && typeof efforts[0]?.id === 'string') {
+            reviewReasoningEffort = efforts[0].id
+          }
+        }
+      } catch {
+        // Capability lookup is optional; keep the configured effort.
+      }
+      const retryPrompt = `${prompt}\n\nIMPORTANT: A previous attempt exhausted the output budget while reasoning. Output the final review directly now; do not include analysis or thinking.`
       const streaming = body.stream === true
       let streamStarted = false
       const emit = (event: unknown): void => {
@@ -242,6 +259,7 @@ export function createPullAiReviewHandler(
       const runAttempt = async (
         maxTokens: number,
         includeReasoning: boolean,
+        promptText: string,
       ): Promise<{ text: string; finish: LlmStreamChunk['reason']; reasoningChars: number }> => {
         let delta = ''
         let blockText = ''
@@ -251,11 +269,11 @@ export function createPullAiReviewHandler(
           for await (const chunk of llm.stream({
             provider: selection.provider,
             model: selection.model,
-            ...(includeReasoning && selection.reasoningEffort !== undefined
-              ? { reasoningEffort: selection.reasoningEffort }
+            ...(includeReasoning && reviewReasoningEffort !== undefined
+              ? { reasoningEffort: reviewReasoningEffort }
               : {}),
             system: 'You are a senior software engineer reviewing a pull request. Be specific, skeptical, and concise. Output Markdown only.',
-            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+            messages: [{ role: 'user', content: [{ type: 'text', text: promptText }] }],
             maxTokens,
             temperature: 0.2,
             signal,
@@ -291,10 +309,10 @@ export function createPullAiReviewHandler(
       // Reasoning models can consume the whole output budget before emitting
       // visible text. Start with room for both, then retry once without the
       // reasoning effort if the first attempt produced no review.
-      let attempt = await runAttempt(6_000, true)
+      let attempt = await runAttempt(8_000, true, prompt)
       if (attempt.text.trim() === '' && !signal.aborted) {
         emit({ type: 'retry', attempt: 2 })
-        attempt = await runAttempt(8_000, false)
+        attempt = await runAttempt(16_000, false, retryPrompt)
       }
       const review = attempt.text.trim().slice(0, MAX_REVIEW_CHARS)
       if (review === '') {
@@ -302,7 +320,7 @@ export function createPullAiReviewHandler(
           throw new RouteError(
             502,
             'review-truncated',
-            'The model used its output budget before writing the review. Try diff-only mode or a smaller context.',
+            'The model used its output budget before writing the review. Try diff-only mode, a smaller context, or a model with less reasoning.',
           )
         }
         throw new RouteError(502, 'empty-review', 'The model returned an empty review.')

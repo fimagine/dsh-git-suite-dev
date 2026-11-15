@@ -506,7 +506,7 @@ export const zh: Record<LocaleKey, string> = {
   pullAiReviewTitle: 'AI 审查',
   pullAiReviewFailed: 'AI 审查失败。',
   pullAiReviewEmpty: '模型没有返回审查内容，请重试或减少上下文。',
-  pullAiReviewTruncated: '模型在写出审查前用完了输出额度，请改用「仅 Diff」或减少上下文后重试。',
+  pullAiReviewTruncated: '模型在写出审查前用完了输出额度，请改用「仅 Diff」、减少上下文，或换一个推理强度更低的模型后重试。',
   pullAiReviewRegenerate: '重新审查',
   pullAiReviewClear: '清除',
   pullAiReviewMode: '审查方式',
