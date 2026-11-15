@@ -236,6 +236,22 @@ export interface PullAiReviewPayload {
   contextFiles: number
 }
 
+export type AiReviewStreamEvent =
+  | {
+    type: 'start'
+    attempt: number
+    model: string
+    files: number
+    context: 'worktree' | 'api' | 'diff'
+    contextFiles: number
+  }
+  | { type: 'reasoning'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'retry'; attempt: number }
+  | ({
+    type: 'done'
+  } & Omit<PullAiReviewPayload, 'ok'>)
+
 export interface PullsPayload {
   ok: true
   remote: string

@@ -34,6 +34,7 @@ import type {
   PullMergeRequest,
   PullAiReviewPayload,
   AiReviewMode,
+  AiReviewStreamEvent,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -358,6 +359,85 @@ export async function requestPullAiReview(
   signal?: AbortSignal,
 ): Promise<PullAiReviewPayload> {
   return postCommitJson<PullAiReviewPayload>('/git-suite/pr-ai-review', body, signal)
+}
+
+/** Stream review progress as newline-delimited JSON events. */
+export async function requestPullAiReviewStream(
+  body: PullAiReviewCall,
+  onEvent: (event: AiReviewStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<PullAiReviewPayload> {
+  const response = await fetch(new URL('/git-suite/pr-ai-review', window.location.origin), {
+    method: 'POST',
+    signal,
+    cache: 'no-store',
+    headers: {
+      'content-type': 'application/json',
+      'x-dsh-git-suite': '1',
+    },
+    body: JSON.stringify({ ...body, stream: true }),
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as {
+      error?: { code?: string; message?: string; details?: ErrorDetails }
+    } | null
+    throw new ApiError(
+      payload?.error?.message ?? 'AI review failed.',
+      payload?.error?.code ?? 'internal',
+      payload?.error?.details,
+    )
+  }
+  if (response.body === null) throw new ApiError('The review stream was empty.', 'empty-review')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let done: PullAiReviewPayload | null = null
+  type WireEvent = AiReviewStreamEvent | {
+    type: 'error'
+    error: { code?: string; message?: string; details?: ErrorDetails }
+  }
+
+  const handleLine = (line: string): void => {
+    if (line.trim() === '') return
+    let event: WireEvent
+    try {
+      event = JSON.parse(line) as WireEvent
+    } catch {
+      return
+    }
+    if (event.type === 'error') {
+      throw new ApiError(event.error.message ?? 'AI review failed.', event.error.code ?? 'internal', event.error.details)
+    }
+    onEvent(event)
+    if (event.type === 'done') {
+      done = {
+        ok: true,
+        review: event.review,
+        model: event.model,
+        files: event.files,
+        truncated: event.truncated,
+        context: event.context,
+        contextFiles: event.contextFiles,
+      }
+    }
+  }
+
+  while (true) {
+    const { value, done: finished } = await reader.read()
+    if (finished) break
+    buffer += decoder.decode(value, { stream: true })
+    let newline = buffer.indexOf('\n')
+    while (newline >= 0) {
+      handleLine(buffer.slice(0, newline))
+      buffer = buffer.slice(newline + 1)
+      newline = buffer.indexOf('\n')
+    }
+  }
+  buffer += decoder.decode()
+  if (buffer.trim() !== '') handleLine(buffer)
+  if (done === null) throw new ApiError('The review stream ended before completion.', 'empty-review')
+  return done
 }
 
 export interface RevealFileRequest {

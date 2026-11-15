@@ -1,7 +1,7 @@
 import type { ForgeAuthPrompt } from '../components/ForgeAuthDialog.js'
 import { toast } from '../components/Toast.js'
 import { useCallback, useEffect, useRef, useState } from '../runtime.js'
-import { isAbortError, requestCredential, requestPull, requestPullAiReview, requestPullCheckout, requestPullClose, requestPullCreate, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
+import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
 import { defaultForgeRemote, forgeOf, supportedRemotes } from '../lib/forge.js'
 import type { AiReviewMode, DetailStatus, LoadStatus, PullCreateRequest, PullDetail, PullMergeRequest, PullSummary, RemoteGroup, Translate } from '../types.js'
 
@@ -63,6 +63,8 @@ export interface PullsView {
   mergePull(input: PullMergeRequest): Promise<string | null>
   /** Read-only AI review of the selected request. */
   aiReview: string
+  aiReviewReasoning: string
+  aiReviewAttempt: number
   aiReviewStatus: 'idle' | 'loading' | 'ready' | 'error'
   aiReviewError: string | null
   aiReviewContext: 'worktree' | 'api' | 'diff' | null
@@ -123,6 +125,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const [reopening, setReopening] = useState<number | null>(null)
   const [merging, setMerging] = useState<number | null>(null)
   const [aiReview, setAiReview] = useState('')
+  const [aiReviewReasoning, setAiReviewReasoning] = useState('')
+  const [aiReviewAttempt, setAiReviewAttempt] = useState(1)
   const [aiReviewStatus, setAiReviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [aiReviewError, setAiReviewError] = useState<string | null>(null)
   const [aiReviewContext, setAiReviewContext] = useState<'worktree' | 'api' | 'diff' | null>(null)
@@ -180,6 +184,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     pendingAiReview.current = null
     aiAbort.current?.abort()
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewStatus('idle')
     setAiReviewError(null)
     setAiReviewContext(null)
@@ -231,6 +237,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   useEffect(() => {
     aiAbort.current?.abort()
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewStatus('idle')
     setAiReviewError(null)
     setAiReviewContext(null)
@@ -496,16 +504,32 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     const controller = new AbortController()
     aiAbort.current = controller
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewError(null)
     setAiReviewStatus('loading')
     setAiReviewContext(null)
     setAiReviewContextFiles(0)
-    requestPullAiReview({
+    requestPullAiReviewStream({
       path: repoRoot,
       remote,
       number,
       language: t('localeId'),
       context: mode,
+    }, event => {
+      if (event.type === 'start') {
+        setAiReviewAttempt(event.attempt)
+        setAiReviewContext(event.context)
+        setAiReviewContextFiles(event.contextFiles)
+      } else if (event.type === 'reasoning') {
+        setAiReviewReasoning(current => current + event.text)
+      } else if (event.type === 'text') {
+        setAiReview(current => current + event.text)
+      } else if (event.type === 'retry') {
+        setAiReview('')
+        setAiReviewReasoning('')
+        setAiReviewAttempt(event.attempt)
+      }
     }, controller.signal)
       .then(payload => {
         if (controller.signal.aborted) return
@@ -546,6 +570,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const clearAiReview = useCallback((): void => {
     aiAbort.current?.abort()
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewError(null)
     setAiReviewStatus('idle')
     setAiReviewContext(null)
@@ -659,6 +685,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     reopenPull,
     mergePull,
     aiReview,
+    aiReviewReasoning,
+    aiReviewAttempt,
     aiReviewStatus,
     aiReviewError,
     aiReviewContext,

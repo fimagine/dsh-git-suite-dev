@@ -22,6 +22,8 @@ interface ReviewBody {
   language?: unknown
   /** Full-file context source chosen by the user. */
   context?: unknown
+  /** Stream NDJSON progress events instead of one JSON response. */
+  stream?: unknown
 }
 
 function header(req: IncomingMessage, name: string): string | null {
@@ -120,6 +122,18 @@ function buildPrompt(pull: PullDetail, language: string, context: ReviewContext)
   }
 }
 
+function errorEvent(error: unknown): { type: 'error'; error: { code: string; message: string; details?: unknown } } {
+  const routeError = error instanceof RouteError ? error : null
+  return {
+    type: 'error',
+    error: {
+      code: routeError?.code ?? 'internal',
+      message: (error instanceof Error ? error.message : String(error)).slice(0, 2000),
+      ...(routeError?.details === undefined ? {} : { details: routeError.details }),
+    },
+  }
+}
+
 /**
  * POST /git-suite/pr-ai-review: fetch one pull request and ask the deployment's
  * default model for a read-only Markdown review. Nothing is posted to the forge.
@@ -146,7 +160,7 @@ export function createPullAiReviewHandler(
     }
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 120_000)
+    const timeout = setTimeout(() => controller.abort(), 300_000)
     res.once('close', () => controller.abort())
     const signal = controller.signal
     try {
@@ -201,6 +215,29 @@ export function createPullAiReviewHandler(
         ? 'Simplified Chinese'
         : 'English'
       const { prompt, truncated } = buildPrompt(pull, language, reviewContext)
+      const streaming = body.stream === true
+      let streamStarted = false
+      const emit = (event: unknown): void => {
+        if (!streaming || res.writableEnded) return
+        if (!streamStarted) {
+          res.writeHead(200, {
+            'content-type': 'application/x-ndjson; charset=utf-8',
+            'cache-control': 'no-store',
+            'x-content-type-options': 'nosniff',
+            'x-accel-buffering': 'no',
+          })
+          streamStarted = true
+        }
+        res.write(`${JSON.stringify(event)}\n`)
+      }
+      emit({
+        type: 'start',
+        attempt: 1,
+        model: selection.model,
+        files: pull.files.length,
+        context: reviewContext.mode,
+        contextFiles: reviewContext.files.length,
+      })
 
       const runAttempt = async (
         maxTokens: number,
@@ -223,9 +260,13 @@ export function createPullAiReviewHandler(
             temperature: 0.2,
             signal,
           })) {
-            if (chunk.type === 'text-delta' && typeof chunk.text === 'string') delta += chunk.text
-            else if (chunk.type === 'reasoning-delta' && typeof chunk.text === 'string') reasoning += chunk.text
-            else if (
+            if (chunk.type === 'text-delta' && typeof chunk.text === 'string') {
+              delta += chunk.text
+              emit({ type: 'text', text: chunk.text })
+            } else if (chunk.type === 'reasoning-delta' && typeof chunk.text === 'string') {
+              reasoning += chunk.text
+              emit({ type: 'reasoning', text: chunk.text })
+            } else if (
               chunk.type === 'block-end'
               && chunk.block?.type === 'text'
               && typeof chunk.block.text === 'string'
@@ -241,6 +282,9 @@ export function createPullAiReviewHandler(
         if (finish?.kind === 'error' || finish?.kind === 'aborted') {
           throw new RouteError(502, 'llm-failed', finish.failure?.message ?? 'The model request failed.')
         }
+        if (delta === '' && blockText !== '') {
+          emit({ type: 'text', text: blockText })
+        }
         return { text: delta === '' ? blockText : delta, finish, reasoningChars: reasoning.length }
       }
 
@@ -249,6 +293,7 @@ export function createPullAiReviewHandler(
       // reasoning effort if the first attempt produced no review.
       let attempt = await runAttempt(6_000, true)
       if (attempt.text.trim() === '' && !signal.aborted) {
+        emit({ type: 'retry', attempt: 2 })
         attempt = await runAttempt(8_000, false)
       }
       const review = attempt.text.trim().slice(0, MAX_REVIEW_CHARS)
@@ -262,6 +307,19 @@ export function createPullAiReviewHandler(
         }
         throw new RouteError(502, 'empty-review', 'The model returned an empty review.')
       }
+      if (streaming) {
+        emit({
+          type: 'done',
+          review,
+          model: selection.model,
+          files: pull.files.length,
+          truncated,
+          context: reviewContext.mode,
+          contextFiles: reviewContext.files.length,
+        })
+        res.end()
+        return
+      }
       await send(res, json({
         ok: true,
         review,
@@ -272,6 +330,13 @@ export function createPullAiReviewHandler(
         contextFiles: reviewContext.files.length,
       }))
     } catch (error) {
+      if (res.headersSent) {
+        if (!res.writableEnded) {
+          res.write(`${JSON.stringify(errorEvent(error))}\n`)
+          res.end()
+        }
+        return
+      }
       await send(res, failure(error))
     } finally {
       clearTimeout(timeout)

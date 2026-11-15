@@ -265,12 +265,35 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                         </Button>
                       )
                     : null}
-                  <Button variant="ghost" onClick={view.clearAiReview}>{t('pullAiReviewClear')}</Button>
+                  <Button variant="ghost" onClick={view.clearAiReview}>
+                    {view.aiReviewStatus === 'loading' ? t('pullAiReviewStop') : t('pullAiReviewClear')}
+                  </Button>
                 </div>
               )}
             >
               {view.aiReviewStatus === 'loading'
-                ? <LoadingLine label={t('pullAiReviewing')} />
+                ? (
+                    <div className="dsh-gitlog-pull-ai-progress">
+                      <LoadingLine label={t('pullAiReviewing')} />
+                      <p className="dsh-gitlog-field-hint">
+                        {t('pullAiReviewProgress')
+                          .replace('{attempt}', String(view.aiReviewAttempt))
+                          .replace('{reasoning}', String(view.aiReviewReasoning.length))
+                          .replace('{output}', String(view.aiReview.length))}
+                      </p>
+                      {view.aiReviewReasoning === ''
+                        ? null
+                        : (
+                            <details className="dsh-gitlog-pull-ai-thinking" open>
+                              <summary>{t('pullAiReviewThinking')}</summary>
+                              <pre>{view.aiReviewReasoning}</pre>
+                            </details>
+                          )}
+                      {view.aiReview === ''
+                        ? null
+                        : <pre className="dsh-gitlog-pull-ai-preview">{view.aiReview}</pre>}
+                    </div>
+                  )
                 : view.aiReviewStatus === 'error'
                   ? (
                       <div className="dsh-gitlog-pulls-error" role="alert">
@@ -279,7 +302,19 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                         <Button variant="ghost" onClick={() => setAiDialogOpen(true)}>{t('tryAgain')}</Button>
                       </div>
                     )
-                  : <Markdown text={view.aiReview} className="dsh-gitlog-pull-ai-review" />}
+                  : (
+                      <div className="dsh-gitlog-pull-ai-result">
+                        {view.aiReviewReasoning === ''
+                          ? null
+                          : (
+                              <details className="dsh-gitlog-pull-ai-thinking">
+                                <summary>{t('pullAiReviewThinking')}</summary>
+                                <pre>{view.aiReviewReasoning}</pre>
+                              </details>
+                            )}
+                        <Markdown text={view.aiReview} className="dsh-gitlog-pull-ai-review" />
+                      </div>
+                    )}
             </PullSection>
           )}
 

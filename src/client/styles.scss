@@ -3535,6 +3535,53 @@ $brand: var(--dsw-alias-brand-primary);
     gap: 4px;
   }
 
+  &-pull-ai-progress,
+  &-pull-ai-result {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &-pull-ai-thinking {
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+
+    summary {
+      padding: 6px 10px;
+      color: $label-secondary;
+      font-size: $font-tiny;
+      cursor: pointer;
+    }
+
+    pre {
+      max-height: 240px;
+      margin: 0;
+      padding: 0 10px 8px;
+      overflow: auto;
+      color: $label-secondary;
+      font: inherit;
+      font-size: $font-tiny;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+  }
+
+  &-pull-ai-preview {
+    max-height: 260px;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-layer-1;
+    font: inherit;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
   &-ai-options {
     display: flex;
     flex-direction: column;
