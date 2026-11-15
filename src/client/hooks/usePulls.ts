@@ -1,7 +1,7 @@
 import type { ForgeAuthPrompt } from '../components/ForgeAuthDialog.js'
 import { toast } from '../components/Toast.js'
 import { useCallback, useEffect, useRef, useState } from '../runtime.js'
-import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
+import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullDelete, requestPullGiteeDecision, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
 import { defaultForgeRemote, forgeOf, supportedRemotes } from '../lib/forge.js'
 import type { AiReviewMode, DetailStatus, LoadStatus, PullCreateRequest, PullDetail, PullMergeRequest, PullSummary, RemoteGroup, Translate } from '../types.js'
 
@@ -10,6 +10,11 @@ const MAX_PULLS = 300
 /** Quietly refresh the first page and the selected detail while the view is open. */
 const PR_REFRESH_MS = 60_000
 const AI_REVIEW_MODE_KEY = 'dsh.git-suite.ai-review-mode.v1'
+
+export type PullActionResult =
+  | { ok: true; warning?: string }
+  | { ok: false; auth: true }
+  | { ok: false; auth: false; message: string }
 
 function readAiReviewMode(): AiReviewMode {
   try {
@@ -49,7 +54,7 @@ export interface PullsView {
   refresh(): void
   /** Fetch the next page and append it (no-op when there is nothing left). */
   loadMore(): void
-  selectPull(number: number): void
+  selectPull(number: number, fresh?: boolean): Promise<boolean>
   submitToken(username: string, token: string): Promise<void>
   dismissAuth(): void
   checkout(number: number): Promise<void>
@@ -61,6 +66,14 @@ export interface PullsView {
   merging: number | null
   /** Merge the selected request; resolves with an error message, or null. */
   mergePull(input: PullMergeRequest): Promise<string | null>
+  /** Non-null while a Gitee review/test approval is in flight. */
+  giteeDecision: 'review' | 'test' | null
+  /** Mark Gitee review or test as passed; resolves with the action result. */
+  decideGitee(action: 'review' | 'test', numberOverride?: number): Promise<PullActionResult>
+  /** Non-null while a delete request is in flight. */
+  deleting: number | null
+  /** Permanently delete a GitLab merge request; resolves with the action result. */
+  deletePull(number: number): Promise<PullActionResult>
   /** Read-only AI review of the selected request. */
   aiReview: string
   aiReviewReasoning: string
@@ -124,6 +137,16 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const [closing, setClosing] = useState<number | null>(null)
   const [reopening, setReopening] = useState<number | null>(null)
   const [merging, setMerging] = useState<number | null>(null)
+  const [giteeDecision, setGiteeDecision] = useState<'review' | 'test' | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+  /** Synchronous guards: React state may still be stale on a fast second click. */
+  const giteeDecisionRef = useRef<'review' | 'test' | null>(null)
+  const deletingRef = useRef<number | null>(null)
+  const selectedRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
   const [aiReview, setAiReview] = useState('')
   const [aiReviewReasoning, setAiReviewReasoning] = useState('')
   const [aiReviewAttempt, setAiReviewAttempt] = useState(1)
@@ -138,6 +161,10 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const pendingCreate = useRef<PullCreateRequest | null>(null)
   /** Merge that failed on auth; retried after saving the token. */
   const pendingMerge = useRef<{ number: number; input: PullMergeRequest } | null>(null)
+  /** Gitee approval that failed on auth; retried after saving the token. */
+  const pendingGiteeDecision = useRef<{ number: number; action: 'review' | 'test' } | null>(null)
+  /** Delete that failed on auth; retried after saving the token. */
+  const pendingDelete = useRef<number | null>(null)
   /** AI review that failed on auth; retried after saving the token. */
   const pendingAiReview = useRef<{ number: number; mode: AiReviewMode } | null>(null)
   const aiAbort = useRef<AbortController | null>(null)
@@ -182,6 +209,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     pendingState.current = null
     pendingCreate.current = null
     pendingMerge.current = null
+    pendingGiteeDecision.current = null
+    pendingDelete.current = null
     pendingAiReview.current = null
     aiAbort.current?.abort()
     aiAbort.current = null
@@ -214,7 +243,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     })
   }, [remotes])
 
-  const selectPull = useCallback(async (number: number, fresh = false): Promise<void> => {
+  const selectPull = useCallback(async (number: number, fresh = false): Promise<boolean> => {
     setSelected(number)
     setDetail(null)
     setDetailStatus('loading')
@@ -224,15 +253,17 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     detailAbort.current = controller
     try {
       const payload = await requestPull({ path: repoRoot, remote, number, state, fresh }, controller.signal)
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted) return false
       setDetail(payload.pull)
       setDetailStatus('ready')
+      return true
     } catch (loadError) {
-      if (controller.signal.aborted || isAbortError(loadError)) return
+      if (controller.signal.aborted || isAbortError(loadError)) return false
       const apiError = toApiError(loadError)
       setDetailError(apiError)
       setDetailStatus('error')
       if (apiError.code === 'forge-auth-required') promptAuth(apiError, remote)
+      return false
     }
   }, [promptAuth, remote, repoRoot, state])
 
@@ -251,12 +282,14 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   }, [selected])
 
   /** Refresh the selected detail without clearing it or flashing a spinner. */
-  const refreshQuietDetail = useCallback(async (number: number): Promise<void> => {
+  const refreshQuietDetail = useCallback(async (number: number): Promise<boolean> => {
     try {
       const payload = await requestPull({ path: repoRoot, remote, number, state, fresh: true })
       setDetail(current => current?.number === number ? payload.pull : current)
+      return true
     } catch {
       // Best-effort: keep the current detail on a failed background refresh.
+      return false
     }
   }, [remote, repoRoot, state])
 
@@ -508,6 +541,82 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     }
   }, [merging, promptAuth, remote, remotes, repoRoot, selectPull, selected, state, t])
 
+  const decideGitee = useCallback(async (action: 'review' | 'test', numberOverride?: number): Promise<PullActionResult> => {
+    const number = numberOverride ?? selected
+    if (number === null || repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullNoSelection') }
+    }
+    if (giteeDecision !== null || giteeDecisionRef.current !== null || deletingRef.current !== null) {
+      return { ok: false, auth: false, message: t('pullGiteeBusy') }
+    }
+    giteeDecisionRef.current = action
+    setGiteeDecision(action)
+    try {
+      await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
+      toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
+      if (selectedRef.current === number) {
+        const refreshed = await refreshQuietDetail(number)
+        if (!refreshed) {
+          const warning = t('pullDetailRefreshFailed')
+          toast(warning)
+          return { ok: true, warning }
+        }
+      }
+      return { ok: true }
+    } catch (error) {
+      const apiError = toApiError(error)
+      if (apiError.code === 'forge-auth-required') {
+        pendingGiteeDecision.current = { number, action }
+        promptAuth(apiError, remote)
+        return { ok: false, auth: true }
+      }
+      pendingGiteeDecision.current = null
+      return { ok: false, auth: false, message: apiError.message }
+    } finally {
+      giteeDecisionRef.current = null
+      setGiteeDecision(null)
+    }
+  }, [giteeDecision, promptAuth, refreshQuietDetail, remote, repoRoot, t])
+
+  const deletePull = useCallback(async (number: number): Promise<PullActionResult> => {
+    if (repoRoot === '' || remote === '') {
+      return { ok: false, auth: false, message: t('pullNoSelection') }
+    }
+    if (deleting !== null || deletingRef.current !== null || giteeDecisionRef.current !== null) {
+      return { ok: false, auth: false, message: t('pullDeleteBusy') }
+    }
+    deletingRef.current = number
+    setDeleting(number)
+    try {
+      await requestPullDelete({ path: repoRoot, remote, number })
+      toast(t('pullDeleted').replaceAll('{number}', String(number)))
+      pendingDelete.current = null
+      detailAbort.current?.abort()
+      detailAbort.current = null
+      setPulls(current => current.filter(item => item.number !== number))
+      selectedRef.current = null
+      setSelected(null)
+      setDetail(null)
+      setDetailStatus('idle')
+      setDetailError(null)
+      freshRef.current = true
+      setReload(value => value + 1)
+      return { ok: true }
+    } catch (error) {
+      const apiError = toApiError(error)
+      if (apiError.code === 'forge-auth-required') {
+        pendingDelete.current = number
+        promptAuth(apiError, remote)
+        return { ok: false, auth: true }
+      }
+      pendingDelete.current = null
+      return { ok: false, auth: false, message: apiError.message }
+    } finally {
+      deletingRef.current = null
+      setDeleting(null)
+    }
+  }, [deleting, promptAuth, remote, repoRoot, t])
+
   const runAiReview = useCallback((numberOverride?: number, modeOverride?: AiReviewMode): void => {
     const number = numberOverride ?? selected
     const mode = modeOverride ?? aiReviewMode
@@ -629,6 +738,18 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         await mergePull(pendingMergeRequest.input, pendingMergeRequest.number)
         return
       }
+      const pendingApproval = pendingGiteeDecision.current
+      pendingGiteeDecision.current = null
+      if (pendingApproval !== null) {
+        await decideGitee(pendingApproval.action, pendingApproval.number)
+        return
+      }
+      const pendingRemoval = pendingDelete.current
+      pendingDelete.current = null
+      if (pendingRemoval !== null) {
+        await deletePull(pendingRemoval)
+        return
+      }
       const pendingReview = pendingAiReview.current
       pendingAiReview.current = null
       if (pendingReview !== null) {
@@ -647,11 +768,16 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     } finally {
       setAuthBusy(false)
     }
-  }, [authBusy, authPrompt, changePullState, createPull, mergePull, repoRoot, runAiReview, selected, selectPull])
+  }, [authBusy, authPrompt, changePullState, createPull, decideGitee, deletePull, mergePull, repoRoot, runAiReview, selected, selectPull])
 
   const dismissAuth = useCallback((): void => {
     setAuthPrompt(null)
     setAuthError(null)
+    pendingState.current = null
+    pendingCreate.current = null
+    pendingMerge.current = null
+    pendingGiteeDecision.current = null
+    pendingDelete.current = null
   }, [])
 
   const checkout = useCallback(async (number: number): Promise<void> => {
@@ -708,13 +834,17 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     setState,
     refresh,
     loadMore,
-    selectPull: number => { void selectPull(number) },
+    selectPull,
     submitToken,
     dismissAuth,
     checkout,
     closePull,
     reopenPull,
     mergePull,
+    giteeDecision,
+    decideGitee,
+    deleting,
+    deletePull,
     aiReview,
     aiReviewReasoning,
     aiReviewAttempt,

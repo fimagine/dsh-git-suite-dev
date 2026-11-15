@@ -6,6 +6,7 @@ import { Button, DialogActions } from './Button.js'
 import { DialogShell } from './DialogShell.js'
 import { Dropdown } from './Dropdown.js'
 import { PullChecksBadge } from './PullChecksBadge.js'
+import { PullApprovalBadges } from './PullApprovalBadges.js'
 import { PullReviewBadge } from './PullReviewBadge.js'
 
 export interface MergePullDialogProps {
@@ -28,11 +29,31 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
   const [deleteSourceBranch, setDeleteSourceBranch] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const blocked = pull.mergeable === false
-  const failing = pull.checks?.state === 'failure'
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+  const [refreshFailed, setRefreshFailed] = useState(false)
+  const current = view.detail?.number === pull.number ? view.detail : pull
+  const blocked = current.mergeable === false
+  const failing = current.checks?.state === 'failure'
+  const approvalBusy = busy || view.merging !== null || view.giteeDecision !== null
+  const mergeBusy = approvalBusy || blocked || refreshFailed
+
+  const approve = async (action: 'review' | 'test'): Promise<void> => {
+    if (approvalBusy) return
+    setApprovalError(null)
+    setRefreshFailed(false)
+    const result = await view.decideGitee(action, current.number)
+    if (result.ok) {
+      if (result.warning !== undefined) {
+        setApprovalError(result.warning)
+        setRefreshFailed(true)
+      }
+      return
+    }
+    if (!result.auth) setApprovalError(result.message)
+  }
 
   const submit = async (): Promise<void> => {
-    if (busy || blocked) return
+    if (mergeBusy) return
     setBusy(true)
     setError(null)
     const message = await view.mergePull({ method, deleteSourceBranch })
@@ -49,11 +70,43 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
       <div className="dsh-gitlog-pull-merge">
         <p className="dsh-gitlog-note">{`${repo === '' ? '' : `${repo} · `}#${pull.number} · ${pull.title}`}</p>
         <div className="dsh-gitlog-pull-merge-meta">
-          <PullChecksBadge checks={pull.checks} t={t} />
-          <PullReviewBadge review={pull.review ?? null} t={t} />
+          <PullChecksBadge checks={current.checks} t={t} />
+          <PullReviewBadge review={current.review ?? null} t={t} />
+          {current.approval === undefined || current.approval === null
+            ? null
+            : <PullApprovalBadges approval={current.approval} t={t} />}
           {blocked ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeBlocked')}</span> : null}
           {failing ? <span className="dsh-gitlog-pull-merge-warning">{t('pullMergeChecksFailing')}</span> : null}
         </div>
+        {provider === 'gitee'
+          ? (
+              <div className="dsh-gitlog-merge-approvals">
+                <p className="dsh-gitlog-field-hint">{t('pullGiteeApprovalsHint')}</p>
+                <div className="dsh-gitlog-merge-approval-actions">
+                  <Button
+                    loading={view.giteeDecision === 'review'}
+                    disabled={approvalBusy}
+                    onClick={() => { void approve('review') }}
+                  >
+                    {t('pullGiteeReview')}
+                  </Button>
+                  <Button
+                    loading={view.giteeDecision === 'test'}
+                    disabled={approvalBusy}
+                    onClick={() => { void approve('test') }}
+                  >
+                    {t('pullGiteeTest')}
+                  </Button>
+                </div>
+                {approvalError === null
+                  ? null
+                  : <p className="dsh-gitlog-note" role="alert">{approvalError}</p>}
+                {view.giteeDecision === null
+                  ? null
+                  : <p className="dsh-gitlog-field-hint">{t('pullGiteeApprovalRunning')}</p>}
+              </div>
+            )
+          : null}
         <label className="dsh-gitlog-field">
           <span>{t('pullMergeMethod')}</span>
           <Dropdown
@@ -92,7 +145,7 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
         <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
         <Button
           variant="primary"
-          disabled={busy || blocked}
+          disabled={mergeBusy}
           onClick={() => { void submit() }}
         >
           {busy ? t('pullMerging') : t('pullMergeAction')}

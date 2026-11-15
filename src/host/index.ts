@@ -7,6 +7,8 @@ import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
 import { createPullHandler } from './pr-handler.js'
 import { createPullCreateHandler } from './pr-create-handler.js'
+import { createGiteeDecisionHandler } from './pr-gitee-decision-handler.js'
+import { createPullDeleteHandler } from './pr-delete-handler.js'
 import { createPullAiReviewHandler } from './pr-ai-review-handler.js'
 import { createRemoteHandler } from './remote-handler.js'
 import { createRevealHandler } from './reveal-handler.js'
@@ -42,6 +44,8 @@ const PR_REOPEN_PATH = '/git-suite/pr-reopen'
 const PR_CREATE_PATH = '/git-suite/pr-create'
 const PR_MERGE_PATH = '/git-suite/pr-merge'
 const PR_AI_REVIEW_PATH = '/git-suite/pr-ai-review'
+const PR_GITEE_DECISION_PATH = '/git-suite/pr-gitee-decision'
+const PR_DELETE_PATH = '/git-suite/pr-delete'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
 
@@ -204,6 +208,16 @@ export function apply(ctx: HostContext): void {
     path: PR_AI_REVIEW_PATH,
     handler: createPullAiReviewHandler(context, ctx.llm, ctx.agentDefaultModel),
   }), 'git-suite: AI pull request review route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: PR_GITEE_DECISION_PATH,
+    handler: createGiteeDecisionHandler(context),
+  }), 'git-suite: Gitee review/test route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: PR_DELETE_PATH,
+    handler: createPullDeleteHandler(context),
+  }), 'git-suite: delete pull request route')
 }
 
 

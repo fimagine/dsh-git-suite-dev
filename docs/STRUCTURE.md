@@ -15,8 +15,15 @@ src/
     workspace-action.ts
     clone-handler.ts
     commit-actions.ts
+    forge-post.ts
     generate-handler.ts
     pick-handler.ts
+    pr-ai-review-handler.ts
+    pr-create-handler.ts
+    pr-delete-handler.ts
+    pr-gitee-decision-handler.ts
+    pr-handler.ts
+    pr-review-context.ts
     sync-handler.ts
     remote-handler.ts
     remote-url.ts
@@ -126,7 +133,7 @@ LICENSE
 
 | File | Responsibility |
 |---|---|
-| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, branch actions, credentials, pull-request checkout, close, reopen, creation, merge, and AI review |
+| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, branch actions, credentials, pull-request checkout, close, reopen, creation, merge, AI review, Gitee approvals, and deletion |
 | `host/resource.ts` | Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
 | `host/workspace-action.ts` | Node handler for stage/unstage, stage or unstage individual hunks or selected lines (`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines` via `git apply --cached [--reverse] --recount --unidiff-zero` on a patch built by `host/patch.ts`), discard one file's unstaged changes (`checkout --`), delete one untracked file, append an ignore pattern to `.gitignore`, commit (optionally amend), and the optional push |
@@ -143,7 +150,8 @@ LICENSE
 | `host/remote-handler.ts` | `POST /git-suite/remote`: add (`action: 'add'`), rename and/or replace the URL (`action: 'set-url'`), or remove (`action: 'remove'`) one configured remote after validating the names, the URL, and whether they already exist |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`: merge, rebase, rename, or delete a local branch; rebase the current branch onto any ref (`rebase-onto`, target resolved with `rev-parse --verify`, `409 operation-conflict` when it stops on conflicts); check out a remote-tracking branch as a new tracking branch (`track`); delete a branch on a remote (`delete-remote`, `push --delete`); with validation and git error details |
 | `host/dsh.ts` | Local DSH host types, including `webServer`, workspaces, `directoryPicker`, `llm`, and `agentDefaultModel` |
-| `host/http.ts` | JSON responses, error serialization, same-origin and private-header checks |
+| `host/http.ts` | JSON responses, error serialization, same-origin and private-header checks; `readJsonBody` (declared/actual size limits) and `sendResponse` (closed-response guard) |
+| `host/forge-post.ts` | Shared forge-write flow: private header, POST, body limit, timeout, repository/remote/forge/token resolution, and error response |
 | `host/git.ts` | Runs read-only git commands and maps failures to error codes |
 | `host/repository.ts` | Validates paths and resolves the repository root with `rev-parse` |
 | `host/remote-url.ts` | Accepts https/ssh/git/file and absolute local remotes; rejects `ext::`-style transports |
@@ -158,6 +166,8 @@ LICENSE
 | `host/routes/pulls.ts` | `mode=pulls`: one remote's pull/merge requests (`state=open|closed|all`, up to 30, `hasMore` when older ones may exist); `mode=pull&number=N`: one request with its description, files, and commits; `400 forge-unsupported` for other hosts and `401 forge-auth-required` when the forge rejects the token |
 | `host/pr-handler.ts` | `POST /git-suite/pr`: with `action: 'checkout'` (the default) it checks out a pull request — it tries `refs/pull/N/head` (GitLab: `refs/merge-requests/N/head`), the remote's source branch, and the fork's source branch in order, fetching into `refs/remotes/<remote>/pr/N`, then creates or reuses the local `pr/N` branch and runs `git switch` (`409 worktree-dirty` when the tree is dirty); `POST /git-suite/pr-close`, `POST /git-suite/pr-reopen`, and `POST /git-suite/pr-merge` reuse the same handler (with `close` / `reopen` / `merge` as the default action): close/reopen change the state and keep the source branch, while merge supports merge/squash/rebase (rebase only on GitHub) and optional branch deletion; no token returns `401 forge-auth-required` |
 | `host/pr-create-handler.ts` | `POST /git-suite/pr-create`: validates title/description; the `remote` body field names the target repository, while the head comes from the current branch's upstream remote and branch; both remotes must share the forge and host. Verifies head/base exist on their remotes, requires a token (`401 forge-auth-required` otherwise), sends the branch for same-repository requests and `owner:branch` (GitHub/Gitee) or resolves `source_project_id` (GitLab) for cross-repository ones; an unpushed branch returns `409 branch-not-pushed` |
+| `host/pr-gitee-decision-handler.ts` | `POST /git-suite/pr-gitee-decision`: marks Gitee review/test as passed; Gitee-only |
+| `host/pr-delete-handler.ts` | `POST /git-suite/pr-delete`: deletes a GitLab MR (GitHub/Gitee are close-only); GitLab-only |
 | `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`: splits the model's `contextWindow` dynamically between patches and full-file context (source-first, 120k/80k fallback), serves either JSON or `stream:true` NDJSON (`start`/`reasoning`/`text`/`retry`/`done`/`error`), and never posts to the forge |
 | `host/pr-review-context.ts` | Reads complete files in the chosen mode: temporary worktree (no execution, removed immediately), forge contents API, or diff only; caps file count, per-file size, and total characters |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
@@ -187,7 +197,9 @@ LICENSE
 | `client/hooks/useWorkspace.ts` | Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
 | `client/hooks/usePulls.ts` | PR view state: supported remotes and the default remote, open/closed/all filtering, list and detail requests, the token prompt on 401, and the refresh after a checkout; nothing is requested while another view is visible |
 | `client/components/PullsPane.tsx` | PR page: remote/filter toolbar, virtualized list, and detail (description, discussion, AI review, CI status, commits, files with a switchable diff layout), open-in-browser, checkout, merge, close, and reopen actions; a numbered entry appears when the current branch already has an open request |
-| `client/components/MergePullDialog.tsx` | Merge confirmation with method, source-branch deletion, and blocked/failing-checks warnings |
+| `client/components/MergePullDialog.tsx` | Merge confirmation with method, source-branch deletion, blocked/failing-checks warnings; Gitee also shows **Approve review** and **Mark test passed** |
+| `client/components/DeletePullDialog.tsx` | GitLab MR deletion confirmation requiring an explicit irreversible-action check |
+| `client/components/PullApprovalBadges.tsx` | Gitee review/test state badges (not assigned, pending, partial, passed) |
 | `client/components/PullChecksBadge.tsx` | CI rollup pill linking to the forge's checks page |
 | `client/components/PullReviewBadge.tsx` | Read-only review summary: approved / changes requested / pending |
 | `client/components/Markdown.tsx` | Safe Markdown rendering for discussion and AI reviews: headings, paragraphs, lists, quotes, code blocks (Prism), tables, inline code/links/emphasis; no raw HTML, links limited to http(s) |

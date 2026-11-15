@@ -339,3 +339,15 @@ export async function mergeGitlabPull(
     branchDeleted: merged && input.deleteSourceBranch,
   }
 }
+
+/** Permanently delete a merge request (GitLab owners/admins only). */
+export async function deleteGitlabPull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await forgeJson<unknown>(target, `${projectId(target)}/merge_requests/${number}`, token, signal, {
+    method: 'DELETE',
+  })
+}

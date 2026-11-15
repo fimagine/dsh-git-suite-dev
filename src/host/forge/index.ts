@@ -1,8 +1,8 @@
 import type { PullCreateInput, PullDetail, PullMergeInput, PullMergeResult, PullSummary } from '../types.js'
 import type { ForgeTarget } from './detect.js'
-import { getGiteePull, listGiteePulls, closeGiteePull, reopenGiteePull, createGiteePull, mergeGiteePull } from './gitee.js'
+import { getGiteePull, listGiteePulls, closeGiteePull, reopenGiteePull, createGiteePull, mergeGiteePull, reviewGiteePull, testGiteePull } from './gitee.js'
 import { getGithubPull, listGithubPulls, closeGithubPull, reopenGithubPull, createGithubPull, mergeGithubPull } from './github.js'
-import { getGitlabPull, listGitlabPulls, closeGitlabPull, reopenGitlabPull, createGitlabPull, mergeGitlabPull } from './gitlab.js'
+import { getGitlabPull, listGitlabPulls, closeGitlabPull, reopenGitlabPull, createGitlabPull, mergeGitlabPull, deleteGitlabPull } from './gitlab.js'
 import { forgeJson } from './http.js'
 
 /** One page of pull requests; the list route reports whether more may exist. */
@@ -60,6 +60,29 @@ export function reopenPull(
   if (target.provider === 'github') return reopenGithubPull(target, number, token, signal)
   if (target.provider === 'gitee') return reopenGiteePull(target, number, token, signal)
   return reopenGitlabPull(target, number, token, signal)
+}
+
+/** Permanently delete a merge request. GitLab is the only supported forge. */
+export function deletePull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  return deleteGitlabPull(target, number, token, signal)
+}
+
+/** Mark one of Gitee's required approval steps (review or test). */
+export function decideGiteePull(
+  target: ForgeTarget,
+  number: number,
+  token: string,
+  action: 'review' | 'test',
+  signal?: AbortSignal,
+): Promise<void> {
+  return action === 'review'
+    ? reviewGiteePull(target, number, token, signal)
+    : testGiteePull(target, number, token, signal)
 }
 
 /** Open a new pull/merge request from `head` into `base` on the same remote. */

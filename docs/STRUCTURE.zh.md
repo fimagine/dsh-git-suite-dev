@@ -15,8 +15,15 @@ src/
     workspace-action.ts
     clone-handler.ts
     commit-actions.ts
+    forge-post.ts
     generate-handler.ts
     pick-handler.ts
+    pr-ai-review-handler.ts
+    pr-create-handler.ts
+    pr-delete-handler.ts
+    pr-gitee-decision-handler.ts
+    pr-handler.ts
+    pr-review-context.ts
     sync-handler.ts
     remote-handler.ts
     remote-url.ts
@@ -126,7 +133,7 @@ LICENSE
 
 | 文件 | 职责 |
 |---|---|
-| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr / pr-close / pr-reopen / pr-create / pr-merge / pr-ai-review POST handler |
+| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr / pr-close / pr-reopen / pr-create / pr-merge / pr-ai-review / pr-gitee-decision / pr-delete POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、按 hunk 或按选中行暂存/取消暂存（`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines`，由 `host/patch.ts` 组装补丁后 `git apply --cached [--reverse] --recount --unidiff-zero`）、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
@@ -143,7 +150,8 @@ LICENSE
 | `host/remote-handler.ts` | `POST /git-suite/remote`：新增（`action: 'add'`）、改名和/或修改地址（`action: 'set-url'`）或删除（`action: 'remove'`）指定远端，会校验名称、地址格式以及是否已存在 |
 | `host/branch-action-handler.ts` | `POST /git-suite/branch-action`：本地分支的 `merge`/`rebase`/`rename`/`delete`；把当前分支变基到任意引用（`rebase-onto`，目标用 `rev-parse --verify` 解析，遇到冲突返回 `409 operation-conflict`）；以远端分支为起点检出为本地跟踪分支（`track`）；删除远端上的分支（`delete-remote`，即 `push --delete`）；校验分支名/远端名，失败返回 git 错误详情 |
 | `host/dsh.ts` | 本插件使用的 DSH host 类型，包括 `webServer`、工作区、`directoryPicker`、`llm` 与 `agentDefaultModel` |
-| `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验 |
+| `host/http.ts` | JSON 响应、错误序列化、同源与私有头校验；`readJsonBody`（Content-Length/实际字节上限）与 `sendResponse`（已关闭响应保护） |
+| `host/forge-post.ts` | 写操作路由公共流程：私有头、POST、body 上限、超时、repository/remote/forge/token 解析与错误回写 |
 | `host/git.ts` | 执行只读 git 命令并把失败映射为错误码 |
 | `host/repository.ts` | 校验路径并用 `rev-parse` 解析仓库根目录 |
 | `host/remote-url.ts` | 接受 https/ssh/git/file 与绝对本地路径，拒绝 `ext::` 之类的命令型传输 |
@@ -158,6 +166,8 @@ LICENSE
 | `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（`state=open|closed|all`，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
 | `host/pr-handler.ts` | `POST /git-suite/pr`：`action: 'checkout'`（默认）检出 PR——依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`（工作区有冲突改动时返回 `409 worktree-dirty`）；`POST /git-suite/pr-close`、`POST /git-suite/pr-reopen` 与 `POST /git-suite/pr-merge` 复用同一个 handler（默认 `close` / `reopen` / `merge`）：前两者调平台 API 改变状态并保留源分支，合并按 merge/squash/rebase（仅 GitHub 支持 rebase）并可删除源分支；缺少令牌时返回 `401 forge-auth-required` |
 | `host/pr-create-handler.ts` | `POST /git-suite/pr-create`：校验标题/描述，目标远端由 `remote` 指定；源分支取当前分支的 upstream 远端与分支名，两个远端必须同平台同主机。校验 head/base 都存在于各自远端，缺少令牌返回 `401 forge-auth-required`；同仓库时直接提交分支，跨仓库时 GitHub/Gitee 提交 `owner:branch`、GitLab 先解析 `source_project_id`；分支未推送返回 `409 branch-not-pushed` |
+| `host/pr-gitee-decision-handler.ts` | `POST /git-suite/pr-gitee-decision`：把 Gitee PR 的审查/测试标记为通过；provider 必须是 Gitee |
+| `host/pr-delete-handler.ts` | `POST /git-suite/pr-delete`：删除 GitLab MR（GitHub/Gitee 只能关闭）；provider 必须是 GitLab |
 | `host/pr-ai-review-handler.ts` | `POST /git-suite/pr-ai-review`：按模型的 `contextWindow` 动态分配 diff/完整文件预算（源码优先，无元数据时回退 120k/80k），按 `context` 获取上下文，调用默认模型；支持 JSON 或 `stream:true` 的 NDJSON（`start`/`reasoning`/`text`/`retry`/`done`/`error`）；不写平台 |
 | `host/pr-review-context.ts` | 按用户选择读取完整文件：临时 worktree（不执行代码，随即清理）、平台 contents API 或仅 diff；限制文件数/单文件/总字符数 |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
@@ -187,7 +197,9 @@ LICENSE
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
 | `client/hooks/usePulls.ts` | PR 视图状态：受支持的远端与默认远端、开放中/已关闭/全部筛选、列表与详情请求、401 时的令牌对话框、检出后的刷新；只有 PR 视图可见时才请求 |
 | `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、虚拟列表、详情（描述、讨论、AI 审查、CI 状态、提交、文件与可切换布局的差异）、在浏览器打开、检出到本地、合并、关闭/重新打开；当前分支已有 PR 时显示编号入口 |
-| `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示 |
+| `client/components/MergePullDialog.tsx` | 合并确认：合并方式、删除源分支、阻止合并/检查失败提示；Gitee 额外提供「审查通过」「测试通过」按钮 |
+| `client/components/DeletePullDialog.tsx` | GitLab MR 的危险删除确认，必须勾选不可恢复提示 |
+| `client/components/PullApprovalBadges.tsx` | Gitee 审查/测试状态徽章（未指派/待通过/部分通过/已通过） |
 | `client/components/PullChecksBadge.tsx` | CI 汇总胶囊，带平台检查页链接 |
 | `client/components/PullReviewBadge.tsx` | 评审只读汇总：已批准/有修改意见/待评审 |
 | `client/components/Markdown.tsx` | 安全 Markdown 渲染：标题、段落、列表、引用、代码块（Prism 高亮）、表格、行内代码/链接/粗斜体；不渲染原始 HTML，链接仅允许 http(s)；用于讨论与 AI 审查 |

@@ -43,6 +43,7 @@
     "build": "pnpm run clean && pnpm run typecheck && pnpm run build:host && pnpm run build:client",
     "build:host": "tsc -p tsconfig.host.json",
     "build:client": "node scripts/build-client.mjs",
+    "test": "pnpm run build:host && node --test tests/*.test.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json",
     "watch:client": "node scripts/build-client.mjs --watch",
