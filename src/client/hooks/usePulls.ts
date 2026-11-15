@@ -64,7 +64,7 @@ export interface PullsView {
   /** Non-null while a Gitee review/test approval is in flight. */
   giteeDecision: 'review' | 'test' | null
   /** Mark Gitee review or test as passed; resolves with an error message, or null. */
-  decideGitee(action: 'review' | 'test'): Promise<string | null>
+  decideGitee(action: 'review' | 'test', numberOverride?: number): Promise<string | null>
   /** Non-null while a delete request is in flight. */
   deleting: number | null
   /** Permanently delete a GitLab merge request; resolves with an error message, or null. */
@@ -524,13 +524,14 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     }
   }, [merging, promptAuth, remote, remotes, repoRoot, selectPull, selected, state, t])
 
-  const decideGitee = useCallback(async (action: 'review' | 'test'): Promise<string | null> => {
-    const number = selected
+  const decideGitee = useCallback(async (action: 'review' | 'test', numberOverride?: number): Promise<string | null> => {
+    const number = numberOverride ?? selected
     if (number === null || giteeDecision !== null || repoRoot === '' || remote === '') return null
     setGiteeDecision(action)
     try {
       await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
+      if (selected === number) void selectPull(number, true)
       return null
     } catch (error) {
       const apiError = toApiError(error)
@@ -543,14 +544,18 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     } finally {
       setGiteeDecision(null)
     }
-  }, [giteeDecision, promptAuth, remote, repoRoot, selected, t])
+  }, [giteeDecision, promptAuth, remote, repoRoot, selectPull, selected, t])
 
   const deletePull = useCallback(async (number: number): Promise<string | null> => {
-    if (deleting !== null || repoRoot === '' || remote === '') return null
+    if (repoRoot === '' || remote === '') return null
+    if (deleting !== null) return t('pullDeleteBusy')
     setDeleting(number)
     try {
       await requestPullDelete({ path: repoRoot, remote, number })
       toast(t('pullDeleted').replace('{number}', String(number)))
+      pendingDelete.current = null
+      detailAbort.current?.abort()
+      detailAbort.current = null
       setPulls(current => current.filter(item => item.number !== number))
       setSelected(null)
       setDetail(null)
@@ -695,7 +700,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       const pendingApproval = pendingGiteeDecision.current
       pendingGiteeDecision.current = null
       if (pendingApproval !== null) {
-        await decideGitee(pendingApproval.action)
+        await decideGitee(pendingApproval.action, pendingApproval.number)
         return
       }
       const pendingRemoval = pendingDelete.current

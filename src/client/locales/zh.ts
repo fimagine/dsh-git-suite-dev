@@ -493,6 +493,7 @@ export const zh: Record<LocaleKey, string> = {
   pullDeleteConfirm: '我明白此操作不可恢复',
   pullDeleteAction: '删除 PR',
   pullDeleting: '正在删除…',
+  pullDeleteBusy: '已有删除操作正在进行。',
   pullDeleted: '已删除 PR #{number}。',
   pullMergeGiteeReviewRequired: 'Gitee 要求 PR 先完成「审查通过」和「测试通过」才能合并。请先在 PR 页面完成这两步，再回来合并。',
   pullGiteeApprovalsHint: 'Gitee 合并前，需要确认审查和测试通过',

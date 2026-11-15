@@ -239,7 +239,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
             : pull.state === 'closed'
               ? <Button onClick={() => setStateDialog('reopen')}>{t('pullReopen')}</Button>
               : null}
-          {forge?.provider === 'gitlab'
+          {forge?.provider === 'gitlab' && pull.state !== 'merged'
             ? <Button variant="danger" onClick={() => setDeleteOpen(true)}>{t('pullDelete')}</Button>
             : null}
         </div>

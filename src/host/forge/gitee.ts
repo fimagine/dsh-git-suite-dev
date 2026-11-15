@@ -252,7 +252,8 @@ export async function mergeGiteePull(
   token: string,
   input: PullMergeInput,
   signal?: AbortSignal,
-): Promise<PullMergeResult> {  const result = await forgeJson<{ merged?: boolean; message?: string; sha?: string }>(
+): Promise<PullMergeResult> {
+  const result = await forgeJson<{ merged?: boolean; message?: string; sha?: string }>(
     target,
     `${repoPath(target)}/pulls/${number}/merge`,
     token,

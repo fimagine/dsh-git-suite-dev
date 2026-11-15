@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { RouteError } from './errors.js'
 
 /** Serialize a successful or failed payload as a non-cacheable JSON response. */
@@ -27,6 +28,34 @@ export function failure(error: unknown): Response {
       ...(routeError?.details === undefined ? {} : { details: routeError.details }),
     },
   }, status)
+}
+
+/** Read one bounded JSON object body from a POST handler. */
+export async function readJsonBody<T extends object>(req: IncomingMessage, maxBytes = 64 * 1024): Promise<T> {
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of req) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buffer.length
+    if (size > maxBytes) throw new RouteError(413, 'body-too-large', 'The request body is too large.')
+    chunks.push(buffer)
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    if (typeof parsed !== 'object' || parsed === null) throw new Error('not an object')
+    return parsed as T
+  } catch {
+    throw new RouteError(400, 'invalid-body', 'The request body must be a JSON object.')
+  }
+}
+
+/** Write a fetched Response back through the Node response. */
+export async function sendResponse(res: ServerResponse, response: Response): Promise<void> {
+  res.statusCode = response.status
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value)
+  })
+  res.end(Buffer.from(await response.arrayBuffer()))
 }
 
 /**

@@ -491,6 +491,7 @@ export const en = {
   pullDeleteConfirm: 'I understand this cannot be undone',
   pullDeleteAction: 'Delete PR',
   pullDeleting: 'Deleting…',
+  pullDeleteBusy: 'A delete is already in progress.',
   pullDeleted: 'Deleted PR #{number}.',
   pullMergeGiteeReviewRequired: 'Gitee requires the pull request to pass its review and test steps before merging. Complete both on the PR page, then merge again.',
   pullGiteeApprovalsHint: 'Before merging, confirm the Gitee review and test have passed.',

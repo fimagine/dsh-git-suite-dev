@@ -362,9 +362,15 @@ export async function requestPullGiteeDecision(
   return postCommitJson<PullGiteeDecisionPayload>('/git-suite/pr-gitee-decision', body, signal)
 }
 
+export interface PullDeleteCall {
+  path: string
+  remote: string
+  number: number
+}
+
 /** POST /git-suite/pr-delete: permanently delete a GitLab merge request. */
 export async function requestPullDelete(
-  body: PullCheckoutRequest,
+  body: PullDeleteCall,
   signal?: AbortSignal,
 ): Promise<PullDeletePayload> {
   return postCommitJson<PullDeletePayload>('/git-suite/pr-delete', body, signal)

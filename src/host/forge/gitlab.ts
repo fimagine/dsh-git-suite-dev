@@ -317,7 +317,8 @@ export async function mergeGitlabPull(
   token: string,
   input: PullMergeInput,
   signal?: AbortSignal,
-): Promise<PullMergeResult> {  const pull = await forgeJson<GitLabMergeRequest>(
+): Promise<PullMergeResult> {
+  const pull = await forgeJson<GitLabMergeRequest>(
     target,
     `${projectId(target)}/merge_requests/${number}/merge`,
     token,

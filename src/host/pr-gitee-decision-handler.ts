@@ -4,7 +4,7 @@ import { detectForge } from './forge/detect.js'
 import { decideGiteePull } from './forge/index.js'
 import { resolveRemote } from './forge/remote.js'
 import { resolveForgeToken } from './forge/token.js'
-import { admitHeaders, failure, json } from './http.js'
+import { admitHeaders, failure, json, readJsonBody, sendResponse } from './http.js'
 import { resolveRepository } from './repository.js'
 import type { RouteContext } from './types.js'
 
@@ -21,44 +21,18 @@ function header(req: IncomingMessage, name: string): string | null {
   return Array.isArray(value) ? value.join(', ') : value
 }
 
-async function readJson(req: IncomingMessage): Promise<DecisionBody> {
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-    size += buffer.length
-    if (size > 16 * 1024) throw new RouteError(413, 'body-too-large', 'The request body is too large.')
-    chunks.push(buffer)
-  }
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    if (typeof parsed !== 'object' || parsed === null) throw new Error('not an object')
-    return parsed as DecisionBody
-  } catch {
-    throw new RouteError(400, 'invalid-body', 'The request body must be a JSON object.')
-  }
-}
-
-async function send(res: ServerResponse, response: Response): Promise<void> {
-  res.statusCode = response.status
-  response.headers.forEach((value, key) => {
-    res.setHeader(key, value)
-  })
-  res.end(Buffer.from(await response.arrayBuffer()))
-}
-
 /** POST /git-suite/pr-gitee-decision: mark review or test as passed on Gitee. */
 export function createGiteeDecisionHandler(context: RouteContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     if (!admitHeaders(name => header(req, name))) {
-      await send(res, json({
+      await sendResponse(res, json({
         ok: false,
         error: { code: 'forbidden', message: 'This request is not allowed to update a pull request.' },
       }, 403))
       return
     }
     if (req.method !== 'POST') {
-      await send(res, json({
+      await sendResponse(res, json({
         ok: false,
         error: { code: 'method-not-allowed', message: 'Updating a pull request requires POST.' },
       }, 405))
@@ -70,7 +44,7 @@ export function createGiteeDecisionHandler(context: RouteContext): (req: Incomin
     res.once('close', () => controller.abort())
     const signal = controller.signal
     try {
-      const body = await readJson(req)
+      const body = await readJsonBody<DecisionBody>(req, 16 * 1024)
       const action = body.action === 'review' || body.action === 'test' ? body.action : null
       if (action === null) throw new RouteError(400, 'invalid-action', 'Choose the review or test action.')
       const number = typeof body.number === 'number' ? body.number : Number.NaN
@@ -103,9 +77,9 @@ export function createGiteeDecisionHandler(context: RouteContext): (req: Incomin
         if (error instanceof RouteError) throw error.withDetails({ remote: remote.name })
         throw error
       }
-      await send(res, json({ ok: true, action, number }))
+      await sendResponse(res, json({ ok: true, action, number }))
     } catch (error) {
-      await send(res, failure(error))
+      await sendResponse(res, failure(error))
     } finally {
       clearTimeout(timeout)
     }

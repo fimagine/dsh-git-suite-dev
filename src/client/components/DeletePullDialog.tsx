@@ -15,12 +15,11 @@ export interface DeletePullDialogProps {
 /** Permanently deletes a GitLab merge request after an explicit warning. */
 export function DeletePullDialog({ view, number, t, onClose }: DeletePullDialogProps): React.ReactElement {
   const [confirmed, setConfirmed] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const busy = view.deleting !== null
 
   const submit = async (): Promise<void> => {
     if (busy || !confirmed) return
-    setBusy(true)
     setError(null)
     const message = await view.deletePull(number)
     if (message === null) {
@@ -28,13 +27,12 @@ export function DeletePullDialog({ view, number, t, onClose }: DeletePullDialogP
       return
     }
     setError(message)
-    setBusy(false)
   }
 
   return (
     <DialogShell title={t('pullDeleteTitle')} t={t} onClose={onClose}>
       <p className="dsh-gitlog-note">{`#${number}`}</p>
-      <p className="dsh-gitlog-danger-text" role="alert">{t('pullDeleteWarning')}</p>
+      <p className="dsh-gitlog-danger-text">{t('pullDeleteWarning')}</p>
       <p className="dsh-gitlog-field-hint">{t('pullDeleteHint')}</p>
       <label className="dsh-gitlog-check">
         <input

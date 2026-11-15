@@ -125,7 +125,7 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
         <Button variant="ghost" onClick={onClose}>{t('cancel')}</Button>
         <Button
           variant="primary"
-          disabled={busy || blocked}
+          disabled={busy || blocked || view.giteeDecision !== null}
           onClick={() => { void submit() }}
         >
           {busy ? t('pullMerging') : t('pullMergeAction')}
