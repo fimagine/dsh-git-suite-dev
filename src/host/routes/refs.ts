@@ -1,6 +1,7 @@
+import { detectForge, toForgeInfo } from '../forge/detect.js'
 import { gitFailure, runGit } from '../git.js'
 import { resolveRepository } from '../repository.js'
-import type { Branch, RouteContext } from '../types.js'
+import type { Branch, ForgeInfo, RouteContext } from '../types.js'
 
 export interface TagRef {
   ref: string
@@ -22,6 +23,8 @@ export interface RemoteGroup {
   name: string
   url: string
   branches: Branch[]
+  /** The forge this remote points at, when it is a supported platform. */
+  forge?: ForgeInfo | null
 }
 
 export interface SubmoduleRef {
@@ -170,11 +173,16 @@ export async function readRefs(context: RouteContext, url: URL, signal: AbortSig
     const remoteUrls = parseRemoteUrls(remoteUrlsOutput)
     const remoteNames = [...new Set([...remoteUrls.keys(), ...parsedRemotes.map(group => group.name)])]
       .sort((left, right) => left.localeCompare(right))
-    const remotes = remoteNames.map(name => ({
-      name,
-      url: remoteUrls.get(name) ?? '',
-      branches: parsedRemotes.find(group => group.name === name)?.branches ?? [],
-    }))
+    const remotes = remoteNames.map(name => {
+      const url = remoteUrls.get(name) ?? ''
+      const target = url === '' ? null : detectForge(url)
+      return {
+        name,
+        url,
+        branches: parsedRemotes.find(group => group.name === name)?.branches ?? [],
+        forge: target === null ? null : toForgeInfo(target),
+      }
+    })
     return {
       ok: true,
       repoRoot: repo.root,

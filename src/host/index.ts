@@ -5,6 +5,7 @@ import { createCredentialHandler } from './credential-handler.js'
 import { createBranchHandler, createCheckoutHandler, createTagHandler } from './commit-actions.js'
 import { createGenerateMessageHandler } from './generate-handler.js'
 import { createPickDirectoryHandler } from './pick-handler.js'
+import { createPullHandler } from './pr-handler.js'
 import { createRemoteHandler } from './remote-handler.js'
 import { createRevealHandler } from './reveal-handler.js'
 import { createOpenHandler } from './open-handler.js'
@@ -33,6 +34,7 @@ const COMMIT_OP_PATH = '/git-suite/commit-op'
 const STASH_PATH = '/git-suite/stash'
 const BRANCH_ACTION_PATH = '/git-suite/branch-action'
 const CREDENTIAL_PATH = '/git-suite/credential'
+const PR_PATH = '/git-suite/pr'
 
 export const inject = ['webServer', 'workingDirectory', 'directoryPicker', 'llm', 'agentDefaultModel']
 
@@ -163,6 +165,11 @@ export function apply(ctx: HostContext): void {
     path: BRANCH_ACTION_PATH,
     handler: createBranchActionHandler(context),
   }), 'git-suite: branch action route')
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: PR_PATH,
+    handler: createPullHandler(context),
+  }), 'git-suite: pull request route')
 }
 
 

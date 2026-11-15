@@ -89,11 +89,12 @@ export function runGitWithInput(
   input: string,
   signal?: AbortSignal,
   timeoutMs = GIT_TIMEOUT_MS,
+  extraEnv: NodeJS.ProcessEnv = {},
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn('git', ['--no-pager', '-c', 'core.quotepath=false', '-C', cwd, ...args], {
       cwd,
-      env: gitEnvironment(),
+      env: { ...gitEnvironment(), ...extraEnv },
       windowsHide: true,
       signal,
     })

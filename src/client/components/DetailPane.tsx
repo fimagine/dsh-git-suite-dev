@@ -196,6 +196,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
                   key={`${detail.hash}:${selectedFile}`}
                   patch={activeSection}
                   t={t}
+                  path={detail.files[selectedFile]?.path}
                   empty={t('fileNoPatch')}
                   mode={diffMode.mode}
                 />
@@ -208,6 +209,7 @@ export function DetailPane({ detail, status, error, t }: DetailPaneProps): React
     </div>
   )
 }
+
 
 
 

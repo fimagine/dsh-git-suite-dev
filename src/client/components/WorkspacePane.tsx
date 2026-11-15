@@ -606,6 +606,7 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
                       <DiffView
                         patch={ws.diff.patch}
                         t={t}
+                        path={ws.selected?.path}
                         empty={t('fileNoPatch')}
                         hunkAction={ws.selected === null
                           ? undefined
@@ -877,6 +878,8 @@ export function WorkspacePane({ view, ws, t, narrow = false, operation, onOperat
     </div>
   )
 }
+
+
 
 
 

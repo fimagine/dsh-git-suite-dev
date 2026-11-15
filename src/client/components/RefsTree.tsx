@@ -369,7 +369,7 @@ export function RefsTree({ repoKey, onRefresh, refreshing = false, tree, status,
                 disabled={refreshing}
                 onClick={onRefresh}
               >
-                <RefreshIcon size={14} />
+                <RefreshIcon size={16} />
               </button>
             )}
       </div>
@@ -394,6 +394,7 @@ export function RefsTree({ repoKey, onRefresh, refreshing = false, tree, status,
     </aside>
   )
 }
+
 
 
 

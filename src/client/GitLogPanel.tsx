@@ -10,6 +10,7 @@ import { DeleteRemoteDialog } from './components/DeleteRemoteDialog.js'
 import { DetailPane } from './components/DetailPane.js'
 import { ErrorState } from './components/ErrorState.js'
 import { PanelControls } from './components/PanelControls.js'
+import { PullsPane } from './components/PullsPane.js'
 import { RefsTree } from './components/RefsTree.js'
 import { RemoteMenu, type RemoteMenuState } from './components/RemoteMenu.js'
 import { RemoteBranchMenu, type RemoteBranchMenuState, type RemoteBranchSelection } from './components/RemoteBranchMenu.js'
@@ -36,9 +37,11 @@ import { TooltipHost } from './components/Tooltip.js'
 import { WorkspacePane } from './components/WorkspacePane.js'
 import { EmptyState, LoadingState } from './components/States.js'
 import { useGitLogView } from './hooks/useGitLogView.js'
+import { usePulls } from './hooks/usePulls.js'
 import { useWorkspace } from './hooks/useWorkspace.js'
 import { requestBranchAction, requestCheckout, requestCommitOp, requestOperation, requestSync, requestTagStatus, toApiError } from './lib/api.js'
-import { readRepoUiState, setActiveRepo, writeRepoUiState } from './lib/ui-state.js'
+import { hasForge } from './lib/forge.js'
+import { readRepoUiState, setActiveRepo, writeRepoUiState, type ViewMode } from './lib/ui-state.js'
 import { h, useEffect, useRef, useState } from './runtime.js'
 import { CSS } from './styles.js'
 import type { Branch, Commit, OperationPayload, Selection, TagStatusPayload, Translate } from './types.js'
@@ -80,9 +83,21 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
   const workspacePath = view.repo?.repoRoot ?? view.pathInput.trim()
   const workspaceRevision = `${workspacePath}:${view.repo?.branch ?? ''}`
   const ws = useWorkspace(workspacePath, workspaceRevision, t, view.refresh)
+  const repoRoot = view.repo?.repoRoot ?? ''
   const [narrow, setNarrow] = useState(isNarrowViewport)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [viewMode, setViewModeState] = useState<'history' | 'workspace'>(() => readRepoUiState().viewMode ?? 'history')
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => readRepoUiState().viewMode ?? 'history')
+  const pulls = usePulls({
+    active: viewMode === 'pulls',
+    repoRoot,
+    remotes: view.tree?.remotes ?? [],
+    upstream: ws.status?.upstream ?? '',
+    t,
+    onCheckedOut: () => {
+      view.refresh()
+      ws.refresh()
+    },
+  })
   const [treeOverride, setTreeOverride] = useState<boolean | null>(null)
   const [commitMenu, setCommitMenu] = useState<CommitContext | null>(null)
   const [remoteMenu, setRemoteMenu] = useState<RemoteMenuState | null>(null)
@@ -157,14 +172,12 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
 
   // The right panel's commit page starts without the refs tree: the lists and
   // the diff need the height. The header toggle still brings it back.
-  const treeDefault = !(compact && viewMode === 'workspace')
+  const treeDefault = viewMode !== 'pulls' && !(compact && viewMode === 'workspace')
   const treeVisible = treeOverride ?? treeDefault
 
   useEffect(() => {
     setTreeOverride(null)
   }, [viewMode, compact])
-
-  const repoRoot = view.repo?.repoRoot ?? ''
 
   // Every repository keeps its own bucket: adopt it when the panel switches.
   useEffect(() => {
@@ -179,10 +192,19 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one run per repository
   }, [repoRoot])
 
-  const setViewMode = (mode: 'history' | 'workspace'): void => {
+  const setViewMode = (mode: ViewMode): void => {
     setViewModeState(mode)
     writeRepoUiState({ viewMode: mode })
   }
+
+  // A stored PR view is only valid while a supported forge exists; a local
+  // repository or an unsupported host falls back to history.
+  useEffect(() => {
+    if (viewMode !== 'pulls') return
+    if (view.treeStatus === 'loading') return
+    if (!hasForge(view.tree?.remotes ?? [])) setViewMode('history')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setViewMode only writes state
+  }, [viewMode, view.tree, view.treeStatus])
 
   const state = status === 'loading'
     ? <LoadingState label={t('loadingCommits')} />
@@ -571,21 +593,23 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
           )
         : null}
       <div ref={stackRef} className="dsh-gitlog-stack">
-        {viewMode === 'workspace'
-          ? (
-              <WorkspacePane
-                key={repoRoot}
-                view={view}
-                ws={ws}
-                t={t}
-                narrow={compact || narrow}
-                operation={operation}
-                onOperationChanged={() => { void refreshOperation() }}
-              />
-            )
-          : hasCommits
-            ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} onRefContextMenu={openRefMenu} />
-            : <div className="dsh-gitlog-state-pane">{state}</div>}
+        {viewMode === 'pulls'
+          ? <PullsPane key={repoRoot} view={pulls} t={t} narrow={compact || narrow} repoKey={repoRoot} />
+          : viewMode === 'workspace'
+            ? (
+                <WorkspacePane
+                  key={repoRoot}
+                  view={view}
+                  ws={ws}
+                  t={t}
+                  narrow={compact || narrow}
+                  operation={operation}
+                  onOperationChanged={() => { void refreshOperation() }}
+                />
+              )
+            : hasCommits
+              ? <CommitList view={view} t={t} onContextMenu={openCommitMenu} onRefContextMenu={openRefMenu} />
+              : <div className="dsh-gitlog-state-pane">{state}</div>}
         {viewMode === 'history' && hasCommits
           ? (
               <Splitter
@@ -621,13 +645,17 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
       <div className="dsh-gitlog-topbar">
         <PanelControls view={view} t={t} />
         <div className="dsh-gitlog-header-actions">
-          <Button
-            iconOnly
-            title={treeVisible ? t('hideTree') : t('showTree')}
-            onClick={() => setTreeOverride(!treeVisible)}
-            ariaPressed={treeVisible}
-            icon={<GitLogIcon size={16} />}
-          />
+          {viewMode === 'pulls'
+            ? null
+            : (
+                <Button
+                  iconOnly
+                  title={treeVisible ? t('hideTree') : t('showTree')}
+                  onClick={() => setTreeOverride(!treeVisible)}
+                  ariaPressed={treeVisible}
+                  icon={<GitLogIcon size={16} />}
+                />
+              )}
           <Button
             iconOnly
             title={t('settings')}

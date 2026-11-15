@@ -126,7 +126,7 @@ LICENSE
 
 | 文件 | 职责 |
 |---|---|
-| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action POST handler |
+| `host/index.ts` | 注册 `/git-suite` 只读资源路由，以及 switch / action / clone / generate-message / pick-directory / tag / branch / checkout / sync / remote / branch-action / credential / pr POST handler |
 | `host/resource.ts` | 校验请求、按 `mode` 分发只读请求并统一错误响应 |
 | `host/switch-handler.ts` | 分支切换的 Node handler（DSH resource 路由只接受 GET/HEAD；POST 必须走 handler） |
 | `host/workspace-action.ts` | POST `/git-suite/action`：暂存/取消暂存、按 hunk 或按选中行暂存/取消暂存（`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines`，由 `host/patch.ts` 组装补丁后 `git apply --cached [--reverse] --recount --unidiff-zero`）、重置单个文件的未暂存改动（`checkout --`）、删除单个未跟踪文件、提交（可 amend）、可选 push 的 Node handler |
@@ -153,7 +153,10 @@ LICENSE
 | `host/registry.ts` | 编辑器探测用的 Windows 注册表视图：`App Paths`（`Code.exe`、`devenv.exe`、`studio64.exe`、JetBrains 的 `*64.exe` 等）、卸载项里的 `DisplayIcon`/`InstallLocation`、Android Studio 的安装键，以及 Visual Studio 的 `vswhere`；卸载树缓存 10 分钟 |
 | `host/editors.ts` | 支持的编辑器表（VS Code、Insiders、Cursor、Windsurf、VSCodium、Zed、Sublime Text、TextMate、IntelliJ IDEA、WebStorm、PyCharm、GoLand、Visual Studio、Android Studio）：按平台探测（Windows 先查注册表，再查标准安装路径与 JetBrains Toolbox；macOS 的 `/Applications` 与 `~/Applications` 应用包；Linux 的 `PATH` 命令）并启动（可执行文件、`open -a` 或命令） |
 | `host/routes/apps.ts` | `mode=apps`：返回 `host/editors.ts` 探测到的编辑器（id + 显示名，按优先级）以及旧客户端读取的 `vscode` 布尔值；客户端只显示一个编辑器按钮，装了多个时点开是菜单，切换仓库时重新探测 |
-| `host/credential-handler.ts` | `POST /git-suite/credential`：把 HTTPS 的用户名/令牌交给仓库配置的凭据助手保存（`git credential approve`，密码只走 stdin），保存前校验远端为 HTTPS 且存在 helper（否则 `409 no-credential-helper`）；接口从不回传密码 |
+| `host/credential-handler.ts` | `POST /git-suite/credential`：把 HTTPS 的用户名/令牌交给仓库配置的凭据助手保存（`git credential approve`，密码只走 stdin），保存前校验远端为 HTTPS 且存在 helper（否则 `409 no-credential-helper`）；`forge: true` 时也接受 SSH 远端，把令牌按平台 host 存成 HTTPS 凭据；接口从不回传密码 |
+| `host/forge/` | 托管平台适配层：`detect.ts` 从 remote URL 识别 GitHub/Gitee/GitLab（含 `github.*`、`gitlab.*`、`gitee.*` 自建实例）并推导 API 基址；`token.ts` 按环境变量 → `gh auth token` → `git credential fill` 取令牌（5 分钟缓存）；`http.ts` 负责超时、大小上限、鉴权头、限流/401/404 映射与 60 秒缓存；`github.ts`/`gitee.ts`/`gitlab.ts` 把各自 payload 归一成 `PullSummary`/`PullDetail`；`remote.ts` 解析默认远端（当前分支 upstream → origin → 第一个） |
+| `host/routes/pulls.ts` | `mode=pulls`：某个远端的 PR/MR 列表（打开/全部，最多 30 条，`hasMore` 表示可能还有）；`mode=pull&number=N`：单个 PR 的描述、文件与提交；远端不支持时返回 `400 forge-unsupported`，令牌无效时返回 `401 forge-auth-required` |
+| `host/pr-handler.ts` | `POST /git-suite/pr`：检出 PR。先取 PR 元数据，再依次尝试 `refs/pull/N/head`（GitLab 为 `refs/merge-requests/N/head`）、远端源分支、fork 仓库的源分支，把提交取到 `refs/remotes/<remote>/pr/N`，然后创建或复用本地 `pr/N` 分支并 `git switch`；工作区有冲突改动时返回 `409 worktree-dirty` |
 | `host/scan.ts` | 有界扫描工作区中的 Git 项目 |
 | `host/parsers.ts` | 解析 log、commit header、numstat 和 ref |
 | `host/routes/` | 分支、引用树、日志分页、提交详情、文件状态/diff 读取，以及本地分支切换 |
@@ -179,10 +182,13 @@ LICENSE
 | `client/SidebarPanel.tsx` | 右侧栏标签页外壳，使用窄栏单列样式 |
 | `client/hooks/useGitLogView.ts` | 项目扫描、引用树、分页日志、详情选择与分页动作 |
 | `client/hooks/useWorkspace.ts` | 工作区状态、单文件 diff、暂存/取消暂存、提交动作与 AI 生成提交信息 |
+| `client/hooks/usePulls.ts` | PR 视图状态：受支持的远端与默认远端、打开/全部筛选、列表与详情请求、401 时的令牌对话框、检出后的刷新；只有 PR 视图可见时才请求 |
+| `client/components/PullsPane.tsx` | PR 页面：远端/筛选工具栏、列表、详情（描述、提交、文件与可切换布局的差异）、在浏览器打开与检出到本地；`ForgeAuthDialog.tsx` 负责输入平台令牌 |
 | `client/components/` | 提交列表、提交行、路线图、提交历史工具栏（分支/远端/排序，右侧另有刷新按钮）、引用树（双击切换分支，分支/远端分组右侧「+」添加分支/远端）、可拖拽分割线、详情、设置弹窗（每页条数、可录制的打开快捷键、版本检查更新）、工作区/提交面板、第二行操作栏（Ant Design 5 风格 text 按钮：默认无边框无背景，悬停出现中性底色，按下时底色更重；「历史/提交」是带边框轨道的 `Switch`，保留文字标签，其余只保留图标 + tooltip：拉取/推送/获取、命令行、按平台命名的文件管理器，以及 `mode=apps` 探测到时的 VS Code）、仓库 + 菜单（克隆/选择）、添加/删除远端弹窗、编辑远端弹窗（名称 + 地址）、新建分支弹窗、`Dropdown`（可选搜索：搜索框在控件上，仓库下拉按名字过滤）、提交右键菜单（标签/分支/检出/拣选/反向提交/重置/最近操作）、标签右键菜单（检出）、贮藏右键菜单（应用/弹出/丢弃）、远端分支右键菜单（检出/合并/变基/拉取/删除）、提交列表的列显隐菜单、文件右键菜单（在文件资源管理器中显示）、`Spinner`（唯一的加载动画组件，配合 `useMinimumSpin` 保证转满三圈才消失，避免闪烁）、toast（`ToastHost` 只挂一次 + 模块级 `toast(text, kind)`，支持 info/error 两种样式）、`DiffView`（统一或左右分栏 diff：粘性新旧行号栏、增删着色、分批「显示更多」、行号拖选、hunk/行级操作；布局用图标按钮切换，偏好持久化为 `diffMode`）、可编辑的提交引用字段（实时解析）、`Button`/`DialogActions` 统一按钮（28px/12px）、错误与状态等展示组件 |
 | `client/lib/api.ts` | 带私有头和 `AbortSignal` 的取数封装 |
 | `client/lib/graph.ts` | 泳道路由图布局与几何计算 |
 | `client/lib/patch.ts` | 把提交的合并补丁拆成每个文件一段，供文件列表切换 |
+| `client/lib/highlight.ts` | diff 视图的 Prism 语法高亮：按文件路径选语法（TS/TSX、JS/JSX、JSON、CSS/SCSS/Less、HTML/XML、Markdown、Python、Go、Rust、Java、Kotlin、Swift、C#、C/C++、PHP、Ruby、Shell、YAML/TOML/INI、SQL、Dockerfile、Makefile、CMake），对整侧文本一次性分词以正确处理跨行结构，超过 6000 行则跳过高亮 |
 | `client/lib/diff.ts` | `parseDiff`：把统一 diff 文本解析为带类型的行（file/hunk/add/del/context/note），并计算新旧行号与增删行数 |
 | `client/lib/use-split-size.ts` | `useSplitSize`：拖动起始值、上下限（数字或延迟测量）、可选的轴/反向/比例换算，以及去抖持久化；面板里所有分割线都基于它 |
 | `client/lib/refs-tree.ts` | 分支目录折叠、远程/贮藏节点与树搜索过滤 |
@@ -270,6 +276,18 @@ LICENSE
 
 提示条会在仓库变化、同步结束以及每次冲突操作后刷新。
 
+## PR 页面
+
+第二行的视图切换在 **历史 / 提交** 之外增加 **PR**，但它只在 `mode=tree` 报告至少一个受支持的远端（`remotes[].forge` 非空）时出现；本地仓库、SSH 到不支持的主机，以及只有 `file://` 远端的仓库都不会看到这个入口。`forge` 由宿主在读取引用树时顺带算好，因此不需要额外探测请求。
+
+- **远端**：默认取当前分支 upstream 所属远端，其次 `origin`，再其次第一个受支持远端；有多个时工具栏出现远端下拉。
+- **加载**：只有 PR 视图可见时才请求 `mode=pulls`；打开/全部筛选与刷新按钮都会重新取一页（最多 30 条，`hasMore` 时提示还有更多）。宿主对 GET 响应做 60 秒缓存，但刷新按钮带 `fresh=1` 跳过缓存，新建或合并 PR 后能立刻看到。
+- **列表**：编号、标题、作者、源分支 → 目标分支、更新时间与状态胶囊（打开/草稿/已合并/已关闭）。
+- **调整大小**：列表与详情之间是一条可拖拽分割线；宽布局调列表宽度，窄布局调列表高度，双击复位，尺寸按仓库分别记住。
+- **详情**：`mode=pull&number=…` 返回描述、改动文件（含补丁）、提交与可合并状态；文件差异复用 `DiffView`，并把文件路径传给它做语法高亮；分栏/统一布局沿用全局 `diffMode` 偏好。「在浏览器打开」是普通链接（只接受 http/https），「检出到本地」走 `POST /git-suite/pr`。
+- **认证**：平台返回 401 时弹出 `ForgeAuthDialog`；令牌是必填项，账号名可选（Gitee 个人仓库会预填 owner，留空时宿主调用平台 `/user` 解析出真实登录名）。令牌经 `POST /git-suite/credential { forge: true }` 交给仓库的凭据助手保存（SSH 远端也按平台 host 存成 HTTPS 凭据），随后自动重试。也可以改用 `GITHUB_TOKEN`/`GITEE_TOKEN`/`GITLAB_TOKEN` 或 `gh` 的登录态；令牌只在宿主进程使用。
+- **检出**：成功后刷新工作区与引用树；本地分支名固定为 `pr/<编号>`，已存在时直接切换而不移动它。
+
 ## 右侧栏标签页
 
 右侧栏的「开始」页由 `ui-sidebar-right` 提供。插件用 DSH 的两阶段注册接入：
@@ -296,6 +314,7 @@ DSH 每个包只通过 `exports["./client"]` 加载一个惰性工厂（`window.
 - `dist/` 和 `src/client/styles.generated.css` 都是构建产物，已被 Git 忽略；克隆后先 `pnpm install && pnpm build`，DSH 插件管理器不会替你构建。
 - `pnpm watch:client` 监听 `src/client/` 与 `styles.scss`，SCSS 改动会重新编译并触发 esbuild 重建；DSH HMR 监听 `dist/client.js`，重建后页面会重新加载该插件。
 - 修改 `package.json` 的入口路径后，需要重启 DSH（或在插件页禁用再启用该插件），因为运行中的 Host 会缓存插件清单。
+
 
 
 

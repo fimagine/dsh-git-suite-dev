@@ -26,9 +26,9 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 
 - **Where to find it**: the left sidebar's **Git** entry, the right panel's **Git** card on its Start page, or **Ctrl/Cmd+Shift+G** from anywhere (rebindable in DSH's keyboard settings). Both places render the same panel.
 - **Pick a repository**: use the project dropdown (type to search) or the **+** menu beside it to **clone a remote** or **select a local** repository. The right panel opens on the repository of the current session by default.
-- **Two views**: the **History / Commit** switch in the second row. History shows the commit graph and details; Commit shows the working tree.
+- **Views**: the **History / Commit / PR** switch in the second row. History shows the commit graph and details; Commit shows the working tree; PR appears when the remote is GitHub, Gitee, or GitLab and lists that forge's pull (or merge) requests.
 - **Commit**: stage whole files with the row buttons, single hunks with **Stage this hunk**, or a dragged line selection via the right-click menu, then write a message (↑ walks this repository's recent messages) and press **Commit**. **Amend last commit** and **push after committing** are optional.
-- **Diffs**: every diff has a layout toggle between unified rows and side-by-side columns.
+- **Diffs**: every diff has a layout toggle between unified rows and side-by-side columns, and code is syntax-highlighted by the file's language (unknown types stay plain).
 - **Everything else**: right-click branches, tags, stashes, remotes, commits, and files for their menus (checkout, merge, rebase, cherry-pick, reset, stash, tag, …); the top-right buttons open a terminal and the file manager, and open the repository in the detected editor (VS Code, Insiders, Cursor, Windsurf, VSCodium, Zed, Sublime Text, TextMate, a JetBrains IDE, Visual Studio, or Android Studio).
 
 ## Features
@@ -37,6 +37,7 @@ A Git suite plugin for DSH Web: history, branches, the refs tree, commit details
 - **Refs tree**: branches, tags, remotes, stashes, and submodules with search; double-click a local branch to switch; open submodules and return to the parent.
 - **Working tree and commits**: stage/unstage whole files, single hunks, or a dragged line selection, review diffs, commit or amend, push after committing, and generate commit messages with AI.
 - **Remote actions**: the history/commit switch, pull/push/fetch with remote, branch, prune, tag, and force options, merge/rebase, rebase onto any ref, and a commit context menu for tag/branch/checkout/cherry-pick/revert/reset.
+- **Pull requests**: browse open or all pull/merge requests for GitHub, Gitee, and GitLab remotes; read the description, commits, and changed files with syntax-highlighted diffs; open a request in the browser; and check one out locally as a `pr/<number>` branch. Private repositories use a token from `GITHUB_TOKEN`/`GITEE_TOKEN`/`GITLAB_TOKEN`, `gh`, or the credential helper; the token is stored through the helper and never reaches the page.
 - **Credentials**: a push or pull that fails on authentication offers a username/token dialog; the credential goes into the OS credential store through the repository's git credential helper and the action retries once (SSH remotes point at ssh-add instead).
 - **Right panel**: the same panel in DSH's right sidebar (Ctrl/Cmd+Shift+G), opening on the repository of the current session and keeping its own view, filters, splitters, and draft per repository.
 - **Repositories**: the **+** menu clones a remote or selects a local repository; the repository dropdown supports name search.
@@ -99,6 +100,8 @@ See [docs/STRUCTURE.md](docs/STRUCTURE.md) for how `tsc`, esbuild, and Sass fit 
 ## License
 
 MIT © 2026 Gim. See [LICENSE](LICENSE).
+
+
 
 
 

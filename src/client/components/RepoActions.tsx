@@ -4,6 +4,7 @@ import type { GitLogView } from '../hooks/useGitLogView.js'
 import type { WorkspaceView } from '../hooks/useWorkspace.js'
 import { requestApps, requestOpenApp, toApiError } from '../lib/api.js'
 import { fileManagerName } from '../lib/platform.js'
+import type { ViewMode } from '../lib/ui-state.js'
 import type { Translate } from '../types.js'
 import { Button } from './Button.js'
 import { Switch } from './Switch.js'
@@ -16,8 +17,8 @@ import { SyncDialog } from './SyncDialog.js'
 export interface RepoActionsProps {
   view: GitLogView
   ws: WorkspaceView
-  mode: 'history' | 'workspace'
-  onModeChange(mode: 'history' | 'workspace'): void
+  mode: ViewMode
+  onModeChange(mode: ViewMode): void
   t: Translate
 }
 
@@ -82,16 +83,20 @@ export function RepoActions({ view, ws, mode, onModeChange, t }: RepoActionsProp
 
   // The OS file manager has a different name on every platform.
   const explorerLabel = fileManagerName(t)
+  // The PR view only exists for repositories whose remote is a known forge.
+  const forgeAvailable = (view.tree?.remotes ?? []).some(remote => remote.forge !== null && remote.forge !== undefined)
+  const modes: Array<{ value: ViewMode; label: string }> = [
+    { value: 'history', label: t('history') },
+    { value: 'workspace', label: t('commit') },
+  ]
+  if (forgeAvailable) modes.push({ value: 'pulls', label: t('pulls') })
 
   return (
     <div className="dsh-gitlog-repo-actions">
       <Switch
         value={mode}
         ariaLabel={t('viewMode')}
-        options={[
-          { value: 'history' as const, label: t('history') },
-          { value: 'workspace' as const, label: t('commit') },
-        ]}
+        options={modes}
         onChange={onModeChange}
       />
       <Button

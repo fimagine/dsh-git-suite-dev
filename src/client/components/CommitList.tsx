@@ -392,7 +392,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
             disabled={status === 'loading'}
             onClick={view.refresh}
           >
-            <RefreshIcon size={14} />
+            <RefreshIcon size={16} />
           </button>
         </div>
         <div
@@ -488,6 +488,7 @@ export function CommitList({ view, t, onContextMenu, onRefContextMenu }: {
     </section>
   )
 }
+
 
 
 

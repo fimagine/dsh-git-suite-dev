@@ -125,10 +125,96 @@ export interface SubmoduleRef {
   name: string
 }
 
+/** A supported hosting platform: GitHub, Gitee, or GitLab. */
+export type ForgeProvider = 'github' | 'gitee' | 'gitlab'
+
+/** One remote that resolves to a supported forge. */
+export interface ForgeInfo {
+  provider: ForgeProvider
+  host: string
+  /** Owner (or GitLab namespace path) and repository name. */
+  owner: string
+  repo: string
+  webUrl: string
+}
+
+/** One pull request / merge request as the list shows it. */
+export interface PullSummary {
+  number: number
+  title: string
+  state: 'open' | 'closed' | 'merged'
+  draft: boolean
+  author: string
+  sourceBranch: string
+  targetBranch: string
+  createdAt: string
+  updatedAt: string
+  webUrl: string
+}
+
+/** One changed file in a pull request. */
+export interface PullFile {
+  path: string
+  status: string
+  additions: number | null
+  deletions: number | null
+  patch: string
+  binary: boolean
+}
+
+/** One commit of a pull request. */
+export interface PullCommit {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  date: string
+}
+
+/** One pull request with its description, files, and commits. */
+export interface PullDetail extends PullSummary {
+  body: string
+  additions: number | null
+  deletions: number | null
+  changedFiles: number | null
+  mergeable: boolean | null
+  headRepoUrl: string | null
+  files: PullFile[]
+  commits: PullCommit[]
+  filesTruncated: boolean
+}
+
+export interface PullsPayload {
+  ok: true
+  remote: string
+  state: 'open' | 'all'
+  forge: ForgeInfo
+  pulls: PullSummary[]
+  hasMore: boolean
+}
+
+export interface PullPayload {
+  ok: true
+  remote: string
+  state: 'open' | 'all'
+  forge: ForgeInfo
+  pull: PullDetail
+}
+
+export interface PullCheckoutPayload {
+  ok: true
+  branch: string
+  hash: string
+  /** The local branch already existed and was reused. */
+  existing: boolean
+}
+
 export interface RemoteGroup {
   name: string
   url: string
   branches: Branch[]
+  /** The forge this remote points at, when it is a supported platform. */
+  forge?: ForgeInfo | null
 }
 
 export interface Project {

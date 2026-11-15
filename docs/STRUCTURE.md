@@ -126,7 +126,7 @@ LICENSE
 
 | File | Responsibility |
 |---|---|
-| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, and branch actions |
+| `host/index.ts` | Registers the read-only `/git-suite` route and the POST handlers for switch, actions, clone, message generation, directory picking, tag, branch, checkout, sync, remote, branch actions, credentials, and pull-request checkout |
 | `host/resource.ts` | Admits requests, dispatches read modes, and maps errors to responses |
 | `host/switch-handler.ts` | Node handler for branch switching (DSH resource routes are GET/HEAD only; a POST needs a handler) |
 | `host/workspace-action.ts` | Node handler for stage/unstage, stage or unstage individual hunks or selected lines (`stage-hunks` / `unstage-hunks` / `stage-lines` / `unstage-lines` via `git apply --cached [--reverse] --recount --unidiff-zero` on a patch built by `host/patch.ts`), discard one file's unstaged changes (`checkout --`), delete one untracked file, append an ignore pattern to `.gitignore`, commit (optionally amend), and the optional push |
@@ -153,7 +153,10 @@ LICENSE
 | `host/registry.ts` | Windows registry view used by editor detection: `App Paths` (`Code.exe`, `devenv.exe`, `studio64.exe`, the JetBrains `*64.exe` shims …), uninstall entries via `DisplayIcon`/`InstallLocation`, the Android Studio installer key, and `vswhere` for Visual Studio; the uninstall subtree is cached for ten minutes |
 | `host/editors.ts` | One table of supported editors (VS Code, Insiders, Cursor, Windsurf, VSCodium, Zed, Sublime Text, TextMate, IntelliJ IDEA, WebStorm, PyCharm, GoLand, Visual Studio, Android Studio): per-platform detection (Windows install paths incl. JetBrains Toolbox, macOS app bundles in `/Applications` and `~/Applications`, Linux commands on `PATH`) and launch (executable, `open -a`, or the command) |
 | `host/routes/apps.ts` | `mode=apps`: lists the editors `host/editors.ts` detects (id + name, priority order) plus the `vscode` flag older clients read; the client shows one editor button that becomes a menu when several are installed, and re-detects on every repository change |
-| `host/credential-handler.ts` | `POST /git-suite/credential`: stores an HTTPS username/token through the repository's credential helper (`git credential approve`, secret only on stdin), after checking the remote is HTTPS and a helper is configured (`409 no-credential-helper` otherwise); never returns the secret |
+| `host/credential-handler.ts` | `POST /git-suite/credential`: stores an HTTPS username/token through the repository's credential helper (`git credential approve`, secret only on stdin), after checking the remote is HTTPS and a helper is configured (`409 no-credential-helper` otherwise); with `forge: true` an SSH remote is accepted too and the token is stored as an HTTPS credential for the forge host; never returns the secret |
+| `host/forge/` | Forge adapters: `detect.ts` maps a remote URL to GitHub/Gitee/GitLab (including `github.*`, `gitlab.*`, and `gitee.*` self-hosted instances) and derives the API base; `token.ts` resolves a token from environment variables, `gh auth token`, or `git credential fill` (five-minute cache); `http.ts` owns timeouts, response limits, auth headers, rate-limit/401/404 mapping, and a 60-second cache; `github.ts`/`gitee.ts`/`gitlab.ts` normalize each payload into `PullSummary`/`PullDetail`; `remote.ts` picks the default remote (current upstream → origin → first) |
+| `host/routes/pulls.ts` | `mode=pulls`: one remote's pull/merge requests (open or all, up to 30, `hasMore` when older ones may exist); `mode=pull&number=N`: one request with its description, files, and commits; `400 forge-unsupported` for other hosts and `401 forge-auth-required` when the forge rejects the token |
+| `host/pr-handler.ts` | `POST /git-suite/pr`: checks out a pull request. It reads the request metadata, then tries `refs/pull/N/head` (GitLab: `refs/merge-requests/N/head`), the remote's source branch, and the fork's source branch in order, fetching into `refs/remotes/<remote>/pr/N`, then creates or reuses the local `pr/N` branch and runs `git switch`; a dirty worktree returns `409 worktree-dirty` |
 | `host/scan.ts` | Scans workspaces for Git projects with depth and entry limits |
 | `host/parsers.ts` | Parses log output, commit headers, numstat, and refs |
 | `host/routes/` | Readers for branches, the refs tree, paged log, commit detail, working-tree status/diff, plus local branch switching |
@@ -179,10 +182,13 @@ LICENSE
 | `client/SidebarPanel.tsx` | Right-sidebar tab wrapper with the narrow single-column layout |
 | `client/hooks/useGitLogView.ts` | Project scan, refs tree, paged log, detail selection, and actions |
 | `client/hooks/useWorkspace.ts` | Working-tree status, per-file diff, stage/unstage, commit actions, and AI message generation |
+| `client/hooks/usePulls.ts` | PR view state: supported remotes and the default remote, open/all filtering, list and detail requests, the token prompt on 401, and the refresh after a checkout; nothing is requested while another view is visible |
+| `client/components/PullsPane.tsx` | PR page: remote/filter toolbar, request list, and detail (description, commits, files with a switchable diff layout), open-in-browser and checkout actions; `ForgeAuthDialog.tsx` collects the forge token |
 | `client/components/` | Presentational components for the list, rows, graph, history toolbar (branch/remotes/sort plus a right-aligned refresh), refs tree (double-click switches branches, **+** in the branches and remotes rows adds one), draggable splitters, detail, settings dialog (page size, the configurable open shortcut with a key recorder, and version/update check), working-tree/commit pane, second-line action row (Ant Design 5 style text buttons — no border or fill at rest, a neutral hover fill, a stronger neutral while pressed; the history/commit `Switch` keeps a bordered track with text labels, the rest are icon-only with tooltips: pull/push/fetch, terminal, the platform-named file manager, and VS Code when `mode=apps` reports it), repository + menu (clone/select), add/delete remote dialogs, edit remote dialog (name + URL), add-branch dialog, `Dropdown` (optional name search, enabled for repositories), commit context menu (tag/branch/checkout/cherry-pick/revert/reset/reflog), tag context menu (checkout), stash context menu (apply/pop/drop), remote-branch context menu (checkout/merge/rebase/pull/delete), column-visibility menu, file context menu (open in file explorer), `Spinner` (one SVG loading animation, with `useMinimumSpin` keeping it on screen for three full revolutions so it never flashes), toast (`ToastHost` mounted once plus a module-level `toast(text, kind)` with info/error styles), `DiffView` (unified or side-by-side diff with a sticky old/new gutter, coloured rows, incremental "show more", gutter selection, and per-hunk/line actions; the layout is switched with an icon toggle that persists as `diffMode`), commit-ref field (editable commit id with live resolution), shared `Button`/`DialogActions` (28px/12px), errors, and states |
 | `client/lib/api.ts` | Fetch wrapper with the private header and `AbortSignal` |
 | `client/lib/graph.ts` | Lane layout and geometry for the commit graph |
 | `client/lib/patch.ts` | Splits a commit's combined patch into one section per file for the file list |
+| `client/lib/highlight.ts` | Prism-based highlighting for the diff view: picks a grammar from the file path (TS/TSX, JS/JSX, JSON, CSS/SCSS/Less, HTML/XML, Markdown, Python, Go, Rust, Java, Kotlin, Swift, C#, C/C++, PHP, Ruby, Shell, YAML/TOML/INI, SQL, Dockerfile, Makefile, CMake), tokenizes each side's whole text so multi-line constructs stay correct, and skips patches over 6000 lines |
 | `client/lib/diff.ts` | `parseDiff`: turns unified diff text into typed lines (file/hunk/add/del/context/note) with old/new line numbers and addition/deletion counts |
 | `client/lib/use-split-size.ts` | `useSplitSize`: drag start value, bounds (number or measured lazily), optional axis/invert/ratio conversion, and debounced persistence; every splitter in the panel uses it |
 | `client/lib/refs-tree.ts` | Branch folder folding, remote/stash nodes, and tree search filtering |
@@ -270,6 +276,18 @@ A compact strip above the list carries the operation name, the remaining conflic
 
 The strip refreshes when the repository changes, when a sync finishes, and after every conflict action.
 
+## Pull requests
+
+The second-row view switch gains **PR** only when `mode=tree` reports at least one supported remote (`remotes[].forge` is non-null); local repositories, SSH remotes to unsupported hosts, and `file://`-only repositories never see the entry. The host derives `forge` while reading the refs tree, so no extra probe request is needed.
+
+- **Remote**: the current branch's upstream remote first, then `origin`, then the first supported remote; a remote dropdown appears when several are available.
+- **Loading**: `mode=pulls` runs only while the PR view is visible; the open/all filter, the refresh button, and a repository or remote change each request one page (up to 30; `hasMore` means older requests may exist). The host caches GET responses for 60 seconds, but the refresh button sends `fresh=1` to bypass it, so a newly created or merged request shows up immediately.
+- **List**: number, title, author, source → target branch, updated time, and a state badge (open/draft/merged/closed).
+- **Resizing**: a draggable splitter sits between the list and the detail; it changes the list width in the wide layout and its height in the stacked layout, double-click resets it, and the size is remembered per repository.
+- **Detail**: `mode=pull&number=…` returns the description, changed files with patches, commits, and mergeability. File diffs reuse `DiffView` with the file path passed in for syntax highlighting; the unified/split layout follows the global `diffMode` preference. **Open in browser** is a plain link restricted to http(s); **Check out locally** posts to `/git-suite/pr`.
+- **Authentication**: a 401 opens `ForgeAuthDialog`; the token is required and the account name is optional (a Gitee personal repository pre-fills the owner; leaving it empty makes the host resolve the real login through `/user`). The token goes through `POST /git-suite/credential { forge: true }` into the repository's credential helper (an SSH remote stores it as an HTTPS credential for the forge host) and the request retries. `GITHUB_TOKEN`/`GITEE_TOKEN`/`GITLAB_TOKEN`, or `gh`'s stored login, work too; the token stays in the host process.
+- **Checkout**: after success the working tree and refs tree reload; the local branch is always `pr/<number>` and an existing branch is switched to without moving it.
+
 ## Right-sidebar tab
 
 The right sidebar's Start page belongs to `ui-sidebar-right`. The plugin joins it through the same two-stage registration any tab type uses:
@@ -296,6 +314,8 @@ DSH loads exactly one lazy factory per package through `exports["./client"]` (`w
 - `dist/` and `src/client/styles.generated.css` are build artifacts and are ignored by Git. After cloning, run `pnpm install && pnpm build` first; DSH Plugin Manager does not build a local directory for you.
 - `pnpm watch:client` watches `src/client/` and `styles.scss`; a SCSS change recompiles it and triggers an esbuild rebuild, and DSH HMR watches `dist/client.js` to reload the plugin on the page.
 - Changing entry paths in `package.json` requires restarting DSH (or disabling and re-enabling the plugin row), because the running Host caches the plugin manifest.
+
+
 
 
 

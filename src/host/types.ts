@@ -182,6 +182,69 @@ export interface WorkspaceRef {
   path: string
 }
 
+/** A supported hosting platform: GitHub, Gitee, or GitLab. */
+export type ForgeProvider = 'github' | 'gitee' | 'gitlab'
+
+/** One remote that resolves to a supported forge, without any credentials. */
+export interface ForgeInfo {
+  provider: ForgeProvider
+  /** Host name used for the API and for stored credentials. */
+  host: string
+  /** Owner (or GitLab namespace path) and repository name. */
+  owner: string
+  repo: string
+  /** Browser URL of the repository. */
+  webUrl: string
+}
+
+/** One pull request / merge request as the list shows it. */
+export interface PullSummary {
+  number: number
+  title: string
+  state: 'open' | 'closed' | 'merged'
+  draft: boolean
+  author: string
+  sourceBranch: string
+  targetBranch: string
+  createdAt: string
+  updatedAt: string
+  webUrl: string
+}
+
+/** One changed file in a pull request. */
+export interface PullFile {
+  path: string
+  status: string
+  additions: number | null
+  deletions: number | null
+  /** Hunk text from the forge; empty when the forge sends none. */
+  patch: string
+  binary: boolean
+}
+
+/** One commit of a pull request. */
+export interface PullCommit {
+  hash: string
+  shortHash: string
+  subject: string
+  author: string
+  date: string
+}
+
+/** One pull request with its description, files, and commits. */
+export interface PullDetail extends PullSummary {
+  body: string
+  additions: number | null
+  deletions: number | null
+  changedFiles: number | null
+  mergeable: boolean | null
+  /** HTTPS clone URL of the head repository (for fork pull requests). */
+  headRepoUrl: string | null
+  files: PullFile[]
+  commits: PullCommit[]
+  filesTruncated: boolean
+}
+
 /** What the route needs from the host context: the workspace registry and a fallback directory. */
 export interface RouteContext {
   workspaces(): WorkspaceRef[]

@@ -4,7 +4,7 @@
  * global preference.
  */
 
-export type ViewMode = 'history' | 'workspace'
+export type ViewMode = 'history' | 'workspace' | 'pulls'
 export type SortMode = 'date' | 'topo'
 
 /** State that belongs to one repository. */
@@ -26,6 +26,10 @@ export interface RepoUiState {
   commitNarrowHeight?: number
   /** Height of the file column in the stacked layout, above the diff. */
   commitFilesHeight?: number
+  /** Width of the pull-request list in the wide layout. */
+  pullsListWidth?: number
+  /** Height of the pull-request list in the stacked layout. */
+  pullsListHeight?: number
   /** Ref-tree section expansion for this repository. */
   openSections?: Record<string, boolean>
   /** Collapsed ref-tree folders for this repository. */
@@ -46,6 +50,10 @@ const STORAGE_KEY = 'dsh-git-suite:ui-state'
 
 function finite(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function viewModeOf(value: unknown): ViewMode | undefined {
+  return value === 'history' || value === 'workspace' || value === 'pulls' ? value : undefined
 }
 
 function stringRecord(value: unknown): Record<string, string> | undefined {
@@ -116,12 +124,13 @@ function readRaw(): RawState {
     }
 
     // Flat fields are the old schema: read them as a fallback for every repo.
-    if (source.viewMode === 'history' || source.viewMode === 'workspace') legacy.viewMode = source.viewMode
+    const legacyViewMode = viewModeOf(source.viewMode)
+    if (legacyViewMode !== undefined) legacy.viewMode = legacyViewMode
     const limit = finite(source.limit)
     if (limit !== undefined && limit > 0) legacy.limit = Math.round(limit)
     if (source.sort === 'date' || source.sort === 'topo') legacy.sort = source.sort
     if (typeof source.showRemotes === 'boolean') legacy.showRemotes = source.showRemotes
-    for (const key of ['treeWidth', 'treeHeight', 'detailRatio', 'commitFilesWidth', 'commitStagedHeight', 'commitFormHeight', 'commitNarrowHeight', 'commitFilesHeight'] as const) {
+    for (const key of ['treeWidth', 'treeHeight', 'detailRatio', 'commitFilesWidth', 'commitStagedHeight', 'commitFormHeight', 'commitNarrowHeight', 'commitFilesHeight', 'pullsListWidth', 'pullsListHeight'] as const) {
       const value = finite(source[key])
       if (value !== undefined) legacy[key] = value
     }
@@ -141,12 +150,13 @@ function parseRepoState(value: unknown): RepoUiState | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
   const source = value as Record<string, unknown>
   const bucket: RepoUiState = {}
-  if (source.viewMode === 'history' || source.viewMode === 'workspace') bucket.viewMode = source.viewMode
+  const storedViewMode = viewModeOf(source.viewMode)
+  if (storedViewMode !== undefined) bucket.viewMode = storedViewMode
   const limit = finite(source.limit)
   if (limit !== undefined && limit > 0) bucket.limit = Math.round(limit)
   if (source.sort === 'date' || source.sort === 'topo') bucket.sort = source.sort
   if (typeof source.showRemotes === 'boolean') bucket.showRemotes = source.showRemotes
-  for (const key of ['treeWidth', 'treeHeight', 'detailRatio', 'commitFilesWidth', 'commitStagedHeight', 'commitFormHeight', 'commitNarrowHeight', 'commitFilesHeight'] as const) {
+  for (const key of ['treeWidth', 'treeHeight', 'detailRatio', 'commitFilesWidth', 'commitStagedHeight', 'commitFormHeight', 'commitNarrowHeight', 'commitFilesHeight', 'pullsListWidth', 'pullsListHeight'] as const) {
     const value = finite(source[key])
     if (value !== undefined) bucket[key] = value
   }

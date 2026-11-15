@@ -24,6 +24,9 @@ import type {
   StashPayload,
   CommitMessagesPayload,
   VersionPayload,
+  PullsPayload,
+  PullPayload,
+  PullCheckoutPayload,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -47,7 +50,7 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'commit-messages' | 'switch' | 'status' | 'workspace-diff' | 'session-repo'
+export type RequestMode = 'projects' | 'tree' | 'branches' | 'log' | 'commit' | 'resolve' | 'tag' | 'tag-status' | 'version' | 'reflog' | 'operation' | 'apps' | 'commit-messages' | 'switch' | 'status' | 'workspace-diff' | 'session-repo' | 'pulls' | 'pull'
 
 export interface RequestParams {
   mode: RequestMode
@@ -64,6 +67,12 @@ export interface RequestParams {
   remotes?: '1'
   /** session-repo: which Session's working directory to resolve. */
   session?: string
+  /** pulls/pull: open pull requests only, or every state. */
+  state?: 'open' | 'all'
+  /** pull: the pull request number. */
+  number?: string
+  /** pulls/pull: skip the host's 60-second response cache for a manual refresh. */
+  fresh?: '1'
 }
 
 interface ErrorPayload {
@@ -219,6 +228,8 @@ export interface CredentialRequest {
   remote: string
   username: string
   password: string
+  /** The remote may use SSH: store the token for its forge host instead. */
+  forge?: boolean
 }
 
 export interface CredentialPayload {
@@ -235,6 +246,49 @@ export async function requestCredential(body: CredentialRequest, signal?: AbortS
 /** POST /git-suite/open: open a terminal or the OS file manager at the repository root. */
 export async function requestOpenApp(body: OpenAppRequest, signal?: AbortSignal): Promise<OpenAppPayload> {
   return postCommitJson<OpenAppPayload>('/git-suite/open', body, signal)
+}
+
+/** GET /git-suite?mode=pulls: one page of pull requests for one remote. */
+export async function requestPulls(
+  params: { path: string; remote: string; state?: 'open' | 'all'; fresh?: boolean },
+  signal?: AbortSignal,
+): Promise<PullsPayload> {
+  return requestJson<PullsPayload>({
+    mode: 'pulls',
+    path: params.path,
+    remote: params.remote,
+    state: params.state ?? 'open',
+    ...(params.fresh === true ? { fresh: '1' as const } : {}),
+  }, signal)
+}
+
+/** GET /git-suite?mode=pull: one pull request with its files and commits. */
+export async function requestPull(
+  params: { path: string; remote: string; number: number; state?: 'open' | 'all'; fresh?: boolean },
+  signal?: AbortSignal,
+): Promise<PullPayload> {
+  return requestJson<PullPayload>({
+    mode: 'pull',
+    path: params.path,
+    remote: params.remote,
+    number: String(params.number),
+    ...(params.state === undefined ? {} : { state: params.state }),
+    ...(params.fresh === true ? { fresh: '1' as const } : {}),
+  }, signal)
+}
+
+export interface PullCheckoutRequest {
+  path: string
+  remote: string
+  number: number
+}
+
+/** POST /git-suite/pr: fetch a pull request and switch to its local branch. */
+export async function requestPullCheckout(
+  body: PullCheckoutRequest,
+  signal?: AbortSignal,
+): Promise<PullCheckoutPayload> {
+  return postCommitJson<PullCheckoutPayload>('/git-suite/pr', body, signal)
 }
 
 export interface RevealFileRequest {

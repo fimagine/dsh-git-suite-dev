@@ -1,6 +1,7 @@
 import type * as React from 'react'
 import { h, useEffect, useMemo, useRef, useState } from '../runtime.js'
 import { isContentLine, pairDiffLines, parseDiff, patchLinesForRows } from '../lib/diff.js'
+import { highlightLines, languageForPath, type HighlightToken } from '../lib/highlight.js'
 import type { DiffLine } from '../lib/diff.js'
 import type { Translate } from '../types.js'
 
@@ -38,11 +39,31 @@ export interface DiffViewProps {
   onSelectLines?(selection: DiffSelection | null): void
   /** Right-click inside the selection (or on one row) with the patch lines to act on. */
   onLineContextMenu?(selection: DiffSelection, event: React.MouseEvent): void
+  /** Repository-relative path, used to pick a syntax-highlighting grammar. */
+  path?: string
   className?: string
 }
 
 const DEFAULT_PAGE = 800
 const EDGE = 24
+
+/** One diff line: the marker column stays plain, the content may be tokenized. */
+function DiffCode({ line, tokens }: { line: DiffLine; tokens: HighlightToken[] | null }): React.ReactElement {
+  const content = line.kind === 'add' || line.kind === 'del' || line.kind === 'context'
+  if (!content) {
+    return <span className="dsh-gitlog-diff-code">{line.raw === '' ? ' ' : line.raw}</span>
+  }
+  return (
+    <span className="dsh-gitlog-diff-code">
+      <span className="dsh-gitlog-diff-marker">{line.raw.slice(0, 1)}</span>
+      {tokens === null
+        ? line.content
+        : tokens.map((token, index) => token.type === null
+          ? token.text
+          : <span key={index} className={`dsh-gitlog-tok-${token.type}`}>{token.text}</span>)}
+    </span>
+  )
+}
 
 /**
  * Unified or side-by-side diff renderer: coloured additions and deletions, a
@@ -58,10 +79,43 @@ export function DiffView({
   hunkAction,
   onSelectLines,
   onLineContextMenu,
+  path,
   className,
 }: DiffViewProps): React.ReactElement {
   const parsed = useMemo(() => parseDiff(patch), [patch])
   const splitRows = useMemo(() => (mode === 'split' ? pairDiffLines(parsed.lines) : null), [mode, parsed.lines])
+  const language = useMemo(() => languageForPath(path), [path])
+  // Tokenize each side once (full text, so multi-line constructs work) and keep
+  // a row -> line-index map for rendering.
+  const highlight = useMemo(() => {
+    if (language === null) return null
+    const oldLines: string[] = []
+    const newLines: string[] = []
+    const oldAt = new Map<number, number>()
+    const newAt = new Map<number, number>()
+    for (const line of parsed.lines) {
+      if (line.kind === 'del' || line.kind === 'context') {
+        oldAt.set(line.index, oldLines.length)
+        oldLines.push(line.content)
+      }
+      if (line.kind === 'add' || line.kind === 'context') {
+        newAt.set(line.index, newLines.length)
+        newLines.push(line.content)
+      }
+    }
+    const oldTokens = highlightLines(oldLines, language)
+    const newTokens = highlightLines(newLines, language)
+    if (oldTokens === null && newTokens === null) return null
+    return { oldTokens, newTokens, oldAt, newAt }
+  }, [language, parsed.lines])
+
+  const tokensOf = (line: DiffLine, side: 'old' | 'new'): HighlightToken[] | null => {
+    if (highlight === null) return null
+    const index = (side === 'old' ? highlight.oldAt : highlight.newAt).get(line.index)
+    if (index === undefined) return null
+    const tokens = side === 'old' ? highlight.oldTokens : highlight.newTokens
+    return tokens?.[index] ?? null
+  }
   const [limit, setLimit] = useState(pageSize)
   const [anchor, setAnchor] = useState<number | null>(null)
   const [head, setHead] = useState<number | null>(null)
@@ -188,7 +242,7 @@ export function DiffView({
           <span className="dsh-gitlog-diff-num">{line.oldLine ?? ''}</span>
           <span className="dsh-gitlog-diff-num">{line.newLine ?? ''}</span>
         </span>
-        <span className="dsh-gitlog-diff-code">{line.raw === '' ? ' ' : line.raw}</span>
+        <DiffCode line={line} tokens={line.kind === 'del' ? tokensOf(line, 'old') : tokensOf(line, 'new')} />
         {line.kind === 'hunk' ? hunkButton(line.hunk) : null}
       </div>
     )
@@ -199,7 +253,7 @@ export function DiffView({
       <span className="dsh-gitlog-diff-num">
         {line === null ? '' : side === 'left' ? line.oldLine ?? '' : line.newLine ?? ''}
       </span>
-      <span className="dsh-gitlog-diff-code">{line === null ? '' : line.raw}</span>
+      {line === null ? <span className="dsh-gitlog-diff-code" /> : <DiffCode line={line} tokens={tokensOf(line, side === 'left' ? 'old' : 'new')} />}
     </div>
   )
 
@@ -246,7 +300,7 @@ export function DiffView({
                   data-diff-row={index}
                   className={`dsh-gitlog-diff-line is-${row.full.kind}`}
                 >
-                  <span className="dsh-gitlog-diff-code">{row.full.raw === '' ? ' ' : row.full.raw}</span>
+                  <DiffCode line={row.full} tokens={null} />
                   {row.full.kind === 'hunk' ? hunkButton(row.full.hunk) : null}
                 </div>
               )
@@ -278,6 +332,10 @@ export function DiffView({
     </div>
   )
 }
+
+
+
+
 
 
 

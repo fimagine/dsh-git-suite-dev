@@ -898,9 +898,12 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    margin-left: 6px;
+    // Same 28px box and zero padding as every other icon-only button, with the
+    // header's 8px gutter on both sides of it.
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    margin-left: 8px;
     border: 0;
     border-radius: 6px;
     background: transparent;
@@ -1209,8 +1212,9 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     margin-left: auto;
     border: 0;
     border-radius: 6px;
@@ -1586,15 +1590,19 @@ $brand: var(--dsw-alias-brand-primary);
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    padding: 14px 20px 18px 12px;
+    // No top padding: the patch head is the column's first row, like the list
+    // toolbar; 8px on the right matches the refresh button's edge.
+    padding: 0 8px 18px 12px;
   }
 
   &-detail-patch-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     min-width: 0;
+    height: $section-head-height;
+    box-sizing: border-box;
 
     h3 {
       flex: 0 0 auto;
@@ -1866,8 +1874,9 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 20px;
+    // Identical box to the refresh button in the page header.
+    width: 28px;
+    height: 28px;
     margin-left: auto;
     padding: 0;
     border: 1px solid transparent;
@@ -1927,6 +1936,68 @@ $brand: var(--dsw-alias-brand-primary);
 
   &-diff-code {
     padding-right: 16px;
+  }
+
+  // The +/-/space marker stays in the row colour; only the content is tokenized.
+  &-diff-marker {
+    opacity: .7;
+  }
+
+  // Syntax colours: each accent is mixed with the current text colour, so the
+  // same rules read correctly on the light and the dark panel background.
+  &-tok-comment {
+    color: color-mix(in srgb, #6b7280 70%, currentColor);
+    font-style: italic;
+  }
+
+  &-tok-keyword,
+  &-tok-regex {
+    color: color-mix(in srgb, #c0392b 62%, currentColor);
+  }
+
+  &-tok-string,
+  &-tok-char,
+  &-tok-attr-value,
+  &-tok-template-string {
+    color: color-mix(in srgb, #1a7f37 62%, currentColor);
+  }
+
+  &-tok-number {
+    color: color-mix(in srgb, #9a6700 62%, currentColor);
+  }
+
+  &-tok-boolean,
+  &-tok-constant,
+  &-tok-symbol,
+  &-tok-builtin,
+  &-tok-property,
+  &-tok-attr-name,
+  &-tok-entity,
+  &-tok-url,
+  &-tok-interpolation {
+    color: color-mix(in srgb, #0550ae 62%, currentColor);
+  }
+
+  &-tok-function,
+  &-tok-class-name,
+  &-tok-title,
+  &-tok-namespace,
+  &-tok-atrule {
+    color: color-mix(in srgb, #8250df 62%, currentColor);
+  }
+
+  &-tok-tag,
+  &-tok-selector {
+    color: color-mix(in srgb, #116329 62%, currentColor);
+  }
+
+  &-tok-variable {
+    color: color-mix(in srgb, #953800 62%, currentColor);
+  }
+
+  &-tok-important {
+    color: color-mix(in srgb, #c0392b 62%, currentColor);
+    font-weight: 600;
   }
 
   &-diff-hunk-action {
@@ -2217,7 +2288,9 @@ $brand: var(--dsw-alias-brand-primary);
     align-items: center;
     gap: 10px;
     height: $section-head-height;
-    padding: 0 14px;
+    // Same 8px gutter as the refs-tree header and the history toolbar, so the
+    // refresh button lands on the same edge in both pages.
+    padding: 0 8px;
     border-bottom: 1px solid $border-l1;
     box-sizing: border-box;
     background: $bg-layer-1;
@@ -2470,7 +2543,7 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px;
     border-bottom: 1px solid $border-l1;
     background: $bg-layer-1;
 
@@ -2700,7 +2773,11 @@ $brand: var(--dsw-alias-brand-primary);
     flex: 0 0 auto;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    // Same 40px row and 8px gutter as the page header, so the toggle and the
+    // refresh button have identical boxes on the same edge.
+    height: $section-head-height;
+    box-sizing: border-box;
+    padding: 6px 8px;
     border-bottom: 1px solid $border-l1;
     background: $bg-layer-1;
 
@@ -2785,7 +2862,8 @@ $brand: var(--dsw-alias-brand-primary);
   .dsh-gitlog-detail-patch {
     flex: 0 0 auto;
     overflow: visible;
-    padding: 0;
+    // Stacked: keep the patch head flush with the list toolbar's 8px edge.
+    padding: 0 8px 18px 0;
   }
 
   .dsh-gitlog-detail-patch .dsh-gitlog-diff {
@@ -2960,6 +3038,473 @@ $brand: var(--dsw-alias-brand-primary);
     padding-right: 10px;
   }
 }
+
+// Pull request view: forge toolbar, request list, and the selected request.
+.dsh-gitlog {
+  &-pulls {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  &-pulls-toolbar {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid $border-l1;
+  }
+
+  &-pulls-remote {
+    flex: 0 1 180px;
+    min-width: 120px;
+  }
+
+  &-pulls-end {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    min-width: 0;
+  }
+
+  &-pulls-forge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: $label-secondary;
+    font-size: $font-tiny;
+  }
+
+  &-pulls-provider {
+    flex: 0 0 auto;
+    color: $label-primary;
+    font-weight: 600;
+  }
+
+  &-pulls-repo {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pulls-body {
+    display: grid;
+    // The list, its drag handle, and the detail.
+    grid-template-columns: minmax(0, var(--gitlog-pulls-w, 320px)) 6px minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &-pulls-body.is-narrow {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, var(--gitlog-pulls-h, 220px)) 6px minmax(0, 1fr);
+  }
+
+  &-pulls-list {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 0;
+  }
+
+  &-pulls-body.is-narrow &-pulls-list {
+    border-right: 0;
+  }
+
+  &-pull {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: inset 0 -1px 0 $border-l1;
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 3px 0 0 $brand, inset 0 -1px 0 $border-l1;
+    }
+  }
+
+  &-pull-line {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  &-pull-number {
+    flex: 0 0 auto;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &-pull-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: $font-body;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pull-badge {
+    flex: 0 0 auto;
+    padding: 0 6px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 16px;
+
+    &.is-open {
+      color: var(--dsw-alias-state-success-primary, #3fb950);
+    }
+
+    &.is-merged {
+      color: $brand;
+    }
+
+    &.is-closed {
+      color: var(--dsw-alias-state-error-primary);
+    }
+
+    &.is-draft {
+      color: var(--dsw-alias-state-warn-primary, #d29922);
+    }
+  }
+
+  &-pull-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    color: $label-secondary;
+    font-size: $font-tiny;
+
+    span {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &-pulls-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 16px 20px;
+  }
+
+  &-pull-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  // Layout wrappers only: their children keep the parent flex gaps.
+  &-pull-content,
+  &-pull-files-wrap {
+    display: contents;
+  }
+
+  &-pull-headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+  }
+
+  &-pull-head-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    color: $label-secondary;
+    font-size: $font-tiny;
+  }
+
+  &-pull-counts {
+    font-family: var(--gitlog-mono);
+  }
+
+  &-pull-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    a.dsh-gitlog-btn {
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+  }
+
+  &-pull-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+
+    h3 {
+      color: $label-secondary;
+      font-size: $font-meta;
+      font-weight: 600;
+    }
+  }
+
+  &-pull-body {
+    max-height: 220px;
+    overflow: auto;
+    padding: 10px 12px;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+    color: $label-primary;
+    font: inherit;
+    font-size: $font-meta;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  &-pull-files {
+    display: flex;
+    flex-direction: column;
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+  }
+
+  &-pull-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 26px;
+    padding: 3px 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: $font-meta;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: inset 0 -1px 0 $border-l1;
+
+    &:last-child {
+      box-shadow: none;
+    }
+
+    &:hover {
+      background: $bg-layer-2;
+    }
+
+    &.is-selected {
+      background: $bg-layer-2;
+      box-shadow: inset 3px 0 0 $brand, inset 0 -1px 0 $border-l1;
+    }
+  }
+
+  &-pull-file-status {
+    flex: 0 0 auto;
+    width: 14px;
+    color: $label-secondary;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    font-weight: 700;
+
+    &.is-added {
+      color: var(--dsw-alias-state-success-primary, #3fb950);
+    }
+
+    &.is-deleted {
+      color: var(--dsw-alias-state-error-primary);
+    }
+
+    &.is-renamed,
+    &.is-copied {
+      color: $brand;
+    }
+  }
+
+  &-pull-file-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--gitlog-mono);
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pull-file-add {
+    color: var(--dsw-alias-state-success-primary, #3fb950);
+    font-size: $font-tiny;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &-pull-file-del {
+    color: var(--dsw-alias-state-error-primary);
+    font-size: $font-tiny;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &-pull-patch-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+
+    .dsh-gitlog-patch-file {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &-pulls-patch {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 160px;
+
+    .dsh-gitlog-diff {
+      max-height: 420px;
+    }
+  }
+
+  &-pull-commits {
+    display: flex;
+    flex-direction: column;
+    max-height: 260px;
+    overflow: auto;
+    border: 1px solid $border-l1;
+    border-radius: 8px;
+    background: $bg-base;
+  }
+
+  &-pull-commit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    font-size: $font-meta;
+    box-shadow: inset 0 -1px 0 $border-l1;
+
+    &:last-child {
+      box-shadow: none;
+    }
+
+    code {
+      flex: 0 0 auto;
+      color: $label-secondary;
+      font-family: var(--gitlog-mono);
+      font-size: $font-tiny;
+    }
+  }
+
+  &-pull-commit-subject {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pull-commit-meta {
+    flex: 0 0 auto;
+    max-width: 30%;
+    overflow: hidden;
+    color: $label-secondary;
+    font-size: $font-tiny;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &-pulls-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px;
+    color: $label-secondary;
+  }
+
+  &-pulls-empty {
+    padding: 20px 16px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    text-align: center;
+  }
+
+  &-pulls-note {
+    padding: 10px 12px;
+    color: $label-secondary;
+    font-size: $font-tiny;
+  }
+
+  &-pulls-hint {
+    padding: 24px 16px;
+    color: $label-secondary;
+    font-size: $font-meta;
+    text-align: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .#{$prefix}-pull-commit-meta {
+    display: none;
+  }
+
+  .#{$prefix}-pulls-detail {
+    padding: 10px 10px 16px;
+  }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 

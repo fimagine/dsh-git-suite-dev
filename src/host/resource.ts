@@ -13,6 +13,7 @@ import { readOperation } from './routes/operation.js'
 import { readApps } from './routes/apps.js'
 import { readCommitMessages } from './routes/commit-messages.js'
 import { readSessionRepo } from './routes/session-repo.js'
+import { readPull, readPulls } from './routes/pulls.js'
 import { readWorkspaceStatus } from './routes/status.js'
 import { readWorkspaceDiff } from './routes/workspace-diff.js'
 import { scanProjects } from './scan.js'
@@ -49,6 +50,8 @@ export function createResource(context: RouteContext): RouteResource {
       if (mode === 'status') return json(await readWorkspaceStatus(context, url, request.signal))
       if (mode === 'workspace-diff') return json(await readWorkspaceDiff(context, url, request.signal))
       if (mode === 'session-repo') return json(await readSessionRepo(context, url, request.signal))
+      if (mode === 'pulls') return json(await readPulls(context, url, request.signal))
+      if (mode === 'pull') return json(await readPull(context, url, request.signal))
       return json({
         ok: false,
         error: { code: 'invalid-request', message: 'Unknown Git mode.' },
