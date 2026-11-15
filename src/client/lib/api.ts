@@ -33,6 +33,8 @@ import type {
   PullMergePayload,
   PullMergeRequest,
   PullAiReviewPayload,
+  AiReviewMode,
+  AiReviewStreamEvent,
 } from '../types.js'
 
 export interface ErrorDetails {
@@ -348,6 +350,7 @@ export interface PullAiReviewCall {
   remote: string
   number: number
   language?: string
+  context?: AiReviewMode
 }
 
 /** POST /git-suite/pr-ai-review: ask the default model for a read-only review. */
@@ -356,6 +359,105 @@ export async function requestPullAiReview(
   signal?: AbortSignal,
 ): Promise<PullAiReviewPayload> {
   return postCommitJson<PullAiReviewPayload>('/git-suite/pr-ai-review', body, signal)
+}
+
+/** Stream review progress as newline-delimited JSON events. */
+export async function requestPullAiReviewStream(
+  body: PullAiReviewCall,
+  onEvent: (event: AiReviewStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<PullAiReviewPayload> {
+  const response = await fetch(new URL('/git-suite/pr-ai-review', window.location.origin), {
+    method: 'POST',
+    signal,
+    cache: 'no-store',
+    headers: {
+      'content-type': 'application/json',
+      'x-dsh-git-suite': '1',
+    },
+    body: JSON.stringify({ ...body, stream: true }),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    type ErrorPayload = { error?: { code?: string; message?: string; details?: ErrorDetails } }
+    let payload: ErrorPayload | null = null
+    try {
+      payload = JSON.parse(text) as ErrorPayload
+    } catch {
+      payload = null
+    }
+    const fallback = text.trim().slice(0, 500)
+    throw new ApiError(
+      payload?.error?.message ?? (fallback === '' ? 'AI review failed.' : fallback),
+      payload?.error?.code ?? `http-${response.status}`,
+      payload?.error?.details,
+    )
+  }
+  if (response.body === null) throw new ApiError('The review stream was empty.', 'empty-review')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const MAX_STREAM_BUFFER = 1_000_000
+  let buffer = ''
+  let done: PullAiReviewPayload | null = null
+  type WireEvent = AiReviewStreamEvent | {
+    type: 'error'
+    error: { code?: string; message?: string; details?: ErrorDetails }
+  }
+
+  const handleLine = (line: string): PullAiReviewPayload | null => {
+    if (line.trim() === '') return null
+    let event: WireEvent
+    try {
+      event = JSON.parse(line) as WireEvent
+    } catch {
+      return null
+    }
+    if (event.type === 'error') {
+      throw new ApiError(event.error.message ?? 'AI review failed.', event.error.code ?? 'internal', event.error.details)
+    }
+    onEvent(event)
+    if (event.type !== 'done') return null
+    return {
+      ok: true,
+      review: event.review,
+      model: event.model,
+      files: event.files,
+      truncated: event.truncated,
+      context: event.context,
+      contextFiles: event.contextFiles,
+    }
+  }
+
+  try {
+    while (true) {
+      const { value, done: finished } = await reader.read()
+      if (finished) break
+      buffer += decoder.decode(value, { stream: true })
+      if (buffer.length > MAX_STREAM_BUFFER) {
+        throw new ApiError('The review stream produced an oversized event.', 'invalid-response')
+      }
+      let newline = buffer.indexOf('\n')
+      while (newline >= 0) {
+        const parsed = handleLine(buffer.slice(0, newline))
+        if (parsed !== null) done = parsed
+        buffer = buffer.slice(newline + 1)
+        newline = buffer.indexOf('\n')
+      }
+    }
+    buffer += decoder.decode()
+    if (buffer.length > MAX_STREAM_BUFFER) {
+      throw new ApiError('The review stream produced an oversized event.', 'invalid-response')
+    }
+    if (buffer.trim() !== '') {
+      const parsed = handleLine(buffer)
+      if (parsed !== null) done = parsed
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+  }
+  if (done === null) throw new ApiError('The review stream ended before completion.', 'empty-review')
+  return done
 }
 
 export interface RevealFileRequest {

@@ -1,3 +1,5 @@
+// Base grammars (json, markup, clike, javascript) must load before components
+// that extend them; keep this order when adding more Prism languages.
 import Prism from 'prismjs'
 import 'prismjs/components/prism-markup-templating'
 import 'prismjs/components/prism-jsx'
@@ -27,6 +29,42 @@ import 'prismjs/components/prism-docker'
 import 'prismjs/components/prism-makefile'
 import 'prismjs/components/prism-diff'
 import 'prismjs/components/prism-cmake'
+import 'prismjs/components/prism-lua'
+import 'prismjs/components/prism-dart'
+import 'prismjs/components/prism-scala'
+import 'prismjs/components/prism-elixir'
+import 'prismjs/components/prism-haskell'
+import 'prismjs/components/prism-powershell'
+import 'prismjs/components/prism-r'
+import 'prismjs/components/prism-perl'
+import 'prismjs/components/prism-objectivec'
+import 'prismjs/components/prism-groovy'
+import 'prismjs/components/prism-clojure'
+import 'prismjs/components/prism-coffeescript'
+import 'prismjs/components/prism-erlang'
+import 'prismjs/components/prism-fsharp'
+import 'prismjs/components/prism-julia'
+import 'prismjs/components/prism-matlab'
+import 'prismjs/components/prism-ocaml'
+import 'prismjs/components/prism-pascal'
+import 'prismjs/components/prism-protobuf'
+import 'prismjs/components/prism-solidity'
+import 'prismjs/components/prism-vim'
+import 'prismjs/components/prism-wasm'
+import 'prismjs/components/prism-zig'
+import 'prismjs/components/prism-batch'
+import 'prismjs/components/prism-json5'
+import 'prismjs/components/prism-latex'
+import 'prismjs/components/prism-graphql'
+import 'prismjs/components/prism-nginx'
+import 'prismjs/components/prism-apacheconf'
+import 'prismjs/components/prism-properties'
+import 'prismjs/components/prism-csv'
+import 'prismjs/components/prism-regex'
+import 'prismjs/components/prism-git'
+import 'prismjs/components/prism-http'
+import 'prismjs/components/prism-nix'
+import 'prismjs/components/prism-hcl'
 
 // The panel tokenizes on demand; never let Prism scan the page on its own.
 Prism.manual = true
@@ -95,6 +133,54 @@ const BY_EXTENSION: Record<string, string> = {
   patch: 'diff',
   dockerfile: 'docker',
   mk: 'makefile',
+  lua: 'lua',
+  dart: 'dart',
+  scala: 'scala',
+  sc: 'scala',
+  ex: 'elixir',
+  exs: 'elixir',
+  hs: 'haskell',
+  lhs: 'haskell',
+  ps1: 'powershell',
+  psm1: 'powershell',
+  r: 'r',
+  pl: 'perl',
+  pm: 'perl',
+  m: 'objectivec',
+  mm: 'objectivec',
+  groovy: 'groovy',
+  gradle: 'groovy',
+  clj: 'clojure',
+  cljs: 'clojure',
+  cljc: 'clojure',
+  edn: 'clojure',
+  coffee: 'coffeescript',
+  erl: 'erlang',
+  hrl: 'erlang',
+  fs: 'fsharp',
+  fsx: 'fsharp',
+  jl: 'julia',
+  ml: 'ocaml',
+  mli: 'ocaml',
+  pas: 'pascal',
+  proto: 'protobuf',
+  sol: 'solidity',
+  vim: 'vim',
+  wat: 'wasm',
+  zig: 'zig',
+  bat: 'batch',
+  cmd: 'batch',
+  json5: 'json5',
+  tex: 'latex',
+  graphql: 'graphql',
+  gql: 'graphql',
+  properties: 'properties',
+  csv: 'csv',
+  http: 'http',
+  rest: 'http',
+  nix: 'nix',
+  hcl: 'hcl',
+  tf: 'hcl',
 }
 
 const BY_FILENAME: Record<string, string> = {
@@ -103,6 +189,9 @@ const BY_FILENAME: Record<string, string> = {
   'cmakelists.txt': 'cmake',
   gemfile: 'ruby',
   rakefile: 'ruby',
+  'nginx.conf': 'nginx',
+  '.gitignore': 'git',
+  '.gitattributes': 'git',
 }
 
 /** Prism grammar for a repository-relative path, or null when it is unknown. */
@@ -115,6 +204,65 @@ export function languageForPath(path: string | null | undefined): string | null 
   const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : ''
   if (extension === '') return null
   return BY_EXTENSION[extension] ?? null
+}
+
+const LANGUAGE_ALIASES: Record<string, string> = {
+  js: 'javascript',
+  jsx: 'jsx',
+  ts: 'typescript',
+  tsx: 'tsx',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  pwsh: 'powershell',
+  ps: 'powershell',
+  ps1: 'powershell',
+  yml: 'yaml',
+  md: 'markdown',
+  py: 'python',
+  rb: 'ruby',
+  rs: 'rust',
+  kt: 'kotlin',
+  cs: 'csharp',
+  'c#': 'csharp',
+  'c++': 'cpp',
+  objc: 'objectivec',
+  'objective-c': 'objectivec',
+  golang: 'go',
+  fs: 'fsharp',
+  'f#': 'fsharp',
+  htm: 'markup',
+  html: 'markup',
+  xml: 'markup',
+  svg: 'markup',
+  vue: 'markup',
+  svelte: 'markup',
+  dockerfile: 'docker',
+  make: 'makefile',
+  ex: 'elixir',
+  erl: 'erlang',
+  hs: 'haskell',
+  clj: 'clojure',
+  coffee: 'coffeescript',
+  proto: 'protobuf',
+  sol: 'solidity',
+  tex: 'latex',
+  gql: 'graphql',
+  terraform: 'hcl',
+  bat: 'batch',
+  cmd: 'batch',
+  wat: 'wasm',
+  ml: 'ocaml',
+  pas: 'pascal',
+  patch: 'diff',
+}
+
+/** Prism grammar for a fenced-code language name, or null when it is unknown. */
+export function languageForAlias(alias: string): string | null {
+  const key = alias.trim().toLowerCase()
+  if (key === '') return null
+  const language = LANGUAGE_ALIASES[key] ?? key
+  return Prism.languages[language] === undefined ? null : language
 }
 
 function walk(tokens: Prism.TokenStream | string, type: string | null, out: HighlightToken[]): void {

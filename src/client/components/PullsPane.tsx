@@ -8,11 +8,13 @@ import { useSplitSize } from '../lib/use-split-size.js'
 import { readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type { PullFile, PullSummary, Translate } from '../types.js'
 import { Button } from './Button.js'
+import { AiReviewDialog } from './AiReviewDialog.js'
 import { CreatePullDialog } from './CreatePullDialog.js'
 import { DiffView } from './DiffView.js'
 import { Dropdown } from './Dropdown.js'
 import { ForgeAuthDialog } from './ForgeAuthDialog.js'
 import { MergePullDialog } from './MergePullDialog.js'
+import { Markdown } from './Markdown.js'
 import { PullChecksBadge } from './PullChecksBadge.js'
 import { PullReviewBadge } from './PullReviewBadge.js'
 import { PullStateDialog, type PullStateAction } from './PullStateDialog.js'
@@ -78,10 +80,55 @@ function PullBadge({ pull, t }: { pull: PullSummary; t: Translate }): React.Reac
   return <span className={`dsh-gitlog-pull-badge is-${pull.state}`}>{label}</span>
 }
 
+type PullSectionKey = 'description' | 'ai' | 'files' | 'commits' | 'discussion'
+
+const OPEN_SECTIONS: Record<PullSectionKey, boolean> = {
+  description: true,
+  ai: true,
+  files: true,
+  commits: true,
+  discussion: true,
+}
+
+interface PullSectionProps {
+  title: string
+  meta?: string
+  open: boolean
+  onToggle(): void
+  actions?: React.ReactNode
+  children: React.ReactNode
+}
+
+/** A collapsible PR detail module with an optional action row. */
+function PullSection({ title, meta, open, onToggle, actions, children }: PullSectionProps): React.ReactElement {
+  return (
+    <section className="dsh-gitlog-pull-section">
+      <div className="dsh-gitlog-pull-section-head">
+        <h3>
+          <button
+            type="button"
+            className="dsh-gitlog-pull-section-toggle"
+            aria-expanded={open}
+            onClick={onToggle}
+          >
+            <span className={`dsh-gitlog-pull-chevron${open ? ' is-open' : ''}`} aria-hidden={true} />
+            <span className="dsh-gitlog-pull-section-title">{title}</span>
+            {meta === undefined ? null : <span className="dsh-gitlog-pull-section-meta">{meta}</span>}
+          </button>
+        </h3>
+        {actions === undefined ? null : <div className="dsh-gitlog-pull-section-actions">{actions}</div>}
+      </div>
+      {open ? <div className="dsh-gitlog-pull-section-body">{children}</div> : null}
+    </section>
+  )
+}
+
 function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.ReactElement {
   const [fileIndex, setFileIndex] = useState(0)
   const [stateDialog, setStateDialog] = useState<PullStateAction | null>(null)
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [aiDialogOpen, setAiDialogOpen] = useState(false)
+  const [openSections, setOpenSections] = useState<Record<PullSectionKey, boolean>>(OPEN_SECTIONS)
   const diffMode = useDiffMode()
   const pull = view.detail
   const locale = t('localeId')
@@ -90,7 +137,18 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
     setFileIndex(0)
     setStateDialog(null)
     setMergeOpen(false)
+    setAiDialogOpen(false)
+    setOpenSections(OPEN_SECTIONS)
   }, [pull?.number, pull?.webUrl])
+
+  useEffect(() => {
+    if (view.aiReviewStatus !== 'loading') return
+    setOpenSections(current => current.ai ? current : { ...current, ai: true })
+  }, [view.aiReviewStatus])
+
+  const toggleSection = (key: PullSectionKey): void => {
+    setOpenSections(current => ({ ...current, [key]: !current[key] }))
+  }
 
   if (view.detailStatus === 'loading') return <LoadingLine label={t('pullLoading')} />
   if (view.detailStatus === 'error') {
@@ -166,7 +224,7 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
           </Button>
           <Button
             disabled={view.aiReviewStatus === 'loading'}
-            onClick={view.runAiReview}
+            onClick={() => setAiDialogOpen(true)}
           >
             {view.aiReviewStatus === 'loading' ? t('pullAiReviewing') : t('pullAiReview')}
           </Button>
@@ -181,64 +239,91 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
         </div>
       </header>
 
-      <section className="dsh-gitlog-pull-section">
-        <h3>{t('pullDescription')}</h3>
-        <pre className="dsh-gitlog-pull-body">{pull.body.trim() === '' ? t('pullNoBody') : pull.body}</pre>
-      </section>
+      <PullSection
+        title={t('pullDescription')}
+        open={openSections.description}
+        onToggle={() => toggleSection('description')}
+      >
+        {pull.body.trim() === ''
+          ? <p className="dsh-gitlog-pulls-hint">{t('pullNoBody')}</p>
+          : <Markdown text={pull.body} className="dsh-gitlog-pull-description" />}
+      </PullSection>
 
       {view.aiReviewStatus === 'idle' && view.aiReview === ''
         ? null
         : (
-            <section className="dsh-gitlog-pull-section">
-              <div className="dsh-gitlog-pull-ai-head">
-                <h3>{t('pullAiReviewTitle')}</h3>
+            <PullSection
+              title={t('pullAiReviewTitle')}
+              open={openSections.ai}
+              onToggle={() => toggleSection('ai')}
+              actions={(
                 <div className="dsh-gitlog-pull-ai-actions">
                   {view.aiReviewStatus === 'ready'
                     ? (
-                        <Button variant="ghost" onClick={view.runAiReview}>
+                        <Button variant="ghost" onClick={() => setAiDialogOpen(true)}>
                           {t('pullAiReviewRegenerate')}
                         </Button>
                       )
                     : null}
-                  <Button variant="ghost" onClick={view.clearAiReview}>{t('pullAiReviewClear')}</Button>
+                  <Button variant="ghost" onClick={view.clearAiReview}>
+                    {view.aiReviewStatus === 'loading' ? t('pullAiReviewStop') : t('pullAiReviewClear')}
+                  </Button>
                 </div>
-              </div>
+              )}
+            >
               {view.aiReviewStatus === 'loading'
-                ? <LoadingLine label={t('pullAiReviewing')} />
+                ? (
+                    <div className="dsh-gitlog-pull-ai-progress">
+                      <LoadingLine label={t('pullAiReviewing')} />
+                      <p className="dsh-gitlog-field-hint">
+                        {t('pullAiReviewProgress')
+                          .replace('{attempt}', String(view.aiReviewAttempt))
+                          .replace('{reasoning}', String(view.aiReviewReasoning.length))
+                          .replace('{output}', String(view.aiReview.length))}
+                      </p>
+                      {view.aiReviewReasoning === ''
+                        ? null
+                        : (
+                            <details className="dsh-gitlog-pull-ai-thinking" open>
+                              <summary>{t('pullAiReviewThinking')}</summary>
+                              <pre>{view.aiReviewReasoning}</pre>
+                            </details>
+                          )}
+                      {view.aiReview === ''
+                        ? null
+                        : <pre className="dsh-gitlog-pull-ai-preview">{view.aiReview}</pre>}
+                    </div>
+                  )
                 : view.aiReviewStatus === 'error'
                   ? (
                       <div className="dsh-gitlog-pulls-error" role="alert">
                         <p>{t('pullAiReviewFailed')}</p>
                         <p className="dsh-gitlog-error-code">{view.aiReviewError ?? ''}</p>
-                        <Button variant="ghost" onClick={view.runAiReview}>{t('tryAgain')}</Button>
+                        <Button variant="ghost" onClick={() => setAiDialogOpen(true)}>{t('tryAgain')}</Button>
                       </div>
                     )
-                  : <pre className="dsh-gitlog-pull-ai-review">{view.aiReview}</pre>}
-              <p className="dsh-gitlog-field-hint">{t('pullAiReviewHint')}</p>
-            </section>
+                  : (
+                      <div className="dsh-gitlog-pull-ai-result">
+                        {view.aiReviewReasoning === ''
+                          ? null
+                          : (
+                              <details className="dsh-gitlog-pull-ai-thinking">
+                                <summary>{t('pullAiReviewThinking')}</summary>
+                                <pre>{view.aiReviewReasoning}</pre>
+                              </details>
+                            )}
+                        <Markdown text={view.aiReview} className="dsh-gitlog-pull-ai-review" />
+                      </div>
+                    )}
+            </PullSection>
           )}
 
-      <section className="dsh-gitlog-pull-section">
-        <h3>{`${t('pullComments')} (${comments.length})`}</h3>
-        {comments.length === 0
-          ? <p className="dsh-gitlog-pulls-hint">{t('pullNoComments')}</p>
-          : (
-              <div className="dsh-gitlog-pull-comments">
-                {comments.map(comment => (
-                  <article key={comment.id} className="dsh-gitlog-pull-comment">
-                    <header>
-                      <span>{comment.author === '' ? '—' : comment.author}</span>
-                      <span>{formatDateTime(comment.createdAt, locale)}</span>
-                    </header>
-                    <pre>{comment.body}</pre>
-                  </article>
-                ))}
-              </div>
-            )}
-      </section>
-
-      <section className="dsh-gitlog-pull-section">
-        <h3>{`${t('pullFiles')} (${pull.changedFiles ?? pull.files.length})`}</h3>
+      <PullSection
+        title={t('pullFiles')}
+        meta={`(${pull.changedFiles ?? pull.files.length})`}
+        open={openSections.files}
+        onToggle={() => toggleSection('files')}
+      >
         {pull.files.length === 0
           ? <p className="dsh-gitlog-note">{t('pullNoFiles')}</p>
           : (
@@ -294,10 +379,14 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                 {pull.filesTruncated ? <p className="dsh-gitlog-note">{t('pullFilesTruncated')}</p> : null}
               </div>
             )}
-      </section>
+      </PullSection>
 
-      <section className="dsh-gitlog-pull-section">
-        <h3>{`${t('pullCommits')} (${pull.commits.length})`}</h3>
+      <PullSection
+        title={t('pullCommits')}
+        meta={`(${pull.commits.length})`}
+        open={openSections.commits}
+        onToggle={() => toggleSection('commits')}
+      >
         {pull.commits.length === 0
           ? null
           : (
@@ -312,10 +401,37 @@ function PullDetail({ view, t }: { view: PullsView; t: Translate }): React.React
                 ))}
               </div>
             )}
-      </section>
+      </PullSection>
+
+      <PullSection
+        title={t('pullComments')}
+        meta={`(${comments.length})`}
+        open={openSections.discussion}
+        onToggle={() => toggleSection('discussion')}
+      >
+        {comments.length === 0
+          ? <p className="dsh-gitlog-pulls-hint">{t('pullNoComments')}</p>
+          : (
+              <div className="dsh-gitlog-pull-comments">
+                {comments.map(comment => (
+                  <article key={comment.id} className="dsh-gitlog-pull-comment">
+                    <header>
+                      <span>{comment.author === '' ? '—' : comment.author}</span>
+                      <span>{formatDateTime(comment.createdAt, locale)}</span>
+                    </header>
+                    <Markdown text={comment.body} />
+                  </article>
+                ))}
+              </div>
+            )}
+      </PullSection>
 
       {mergeOpen
         ? <MergePullDialog view={view} pull={pull} t={t} onClose={() => setMergeOpen(false)} />
+        : null}
+
+      {aiDialogOpen
+        ? <AiReviewDialog view={view} t={t} onClose={() => setAiDialogOpen(false)} />
         : null}
 
       {stateDialog === null

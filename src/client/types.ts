@@ -223,13 +223,34 @@ export interface PullMergePayload {
   branchDeleted: boolean
 }
 
+export type AiReviewMode = 'diff' | 'api' | 'worktree'
+
 export interface PullAiReviewPayload {
   ok: true
   review: string
   model: string
   files: number
   truncated: boolean
+  /** How full-file context was obtained. */
+  context: 'worktree' | 'api' | 'diff'
+  contextFiles: number
 }
+
+export type AiReviewStreamEvent =
+  | {
+    type: 'start'
+    attempt: number
+    model: string
+    files: number
+    context: 'worktree' | 'api' | 'diff'
+    contextFiles: number
+  }
+  | { type: 'reasoning'; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'retry'; attempt: number }
+  | ({
+    type: 'done'
+  } & Omit<PullAiReviewPayload, 'ok'>)
 
 export interface PullsPayload {
   ok: true

@@ -20,6 +20,7 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
   const provider = view.remotes.find(item => item.name === view.remote)?.forge?.provider ?? ''
   const forge = view.remotes.find(item => item.name === view.remote)?.forge ?? null
   const repo = forge === null ? '' : `${forge.owner}/${forge.repo}`
+  const webUrl = /^https?:\/\//i.test(pull.webUrl) ? pull.webUrl : ''
   const methods: Array<'merge' | 'squash' | 'rebase'> = provider === 'github'
     ? ['merge', 'squash', 'rebase']
     : ['merge', 'squash']
@@ -78,6 +79,13 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
           {t('pullMergeDeleteBranch')}
         </label>
         <p className="dsh-gitlog-field-hint">{t('pullMergeHint')}</p>
+        {webUrl === ''
+          ? null
+          : (
+              <p className="dsh-gitlog-field-hint">
+                <a href={webUrl} target="_blank" rel="noreferrer noopener">{t('pullOpenBrowser')}</a>
+              </p>
+            )}
       </div>
       {error === null ? null : <p className="dsh-gitlog-note" role="alert">{error}</p>}
       <DialogActions>

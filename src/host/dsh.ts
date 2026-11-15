@@ -65,6 +65,8 @@ export interface WorkingDirectoryService {
 export interface LlmStreamChunk {
   type: string
   text?: string
+  /** Present on `block-end`: the fully assembled block. */
+  block?: { type?: string; text?: string }
   reason?: {
     kind?: string
     failure?: { message?: string; code?: string }
@@ -85,6 +87,19 @@ export interface LlmGenerateOptions {
 /** The provider-neutral model-call service (`ctx.llm`). */
 export interface LlmService {
   stream(options: LlmGenerateOptions): AsyncIterable<LlmStreamChunk>
+  /** Exact model capability metadata, when this DSH build exposes it. */
+  resolveModelInfo?(
+    provider: string,
+    model: string,
+    signal?: AbortSignal,
+  ): Promise<{
+    reasoning?: {
+      efforts?: readonly { id: string }[]
+      defaultEffort?: string
+    }
+    context?: { contextWindow?: number }
+    defaultMaxTokens?: number
+  }>
 }
 
 /** The deployment default model selection (`ctx.agentDefaultModel`). */

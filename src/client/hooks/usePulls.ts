@@ -1,14 +1,25 @@
 import type { ForgeAuthPrompt } from '../components/ForgeAuthDialog.js'
 import { toast } from '../components/Toast.js'
 import { useCallback, useEffect, useRef, useState } from '../runtime.js'
-import { isAbortError, requestCredential, requestPull, requestPullAiReview, requestPullCheckout, requestPullClose, requestPullCreate, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
+import { isAbortError, requestCredential, requestPull, requestPullAiReviewStream, requestPullCheckout, requestPullClose, requestPullCreate, requestPullMerge, requestPullReopen, requestPulls, toApiError, type ApiError } from '../lib/api.js'
 import { defaultForgeRemote, forgeOf, supportedRemotes } from '../lib/forge.js'
-import type { DetailStatus, LoadStatus, PullCreateRequest, PullDetail, PullMergeRequest, PullSummary, RemoteGroup, Translate } from '../types.js'
+import type { AiReviewMode, DetailStatus, LoadStatus, PullCreateRequest, PullDetail, PullMergeRequest, PullSummary, RemoteGroup, Translate } from '../types.js'
 
 /** Stop accumulating after this many rows so the panel stays responsive. */
 const MAX_PULLS = 300
 /** Quietly refresh the first page and the selected detail while the view is open. */
 const PR_REFRESH_MS = 60_000
+const AI_REVIEW_MODE_KEY = 'dsh.git-suite.ai-review-mode.v1'
+
+function readAiReviewMode(): AiReviewMode {
+  try {
+    const value = window.localStorage.getItem(AI_REVIEW_MODE_KEY)
+    if (value === 'diff' || value === 'api' || value === 'worktree') return value
+  } catch {
+    // Storage may be unavailable.
+  }
+  return 'worktree'
+}
 
 export interface PullsView {
   /** Supported remotes only; empty when this repository has no forge. */
@@ -52,9 +63,15 @@ export interface PullsView {
   mergePull(input: PullMergeRequest): Promise<string | null>
   /** Read-only AI review of the selected request. */
   aiReview: string
+  aiReviewReasoning: string
+  aiReviewAttempt: number
   aiReviewStatus: 'idle' | 'loading' | 'ready' | 'error'
   aiReviewError: string | null
-  runAiReview(): void
+  aiReviewContext: 'worktree' | 'api' | 'diff' | null
+  aiReviewContextFiles: number
+  aiReviewMode: AiReviewMode
+  setAiReviewMode(mode: AiReviewMode): void
+  runAiReview(mode?: AiReviewMode): void
   clearAiReview(): void
   /** The checked-out branch a new request would come from. */
   headBranch: string
@@ -108,8 +125,13 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const [reopening, setReopening] = useState<number | null>(null)
   const [merging, setMerging] = useState<number | null>(null)
   const [aiReview, setAiReview] = useState('')
+  const [aiReviewReasoning, setAiReviewReasoning] = useState('')
+  const [aiReviewAttempt, setAiReviewAttempt] = useState(1)
   const [aiReviewStatus, setAiReviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [aiReviewError, setAiReviewError] = useState<string | null>(null)
+  const [aiReviewContext, setAiReviewContext] = useState<'worktree' | 'api' | 'diff' | null>(null)
+  const [aiReviewContextFiles, setAiReviewContextFiles] = useState(0)
+  const [aiReviewMode, setAiReviewModeState] = useState<AiReviewMode>(readAiReviewMode)
   /** State change requested before the forge asked for a token; retried after saving. */
   const pendingState = useRef<{ action: 'close' | 'reopen'; number: number } | null>(null)
   /** New request that failed on auth; retried after saving the token. */
@@ -117,8 +139,9 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   /** Merge that failed on auth; retried after saving the token. */
   const pendingMerge = useRef<{ number: number; input: PullMergeRequest } | null>(null)
   /** AI review that failed on auth; retried after saving the token. */
-  const pendingAiReview = useRef<number | null>(null)
+  const pendingAiReview = useRef<{ number: number; mode: AiReviewMode } | null>(null)
   const aiAbort = useRef<AbortController | null>(null)
+  const aiRunningRef = useRef(false)
   const creatingRef = useRef(false)
   const [reload, setReload] = useState(0)
   const listAbort = useRef<AbortController | null>(null)
@@ -161,9 +184,15 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     pendingMerge.current = null
     pendingAiReview.current = null
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewStatus('idle')
     setAiReviewError(null)
+    setAiReviewContext(null)
+    setAiReviewContextFiles(0)
   }, [repoRoot, remote, state])
 
   // Leaving the view cancels anything still in flight.
@@ -210,9 +239,15 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   // A different request starts with no stale AI review.
   useEffect(() => {
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewStatus('idle')
     setAiReviewError(null)
+    setAiReviewContext(null)
+    setAiReviewContextFiles(0)
   }, [selected])
 
   /** Refresh the selected detail without clearing it or flashing a spinner. */
@@ -460,51 +495,110 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         promptAuth(apiError, remote)
         return null
       }
+      if (
+        apiError.code === 'forge-request-failed'
+        && apiError.details?.status === 405
+        && forgeOf(remotes, remote)?.provider === 'gitee'
+      ) {
+        return t('pullMergeGiteeReviewRequired')
+      }
       return apiError.message
     } finally {
       setMerging(null)
     }
-  }, [merging, promptAuth, remote, repoRoot, selectPull, selected, state, t])
+  }, [merging, promptAuth, remote, remotes, repoRoot, selectPull, selected, state, t])
 
-  const runAiReview = useCallback((numberOverride?: number): void => {
+  const runAiReview = useCallback((numberOverride?: number, modeOverride?: AiReviewMode): void => {
     const number = numberOverride ?? selected
-    if (number === null || repoRoot === '' || remote === '' || aiReviewStatus === 'loading') return
+    const mode = modeOverride ?? aiReviewMode
+    if (number === null || repoRoot === '' || remote === '' || aiRunningRef.current) return
+    aiRunningRef.current = true
     aiAbort.current?.abort()
     const controller = new AbortController()
     aiAbort.current = controller
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewError(null)
     setAiReviewStatus('loading')
-    requestPullAiReview({
+    setAiReviewContext(null)
+    setAiReviewContextFiles(0)
+    requestPullAiReviewStream({
       path: repoRoot,
       remote,
       number,
       language: t('localeId'),
+      context: mode,
+    }, event => {
+      if (event.type === 'start') {
+        setAiReviewAttempt(event.attempt)
+        setAiReviewContext(event.context)
+        setAiReviewContextFiles(event.contextFiles)
+      } else if (event.type === 'reasoning') {
+        setAiReviewReasoning(current => current + event.text)
+      } else if (event.type === 'text') {
+        setAiReview(current => current + event.text)
+      } else if (event.type === 'retry') {
+        setAiReview('')
+        setAiReviewReasoning('')
+        setAiReviewAttempt(event.attempt)
+        setAiReviewContext(null)
+        setAiReviewContextFiles(0)
+      }
     }, controller.signal)
       .then(payload => {
         if (controller.signal.aborted) return
         setAiReview(payload.review)
+        setAiReviewContext(payload.context)
+        setAiReviewContextFiles(payload.contextFiles)
         setAiReviewStatus('ready')
       })
       .catch(error => {
         if (controller.signal.aborted || isAbortError(error)) return
         const apiError = toApiError(error)
         if (apiError.code === 'forge-auth-required') {
-          pendingAiReview.current = number
+          pendingAiReview.current = { number, mode }
           setAiReviewStatus('idle')
           promptAuth(apiError, remote)
           return
         }
-        setAiReviewError(apiError.message)
+        if (apiError.code === 'review-truncated') {
+          setAiReviewError(t('pullAiReviewTruncated'))
+        } else if (apiError.code === 'empty-review') {
+          setAiReviewError(t('pullAiReviewEmpty'))
+        } else {
+          setAiReviewError(apiError.message)
+        }
         setAiReviewStatus('error')
       })
-  }, [aiReviewStatus, promptAuth, remote, repoRoot, selected, t])
+      .finally(() => {
+        if (aiAbort.current === controller) {
+          aiAbort.current = null
+          aiRunningRef.current = false
+        }
+      })
+  }, [aiReviewMode, promptAuth, remote, repoRoot, selected, t])
+
+  const chooseAiReviewMode = useCallback((mode: AiReviewMode): void => {
+    setAiReviewModeState(mode)
+    try {
+      window.localStorage.setItem(AI_REVIEW_MODE_KEY, mode)
+    } catch {
+      // The current choice still applies in memory.
+    }
+  }, [])
 
   const clearAiReview = useCallback((): void => {
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
+    setAiReviewReasoning('')
+    setAiReviewAttempt(1)
     setAiReviewError(null)
     setAiReviewStatus('idle')
+    setAiReviewContext(null)
+    setAiReviewContextFiles(0)
   }, [])
 
   const submitToken = useCallback(async (username: string, token: string): Promise<void> => {
@@ -538,7 +632,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       const pendingReview = pendingAiReview.current
       pendingAiReview.current = null
       if (pendingReview !== null) {
-        runAiReview(pendingReview)
+        runAiReview(pendingReview.number, pendingReview.mode)
         return
       }
       const pending = pendingState.current
@@ -570,7 +664,21 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         : t('pullCheckoutDone').replace('{number}', String(number)).replace('{branch}', payload.branch))
       onCheckedOut()
     } catch (checkoutError) {
-      toast(toApiError(checkoutError).message, 'error')
+      const apiError = toApiError(checkoutError)
+      if (apiError.code === 'worktree-dirty') {
+        const details = apiError.details
+        const count = typeof details?.count === 'number'
+          ? details.count
+          : Array.isArray(details?.files) ? details.files.length : null
+        toast(
+          count === null
+            ? t('pullCheckoutDirtyNoCount')
+            : t('pullCheckoutDirty').replace('{count}', String(count)),
+          'error',
+        )
+      } else {
+        toast(apiError.message, 'error')
+      }
     } finally {
       setCheckingOut(null)
     }
@@ -608,9 +716,15 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     reopenPull,
     mergePull,
     aiReview,
+    aiReviewReasoning,
+    aiReviewAttempt,
     aiReviewStatus,
     aiReviewError,
-    runAiReview: () => { runAiReview() },
+    aiReviewContext,
+    aiReviewContextFiles,
+    aiReviewMode,
+    setAiReviewMode: chooseAiReviewMode,
+    runAiReview: (mode?: AiReviewMode) => { runAiReview(undefined, mode) },
     clearAiReview,
     headBranch: branch,
     headRemote: upstream.includes('/') ? upstream.slice(0, upstream.indexOf('/')) : remote,
