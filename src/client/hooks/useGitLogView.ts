@@ -4,7 +4,7 @@ import { layoutGraph, type GraphLayout } from '../lib/graph.js'
 import { buildProjectGroups, findCurrentProject, type ProjectGroups } from '../lib/projects.js'
 import { addRecentProject, readRecentProjects, writeRecentProjects } from '../lib/recent-projects.js'
 import { requestSessionRepo } from '../lib/api.js'
-import { selectionLabel, selectionParams } from '../lib/selection.js'
+import { selectionAfterHeadChange, selectionLabel, selectionParams } from '../lib/selection.js'
 import { type RepoUiState, readRepoUiState, writeRepoUiState } from '../lib/ui-state.js'
 import type {
   Commit,
@@ -427,13 +427,15 @@ export function useGitLogView(t: Translate, options?: { sessionId?: string }): G
         ref: next.ref,
       }, undefined, 'POST')
       rememberProject(payload.repoRoot)
-      setSelection(HEAD)
+      // Keep the user's "all branches" scope; only scopes tied to HEAD change.
+      const shown = selectionAfterHeadChange(selection)
+      setSelection(shown)
       setSelected(null)
       setDetail(null)
       setDetailStatus('idle')
       setDetailError(null)
       await Promise.all([
-        loadLog({ path: payload.repoRoot, limit, offset: 0, selection: HEAD }),
+        loadLog({ path: payload.repoRoot, limit, offset: 0, selection: shown }),
         loadTree(payload.repoRoot),
       ])
     } catch (error) {
@@ -441,7 +443,7 @@ export function useGitLogView(t: Translate, options?: { sessionId?: string }): G
     } finally {
       setSwitching(false)
     }
-  }, [limit, loadLog, loadTree, pathInput, rememberProject, repo, switching])
+  }, [limit, loadLog, loadTree, pathInput, rememberProject, repo, selection, switching])
 
   const graph = useMemo(() => layoutGraph(commits), [commits])
   const projectGroups = useMemo(() => buildProjectGroups(projects, recentProjects), [projects, recentProjects])

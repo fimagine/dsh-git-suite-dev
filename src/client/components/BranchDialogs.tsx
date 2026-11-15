@@ -2,6 +2,7 @@ import type * as React from 'react'
 import { h, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import { requestBranchAction, toApiError } from '../lib/api.js'
+import { selectionAfterHeadChange } from '../lib/selection.js'
 import type { Branch, Translate } from '../types.js'
 import { DialogShell } from './DialogShell.js'
 import { Button, DialogActions } from './Button.js'
@@ -35,7 +36,7 @@ export function BranchRenameDialog({ view, branch, t, onClose }: BranchRenameDia
         branch: branch.name,
         newName: value,
       })
-      view.selectRef({ kind: 'head' })
+      view.selectRef(selectionAfterHeadChange(view.selection))
       onClose()
     } catch (failure) {
       setError(toApiError(failure).message)
@@ -95,7 +96,7 @@ export function BranchDeleteDialog({ view, branch, t, onClose }: BranchDeleteDia
         path: view.repo?.repoRoot ?? view.pathInput.trim(),
         branch: branch.name,
       })
-      view.selectRef({ kind: 'head' })
+      view.selectRef(selectionAfterHeadChange(view.selection))
       onClose()
     } catch (failure) {
       setError(toApiError(failure).message)

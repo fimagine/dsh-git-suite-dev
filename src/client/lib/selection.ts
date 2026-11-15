@@ -18,6 +18,14 @@ export function selectionParams(selection: Selection): Pick<RequestParams, 'scop
   }
 }
 
+/**
+ * The scope to show after HEAD moves (branch switch, checkout, rename).
+ * "All branches" is a user choice and stays put; other scopes follow HEAD.
+ */
+export function selectionAfterHeadChange(selection: Selection): Selection {
+  return selection.kind === 'all' ? { kind: 'all' } : { kind: 'head' }
+}
+
 /** Stable identity used for tree highlighting. */
 export function selectionKey(selection: Selection): string {
   switch (selection.kind) {

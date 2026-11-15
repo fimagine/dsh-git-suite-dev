@@ -2,6 +2,7 @@ import type * as React from 'react'
 import { h, useEffect, useRef, useState } from '../runtime.js'
 import type { GitLogView } from '../hooks/useGitLogView.js'
 import { requestBranch, requestCheckout, requestCommitOp, requestTag, toApiError } from '../lib/api.js'
+import { selectionAfterHeadChange } from '../lib/selection.js'
 import type { Branch, Commit, Translate } from '../types.js'
 import { Button, DialogActions } from './Button.js'
 import { CommitRefField } from './CommitRefField.js'
@@ -232,7 +233,8 @@ function CheckoutDialog({ view, commit, t, onClose }: CommitDialogProps): React.
         path: repoPath(view),
         ...(detached ? { hash: commit.hash } : { branch: target }),
       })
-      view.selectRef({ kind: 'head' })
+      // Keep an "all branches" scope; otherwise follow the new HEAD.
+      view.selectRef(selectionAfterHeadChange(view.selection))
       view.refresh()
       onClose()
     } catch (failure) {

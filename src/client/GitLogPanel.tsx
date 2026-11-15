@@ -330,8 +330,12 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
         ref: tag.ref,
       })
       ws.refresh()
-      view.selectRef({ kind: 'head' })
-      view.refresh()
+      if (view.selection.kind === 'all') {
+        view.refresh()
+      } else {
+        view.selectRef({ kind: 'head' })
+        view.refresh()
+      }
     } catch (error) {
       setTagActionError(toApiError(error).message)
     }
@@ -465,8 +469,12 @@ export function GitLogPanel({ t, compact = false, sessionId }: GitLogPanelProps)
         branch: branch.name,
       })
       ws.refresh()
-      view.selectRef({ kind: 'head' })
-      view.refresh()
+      if (view.selection.kind === 'all') {
+        view.refresh()
+      } else {
+        view.selectRef({ kind: 'head' })
+        view.refresh()
+      }
     } catch (error) {
       setBranchActionError(toApiError(error).message)
     }
