@@ -141,6 +141,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   /** AI review that failed on auth; retried after saving the token. */
   const pendingAiReview = useRef<{ number: number; mode: AiReviewMode } | null>(null)
   const aiAbort = useRef<AbortController | null>(null)
+  const aiRunningRef = useRef(false)
   const creatingRef = useRef(false)
   const [reload, setReload] = useState(0)
   const listAbort = useRef<AbortController | null>(null)
@@ -183,6 +184,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     pendingMerge.current = null
     pendingAiReview.current = null
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
     setAiReviewReasoning('')
     setAiReviewAttempt(1)
@@ -236,6 +239,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   // A different request starts with no stale AI review.
   useEffect(() => {
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
     setAiReviewReasoning('')
     setAiReviewAttempt(1)
@@ -499,7 +504,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   const runAiReview = useCallback((numberOverride?: number, modeOverride?: AiReviewMode): void => {
     const number = numberOverride ?? selected
     const mode = modeOverride ?? aiReviewMode
-    if (number === null || repoRoot === '' || remote === '' || aiReviewStatus === 'loading') return
+    if (number === null || repoRoot === '' || remote === '' || aiRunningRef.current) return
+    aiRunningRef.current = true
     aiAbort.current?.abort()
     const controller = new AbortController()
     aiAbort.current = controller
@@ -529,6 +535,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         setAiReview('')
         setAiReviewReasoning('')
         setAiReviewAttempt(event.attempt)
+        setAiReviewContext(null)
+        setAiReviewContextFiles(0)
       }
     }, controller.signal)
       .then(payload => {
@@ -556,7 +564,13 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
         }
         setAiReviewStatus('error')
       })
-  }, [aiReviewMode, aiReviewStatus, promptAuth, remote, repoRoot, selected, t])
+      .finally(() => {
+        if (aiAbort.current === controller) {
+          aiAbort.current = null
+          aiRunningRef.current = false
+        }
+      })
+  }, [aiReviewMode, promptAuth, remote, repoRoot, selected, t])
 
   const chooseAiReviewMode = useCallback((mode: AiReviewMode): void => {
     setAiReviewModeState(mode)
@@ -569,6 +583,8 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
 
   const clearAiReview = useCallback((): void => {
     aiAbort.current?.abort()
+    aiAbort.current = null
+    aiRunningRef.current = false
     setAiReview('')
     setAiReviewReasoning('')
     setAiReviewAttempt(1)
@@ -643,8 +659,16 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
     } catch (checkoutError) {
       const apiError = toApiError(checkoutError)
       if (apiError.code === 'worktree-dirty') {
-        const count = typeof apiError.details?.count === 'number' ? apiError.details.count : 0
-        toast(t('pullCheckoutDirty').replace('{count}', String(count)), 'error')
+        const details = apiError.details
+        const count = typeof details?.count === 'number'
+          ? details.count
+          : Array.isArray(details?.files) ? details.files.length : null
+        toast(
+          count === null
+            ? t('pullCheckoutDirtyNoCount')
+            : t('pullCheckoutDirty').replace('{count}', String(count)),
+          'error',
+        )
       } else {
         toast(apiError.message, 'error')
       }

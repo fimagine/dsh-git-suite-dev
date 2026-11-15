@@ -378,12 +378,18 @@ export async function requestPullAiReviewStream(
     body: JSON.stringify({ ...body, stream: true }),
   })
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as {
-      error?: { code?: string; message?: string; details?: ErrorDetails }
-    } | null
+    const text = await response.text().catch(() => '')
+    type ErrorPayload = { error?: { code?: string; message?: string; details?: ErrorDetails } }
+    let payload: ErrorPayload | null = null
+    try {
+      payload = JSON.parse(text) as ErrorPayload
+    } catch {
+      payload = null
+    }
+    const fallback = text.trim().slice(0, 500)
     throw new ApiError(
-      payload?.error?.message ?? 'AI review failed.',
-      payload?.error?.code ?? 'internal',
+      payload?.error?.message ?? (fallback === '' ? 'AI review failed.' : fallback),
+      payload?.error?.code ?? `http-${response.status}`,
       payload?.error?.details,
     )
   }
@@ -398,44 +404,51 @@ export async function requestPullAiReviewStream(
     error: { code?: string; message?: string; details?: ErrorDetails }
   }
 
-  const handleLine = (line: string): void => {
-    if (line.trim() === '') return
+  const handleLine = (line: string): PullAiReviewPayload | null => {
+    if (line.trim() === '') return null
     let event: WireEvent
     try {
       event = JSON.parse(line) as WireEvent
     } catch {
-      return
+      return null
     }
     if (event.type === 'error') {
       throw new ApiError(event.error.message ?? 'AI review failed.', event.error.code ?? 'internal', event.error.details)
     }
     onEvent(event)
-    if (event.type === 'done') {
-      done = {
-        ok: true,
-        review: event.review,
-        model: event.model,
-        files: event.files,
-        truncated: event.truncated,
-        context: event.context,
-        contextFiles: event.contextFiles,
-      }
+    if (event.type !== 'done') return null
+    return {
+      ok: true,
+      review: event.review,
+      model: event.model,
+      files: event.files,
+      truncated: event.truncated,
+      context: event.context,
+      contextFiles: event.contextFiles,
     }
   }
 
-  while (true) {
-    const { value, done: finished } = await reader.read()
-    if (finished) break
-    buffer += decoder.decode(value, { stream: true })
-    let newline = buffer.indexOf('\n')
-    while (newline >= 0) {
-      handleLine(buffer.slice(0, newline))
-      buffer = buffer.slice(newline + 1)
-      newline = buffer.indexOf('\n')
+  try {
+    while (true) {
+      const { value, done: finished } = await reader.read()
+      if (finished) break
+      buffer += decoder.decode(value, { stream: true })
+      let newline = buffer.indexOf('\n')
+      while (newline >= 0) {
+        const parsed = handleLine(buffer.slice(0, newline))
+        if (parsed !== null) done = parsed
+        buffer = buffer.slice(newline + 1)
+        newline = buffer.indexOf('\n')
+      }
     }
+    buffer += decoder.decode()
+    if (buffer.trim() !== '') {
+      const parsed = handleLine(buffer)
+      if (parsed !== null) done = parsed
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
   }
-  buffer += decoder.decode()
-  if (buffer.trim() !== '') handleLine(buffer)
   if (done === null) throw new ApiError('The review stream ended before completion.', 'empty-review')
   return done
 }

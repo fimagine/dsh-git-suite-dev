@@ -1,3 +1,5 @@
+// Base grammars (json, markup, clike, javascript) must load before components
+// that extend them; keep this order when adding more Prism languages.
 import Prism from 'prismjs'
 import 'prismjs/components/prism-markup-templating'
 import 'prismjs/components/prism-jsx'

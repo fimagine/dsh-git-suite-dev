@@ -521,6 +521,7 @@ export const zh: Record<LocaleKey, string> = {
   pullCheckoutDone: '已检出 PR #{number} 到分支 {branch}',
   pullCheckoutExisting: '已切换到已有分支 {branch}',
   pullCheckoutDirty: '工作区有 {count} 个未提交变更，请先提交或贮藏后再检出。',
+  pullCheckoutDirtyNoCount: '工作区有未提交变更，请先提交或贮藏后再检出。',
   pullFilesTruncated: '只显示前一部分文件。',
   pullUpdated: '更新于',
   pullStateOpen: '打开',

@@ -519,6 +519,7 @@ export const en = {
   pullCheckoutDone: 'Checked out PR #{number} as {branch}',
   pullCheckoutExisting: 'Switched to the existing branch {branch}',
   pullCheckoutDirty: 'The working tree has {count} uncommitted change(s). Commit or stash them before checking out.',
+  pullCheckoutDirtyNoCount: 'The working tree has uncommitted changes. Commit or stash them before checking out.',
   pullFilesTruncated: 'Only the first files are shown.',
   pullUpdated: 'Updated',
   pullStateOpen: 'Open',

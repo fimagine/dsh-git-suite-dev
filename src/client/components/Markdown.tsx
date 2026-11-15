@@ -23,7 +23,7 @@ const RULE = /^\s*([-*_])(?:\s*\1){2,}\s*$/
 
 function inline(text: string, prefix: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
-  const pattern = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\*\*([^*]+)\*\*|(?<![\w])__([^_]+)__(?![\w])|\*([^*]+)\*|(?<![\w])_([^_]+)_(?![\w])|~~([^~]+)~~/g
+  const pattern = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\*\*\*([\s\S]+?)\*\*\*|\*\*([\s\S]+?)\*\*|(?<![\w])__([\s\S]+?)__(?![\w])|\*([^*\n]+)\*|(?<![\w])_([^_\n]+)_(?![\w])|~~([^~]+)~~/g
   let last = 0
   let index = 0
   let match: RegExpExecArray | null
@@ -46,12 +46,18 @@ function inline(text: string, prefix: string): React.ReactNode[] {
       } else {
         nodes.push(...inline(label, key))
       }
-    } else if (match[5] !== undefined || match[6] !== undefined) {
-      nodes.push(<strong key={key}>{inline(match[5] ?? match[6] ?? '', key)}</strong>)
-    } else if (match[7] !== undefined || match[8] !== undefined) {
-      nodes.push(<em key={key}>{inline(match[7] ?? match[8] ?? '', key)}</em>)
-    } else if (match[9] !== undefined) {
-      nodes.push(<del key={key}>{inline(match[9], key)}</del>)
+    } else if (match[5] !== undefined) {
+      nodes.push(
+        <strong key={key}>
+          <em>{inline(match[5], key)}</em>
+        </strong>,
+      )
+    } else if (match[6] !== undefined || match[7] !== undefined) {
+      nodes.push(<strong key={key}>{inline(match[6] ?? match[7] ?? '', key)}</strong>)
+    } else if (match[8] !== undefined || match[9] !== undefined) {
+      nodes.push(<em key={key}>{inline(match[8] ?? match[9] ?? '', key)}</em>)
+    } else if (match[10] !== undefined) {
+      nodes.push(<del key={key}>{inline(match[10], key)}</del>)
     }
     last = pattern.lastIndex
   }
@@ -72,7 +78,25 @@ function isBlockStart(lines: string[], index: number): boolean {
 }
 
 function splitRow(line: string): string[] {
-  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim())
+  let raw = line.trim()
+  if (raw.startsWith('|')) raw = raw.slice(1)
+  if (raw.endsWith('|') && !raw.endsWith('\\|')) raw = raw.slice(0, -1)
+  const cells: string[] = []
+  let current = ''
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]
+    if (char === '\\' && raw[index + 1] === '|') {
+      current += '|'
+      index += 1
+    } else if (char === '|') {
+      cells.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  cells.push(current.trim())
+  return cells
 }
 
 function parseBlocks(source: string): Block[] {
@@ -143,10 +167,32 @@ function parseBlocks(source: string): Block[] {
       const ordered = listItem[2] !== undefined
       const items: string[] = []
       while (index < lines.length) {
-        const next = LIST_ITEM.exec(lines[index] ?? '')
-        if (next === null) break
-        items.push(next[3] ?? '')
-        index += 1
+        const currentLine = lines[index] ?? ''
+        const next = LIST_ITEM.exec(currentLine)
+        if (next !== null && (next[2] !== undefined) === ordered) {
+          items.push(next[3] ?? '')
+          index += 1
+          // Indented continuation lines belong to the item, not a new paragraph.
+          while (index < lines.length) {
+            const continuation = lines[index] ?? ''
+            if (continuation.trim() === '' || LIST_ITEM.test(continuation)) break
+            if (!/^(?:\s{2,}|\t)/.test(continuation)) break
+            items[items.length - 1] = `${items[items.length - 1]} ${continuation.trim()}`
+            index += 1
+          }
+          continue
+        }
+        // Loose lists may have blank lines between items.
+        if (currentLine.trim() === '') {
+          let lookahead = index
+          while (lookahead < lines.length && (lines[lookahead] ?? '').trim() === '') lookahead += 1
+          const afterGap = LIST_ITEM.exec(lines[lookahead] ?? '')
+          if (afterGap !== null && (afterGap[2] !== undefined) === ordered) {
+            index = lookahead
+            continue
+          }
+        }
+        break
       }
       blocks.push({ kind: 'list', ordered, items })
       continue
@@ -165,9 +211,12 @@ function parseBlocks(source: string): Block[] {
 
 function CodeBlock({ block }: { block: Extract<Block, { kind: 'code' }> }): React.ReactElement {
   const language = block.language === '' ? null : languageForAlias(block.language)
+  const lines = useMemo(() => block.code.split('\n'), [block.code])
   const highlighted = useMemo(
-    () => language === null ? null : highlightLines(block.code.split('\n'), language),
-    [block.code, language],
+    () => language === null || lines.length > 6000 || block.code.length > 400_000
+      ? null
+      : highlightLines(lines, language),
+    [block.code, language, lines],
   )
   return (
     <pre className="dsh-gitlog-md-code">

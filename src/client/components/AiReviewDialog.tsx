@@ -20,6 +20,7 @@ const MODES = [
 /** Asks how much file context to send before starting an AI review. */
 export function AiReviewDialog({ view, t, onClose }: AiReviewDialogProps): React.ReactElement {
   const [mode, setMode] = useState<AiReviewMode>(view.aiReviewMode)
+  const [radioName] = useState(() => `dsh-gitlog-ai-mode-${Math.random().toString(36).slice(2)}`)
 
   const start = (): void => {
     view.setAiReviewMode(mode)
@@ -38,7 +39,7 @@ export function AiReviewDialog({ view, t, onClose }: AiReviewDialogProps): React
           >
             <input
               type="radio"
-              name="dsh-gitlog-ai-mode"
+              name={radioName}
               value={option.value}
               checked={mode === option.value}
               onChange={() => setMode(option.value)}
