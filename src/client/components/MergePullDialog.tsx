@@ -40,7 +40,7 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
     if (approvalBusy) return
     setApprovalError(null)
     setRefreshFailed(false)
-    const result = await view.decideGitee(action)
+    const result = await view.decideGitee(action, current.number)
     if (result.ok) {
       if (result.warning !== undefined) {
         setApprovalError(result.warning)
