@@ -1,6 +1,6 @@
 import { lstat, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { ForgeTarget } from './forge/detect.js'
 import { forgeJson } from './forge/http.js'
 import { runGit } from './git.js'
@@ -51,7 +51,6 @@ async function readWorktreeFiles(
   limits: ReviewContextLimits,
 ): Promise<{ files: ReviewContextFile[]; truncated: boolean }> {
   const base = resolve(root)
-  const prefix = base.endsWith(sep) ? base : `${base}${sep}`
   const maxFiles = limits.maxFiles ?? MAX_CONTEXT_FILES
   const maxFileChars = limits.maxFileChars ?? MAX_FILE_CHARS
   const maxTotalChars = limits.maxTotalChars ?? MAX_TOTAL_CHARS
@@ -61,7 +60,8 @@ async function readWorktreeFiles(
   for (const file of pull.files.slice(0, maxFiles)) {
     if (file.status === 'deleted') continue
     const absolute = resolve(base, file.path)
-    if (!absolute.startsWith(prefix)) continue
+    const relativePath = relative(base, absolute)
+    if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) continue
     try {
       const info = await lstat(absolute)
       if (!info.isFile() || info.size > maxFileChars) {
@@ -175,7 +175,7 @@ export async function readReviewContext(
   if (mode === 'diff') return { mode: 'diff', files: [], truncated: false }
 
   if (mode === 'auto' || mode === 'worktree') {
-    const localRef = `refs/dsh-pr-review/${number}`
+    const localRef = `refs/dsh-pr-review/${number}-${process.pid}-${Date.now().toString(36)}`
     const prRef = target.provider === 'gitlab' ? `refs/merge-requests/${number}/head` : `refs/pull/${number}/head`
     let dir = ''
     try {

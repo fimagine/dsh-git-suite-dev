@@ -397,6 +397,7 @@ export async function requestPullAiReviewStream(
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
+  const MAX_STREAM_BUFFER = 1_000_000
   let buffer = ''
   let done: PullAiReviewPayload | null = null
   type WireEvent = AiReviewStreamEvent | {
@@ -433,6 +434,9 @@ export async function requestPullAiReviewStream(
       const { value, done: finished } = await reader.read()
       if (finished) break
       buffer += decoder.decode(value, { stream: true })
+      if (buffer.length > MAX_STREAM_BUFFER) {
+        throw new ApiError('The review stream produced an oversized event.', 'invalid-response')
+      }
       let newline = buffer.indexOf('\n')
       while (newline >= 0) {
         const parsed = handleLine(buffer.slice(0, newline))
@@ -442,6 +446,9 @@ export async function requestPullAiReviewStream(
       }
     }
     buffer += decoder.decode()
+    if (buffer.length > MAX_STREAM_BUFFER) {
+      throw new ApiError('The review stream produced an oversized event.', 'invalid-response')
+    }
     if (buffer.trim() !== '') {
       const parsed = handleLine(buffer)
       if (parsed !== null) done = parsed

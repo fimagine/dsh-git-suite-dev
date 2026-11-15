@@ -17,10 +17,12 @@ const MODES = [
   { value: 'diff', label: 'pullAiReviewModeDiff', hint: 'pullAiReviewModeDiffHint' },
 ] as const
 
+let aiReviewDialogSequence = 0
+
 /** Asks how much file context to send before starting an AI review. */
 export function AiReviewDialog({ view, t, onClose }: AiReviewDialogProps): React.ReactElement {
   const [mode, setMode] = useState<AiReviewMode>(view.aiReviewMode)
-  const [radioName] = useState(() => `dsh-gitlog-ai-mode-${Math.random().toString(36).slice(2)}`)
+  const [radioName] = useState(() => `dsh-gitlog-ai-mode-${++aiReviewDialogSequence}`)
 
   const start = (): void => {
     view.setAiReviewMode(mode)

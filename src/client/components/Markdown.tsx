@@ -17,11 +17,14 @@ type Block =
   | { kind: 'rule' }
 
 const SAFE_LINK = /^https?:\/\//i
+const MAX_MARKDOWN_CHARS = 200_000
+const MAX_INLINE_DEPTH = 8
 const LIST_ITEM = /^\s*(?:([-*+])|(\d+)[.)])\s+(.*)$/
 const TABLE_DIVIDER = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/
 const RULE = /^\s*([-*_])(?:\s*\1){2,}\s*$/
 
-function inline(text: string, prefix: string): React.ReactNode[] {
+function inline(text: string, prefix: string, depth = 0): React.ReactNode[] {
+  if (depth > MAX_INLINE_DEPTH) return [text]
   const nodes: React.ReactNode[] = []
   const pattern = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\*\*\*([\s\S]+?)\*\*\*|\*\*([\s\S]+?)\*\*|(?<![\w])__([\s\S]+?)__(?![\w])|\*([^*\n]+)\*|(?<![\w])_([^_\n]+)_(?![\w])|~~([^~]+)~~/g
   let last = 0
@@ -36,28 +39,28 @@ function inline(text: string, prefix: string): React.ReactNode[] {
       const label = match[3]
       const url = match[4] ?? ''
       if (match[2] === '!') {
-        nodes.push(...inline(label, key))
+        nodes.push(...inline(label, key, depth + 1))
       } else if (SAFE_LINK.test(url)) {
         nodes.push(
           <a key={key} href={url} target="_blank" rel="noreferrer noopener">
-            {inline(label, key)}
+            {inline(label, key, depth + 1)}
           </a>,
         )
       } else {
-        nodes.push(...inline(label, key))
+        nodes.push(...inline(label, key, depth + 1))
       }
     } else if (match[5] !== undefined) {
       nodes.push(
         <strong key={key}>
-          <em>{inline(match[5], key)}</em>
+          <em>{inline(match[5], key, depth + 1)}</em>
         </strong>,
       )
     } else if (match[6] !== undefined || match[7] !== undefined) {
-      nodes.push(<strong key={key}>{inline(match[6] ?? match[7] ?? '', key)}</strong>)
+      nodes.push(<strong key={key}>{inline(match[6] ?? match[7] ?? '', key, depth + 1)}</strong>)
     } else if (match[8] !== undefined || match[9] !== undefined) {
-      nodes.push(<em key={key}>{inline(match[8] ?? match[9] ?? '', key)}</em>)
+      nodes.push(<em key={key}>{inline(match[8] ?? match[9] ?? '', key, depth + 1)}</em>)
     } else if (match[10] !== undefined) {
-      nodes.push(<del key={key}>{inline(match[10], key)}</del>)
+      nodes.push(<del key={key}>{inline(match[10], key, depth + 1)}</del>)
     }
     last = pattern.lastIndex
   }
@@ -274,9 +277,12 @@ function renderBlock(block: Block, key: string): React.ReactNode {
 
 /** Safe Markdown for discussion comments and AI reviews; no raw HTML is rendered. */
 export function Markdown({ text, className }: MarkdownProps): React.ReactElement {
-  const blocks = useMemo(() => parseBlocks(text), [text])
+  const tooLarge = text.length > MAX_MARKDOWN_CHARS
+  const blocks = useMemo(() => tooLarge ? [] : parseBlocks(text), [text, tooLarge])
+  const classes = `dsh-gitlog-markdown${className === undefined ? '' : ` ${className}`}`
+  if (tooLarge) return <pre className={classes}>{text}</pre>
   return (
-    <div className={`dsh-gitlog-markdown${className === undefined ? '' : ` ${className}`}`}>
+    <div className={classes}>
       {blocks.map((block, index) => renderBlock(block, `md-${index}`))}
     </div>
   )
