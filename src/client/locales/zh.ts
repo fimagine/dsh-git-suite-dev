@@ -495,7 +495,7 @@ export const zh: Record<LocaleKey, string> = {
   pullDeleting: '正在删除…',
   pullDeleted: '已删除 PR #{number}。',
   pullMergeGiteeReviewRequired: 'Gitee 要求 PR 先完成「审查通过」和「测试通过」才能合并。请先在 PR 页面完成这两步，再回来合并。',
-  pullGiteeApprovalsHint: 'Gitee 合并前需要审查和测试通过；这里只标记状态，不会执行测试。',
+  pullGiteeApprovalsHint: 'Gitee 合并前，需要确认审查和测试通过',
   pullGiteeReview: '审查通过',
   pullGiteeTest: '测试通过',
   pullGiteeReviewPassed: '已标记 Gitee 审查通过。',

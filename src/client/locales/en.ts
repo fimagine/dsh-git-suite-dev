@@ -493,7 +493,7 @@ export const en = {
   pullDeleting: 'Deleting…',
   pullDeleted: 'Deleted PR #{number}.',
   pullMergeGiteeReviewRequired: 'Gitee requires the pull request to pass its review and test steps before merging. Complete both on the PR page, then merge again.',
-  pullGiteeApprovalsHint: 'Gitee requires review and test approval before merging. These buttons only mark the state; they do not run tests.',
+  pullGiteeApprovalsHint: 'Before merging, confirm the Gitee review and test have passed.',
   pullGiteeReview: 'Approve review',
   pullGiteeTest: 'Mark test passed',
   pullGiteeReviewPassed: 'Gitee review marked as passed.',

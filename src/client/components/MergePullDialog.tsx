@@ -67,7 +67,6 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
                 <p className="dsh-gitlog-field-hint">{t('pullGiteeApprovalsHint')}</p>
                 <div className="dsh-gitlog-merge-approval-actions">
                   <Button
-                    variant="ghost"
                     loading={view.giteeDecision === 'review'}
                     disabled={busy || view.giteeDecision !== null}
                     onClick={() => { void approve('review') }}
@@ -75,7 +74,6 @@ export function MergePullDialog({ view, pull, t, onClose }: MergePullDialogProps
                     {t('pullGiteeReview')}
                   </Button>
                   <Button
-                    variant="ghost"
                     loading={view.giteeDecision === 'test'}
                     disabled={busy || view.giteeDecision !== null}
                     onClick={() => { void approve('test') }}
