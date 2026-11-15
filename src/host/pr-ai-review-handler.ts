@@ -12,8 +12,24 @@ import { readReviewContext, type ReviewContext, type ReviewContextMode } from '.
 
 const MAX_BODY_BYTES = 64 * 1024
 const MAX_PATCH_CHARS = 120_000
+const MAX_FILE_CONTEXT_CHARS = 80_000
 const MAX_DESCRIPTION_CHARS = 4_000
 const MAX_REVIEW_CHARS = 20_000
+
+/** Split the model's input window between patches and full-file context. */
+function reviewBudgets(contextWindow: number | undefined): { diff: number; files: number } {
+  if (contextWindow === undefined || contextWindow <= 0) {
+    return { diff: MAX_PATCH_CHARS, files: MAX_FILE_CONTEXT_CHARS }
+  }
+  // Reserve the 16k retry budget and prompt overhead; 3 chars/token is a
+  // conservative estimate for mixed prose and code.
+  const usableTokens = Math.max(8_000, contextWindow - 16_000 - 2_000)
+  const usableChars = usableTokens * 3
+  return {
+    diff: Math.min(MAX_PATCH_CHARS, Math.max(16_000, Math.floor(usableChars * 0.62))),
+    files: Math.min(MAX_FILE_CONTEXT_CHARS, Math.max(8_000, Math.floor(usableChars * 0.38))),
+  }
+}
 
 interface ReviewBody {
   path?: unknown
@@ -68,8 +84,8 @@ function reviewPriority(file: PullFile): number {
   return 1
 }
 
-function diffExcerpt(pull: PullDetail): { text: string; truncated: boolean } {
-  let remaining = MAX_PATCH_CHARS
+function diffExcerpt(pull: PullDetail, maxChars: number): { text: string; truncated: boolean } {
+  let remaining = maxChars
   let truncated = false
   const parts: string[] = []
   const files = [...pull.files].sort((a, b) => reviewPriority(a) - reviewPriority(b))
@@ -92,8 +108,13 @@ function diffExcerpt(pull: PullDetail): { text: string; truncated: boolean } {
   return { text: parts.join('\n\n'), truncated }
 }
 
-function buildPrompt(pull: PullDetail, language: string, context: ReviewContext): { prompt: string; truncated: boolean } {
-  const diff = diffExcerpt(pull)
+function buildPrompt(
+  pull: PullDetail,
+  language: string,
+  context: ReviewContext,
+  diffBudget: number,
+): { prompt: string; truncated: boolean } {
+  const diff = diffExcerpt(pull, diffBudget)
   const description = pull.body.trim().slice(0, MAX_DESCRIPTION_CHARS)
   const commits = pull.commits.slice(0, 30).map(commit => `- ${commit.shortHash} ${commit.subject}`).join('\n')
   const fullFiles = context.files.length === 0
@@ -203,16 +224,6 @@ export function createPullAiReviewHandler(
       const contextMode: ReviewContextMode = body.context === 'diff' || body.context === 'api' || body.context === 'worktree'
         ? body.context
         : 'auto'
-      const reviewContext = await readReviewContext(
-        repo.root,
-        remote.name,
-        target,
-        pull,
-        rawNumber,
-        token,
-        signal,
-        contextMode,
-      )
 
       let selection: { provider: string; model: string; reasoningEffort?: string }
       try {
@@ -224,15 +235,11 @@ export function createPullAiReviewHandler(
         throw new RouteError(500, 'no-model', 'No default model is configured.')
       }
 
-      const language = typeof body.language === 'string' && body.language.toLowerCase().startsWith('zh')
-        ? 'Simplified Chinese'
-        : 'English'
-      const { prompt, truncated } = buildPrompt(pull, language, reviewContext)
-
       // A large review plus high reasoning can consume the whole output budget
-      // before any visible text. Use the model's least reasoning effort when
-      // the DSH build exposes model capabilities.
+      // before any visible text. Use the model's least reasoning effort and size
+      // the patch/file budgets from its context window when available.
       let reviewReasoningEffort = selection.reasoningEffort
+      let contextWindow: number | undefined
       try {
         if (llm.resolveModelInfo !== undefined) {
           const info = await llm.resolveModelInfo(selection.provider, selection.model, signal)
@@ -240,10 +247,30 @@ export function createPullAiReviewHandler(
           if (efforts.length > 0 && typeof efforts[0]?.id === 'string') {
             reviewReasoningEffort = efforts[0].id
           }
+          if (typeof info.context?.contextWindow === 'number') {
+            contextWindow = info.context.contextWindow
+          }
         }
       } catch {
         // Capability lookup is optional; keep the configured effort.
       }
+      const budgets = reviewBudgets(contextWindow)
+      const reviewContext = await readReviewContext(
+        repo.root,
+        remote.name,
+        target,
+        pull,
+        rawNumber,
+        token,
+        signal,
+        contextMode,
+        { maxTotalChars: budgets.files },
+      )
+
+      const language = typeof body.language === 'string' && body.language.toLowerCase().startsWith('zh')
+        ? 'Simplified Chinese'
+        : 'English'
+      const { prompt, truncated } = buildPrompt(pull, language, reviewContext, budgets.diff)
       const retryPrompt = `${prompt}\n\nIMPORTANT: A previous attempt exhausted the output budget while reasoning. Output the final review directly now; do not include analysis or thinking.`
       const streaming = body.stream === true
       let streamStarted = false

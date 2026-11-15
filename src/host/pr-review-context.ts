@@ -22,6 +22,13 @@ const MAX_FILE_CHARS = 120_000
 const MAX_TOTAL_CHARS = 80_000
 const MAX_API_FILES = 12
 
+export interface ReviewContextLimits {
+  maxFiles?: number
+  maxFileChars?: number
+  maxTotalChars?: number
+  maxApiFiles?: number
+}
+
 function repoFromUrl(url: string | null): { owner: string; repo: string } | null {
   if (url === null) return null
   try {
@@ -38,30 +45,37 @@ function safeContent(raw: string): string {
   return raw.includes('\u0000') ? '' : raw
 }
 
-async function readWorktreeFiles(root: string, pull: PullDetail): Promise<{ files: ReviewContextFile[]; truncated: boolean }> {
+async function readWorktreeFiles(
+  root: string,
+  pull: PullDetail,
+  limits: ReviewContextLimits,
+): Promise<{ files: ReviewContextFile[]; truncated: boolean }> {
   const base = resolve(root)
   const prefix = base.endsWith(sep) ? base : `${base}${sep}`
+  const maxFiles = limits.maxFiles ?? MAX_CONTEXT_FILES
+  const maxFileChars = limits.maxFileChars ?? MAX_FILE_CHARS
+  const maxTotalChars = limits.maxTotalChars ?? MAX_TOTAL_CHARS
   const files: ReviewContextFile[] = []
   let total = 0
   let truncated = false
-  for (const file of pull.files.slice(0, MAX_CONTEXT_FILES)) {
+  for (const file of pull.files.slice(0, maxFiles)) {
     if (file.status === 'deleted') continue
     const absolute = resolve(base, file.path)
     if (!absolute.startsWith(prefix)) continue
     try {
       const info = await lstat(absolute)
-      if (!info.isFile() || info.size > MAX_FILE_CHARS) {
+      if (!info.isFile() || info.size > maxFileChars) {
         truncated = true
         continue
       }
       const content = safeContent(await readFile(absolute, 'utf8'))
       if (content === '') continue
-      const room = MAX_TOTAL_CHARS - total
+      const room = maxTotalChars - total
       if (room <= 0) {
         truncated = true
         break
       }
-      const clipped = content.slice(0, Math.min(MAX_FILE_CHARS, room))
+      const clipped = content.slice(0, Math.min(maxFileChars, room))
       files.push({ path: file.path, content: clipped })
       total += clipped.length
       if (clipped.length < content.length) truncated = true
@@ -77,7 +91,11 @@ async function readApiFiles(
   token: string | null,
   pull: PullDetail,
   signal: AbortSignal,
+  limits: ReviewContextLimits,
 ): Promise<{ files: ReviewContextFile[]; truncated: boolean }> {
+  const maxFileChars = limits.maxFileChars ?? MAX_FILE_CHARS
+  const maxTotalChars = limits.maxTotalChars ?? MAX_TOTAL_CHARS
+  const maxApiFiles = limits.maxApiFiles ?? MAX_API_FILES
   const head = repoFromUrl(pull.headRepoUrl) ?? { owner: target.owner, repo: target.repo }
   const headTarget: ForgeTarget = {
     ...target,
@@ -90,9 +108,9 @@ async function readApiFiles(
   const files: ReviewContextFile[] = []
   let total = 0
   let truncated = false
-  for (const file of pull.files.slice(0, MAX_API_FILES)) {
+  for (const file of pull.files.slice(0, maxApiFiles)) {
     if (file.status === 'deleted') continue
-    const room = MAX_TOTAL_CHARS - total
+    const room = maxTotalChars - total
     if (room <= 0) {
       truncated = true
       break
@@ -127,7 +145,7 @@ async function readApiFiles(
     }
     const content = safeContent(raw)
     if (content === '') continue
-    const clipped = content.slice(0, Math.min(MAX_FILE_CHARS, room))
+    const clipped = content.slice(0, Math.min(maxFileChars, room))
     files.push({ path: file.path, content: clipped })
     total += clipped.length
     if (clipped.length < content.length) truncated = true
@@ -152,6 +170,7 @@ export async function readReviewContext(
   token: string | null,
   signal: AbortSignal,
   mode: ReviewContextMode = 'auto',
+  limits: ReviewContextLimits = {},
 ): Promise<ReviewContext> {
   if (mode === 'diff') return { mode: 'diff', files: [], truncated: false }
 
@@ -173,7 +192,7 @@ export async function readReviewContext(
       const commit = (await runGit(root, ['rev-parse', localRef], signal)).trim()
       dir = await mkdtemp(join(tmpdir(), 'dsh-pr-review-'))
       await runGit(root, ['worktree', 'add', '--detach', dir, commit], signal)
-      const files = await readWorktreeFiles(dir, pull)
+      const files = await readWorktreeFiles(dir, pull, limits)
       if (files.files.length > 0) {
         return { mode: 'worktree', files: files.files, truncated: files.truncated }
       }
@@ -190,7 +209,7 @@ export async function readReviewContext(
 
   if (mode === 'auto' || mode === 'api') {
     try {
-      const files = await readApiFiles(target, token, pull, signal)
+      const files = await readApiFiles(target, token, pull, signal, limits)
       return { mode: files.files.length > 0 ? 'api' : 'diff', files: files.files, truncated: files.truncated }
     } catch {
       // Fall through to diff-only.

@@ -97,6 +97,8 @@ export interface LlmService {
       efforts?: readonly { id: string }[]
       defaultEffort?: string
     }
+    context?: { contextWindow?: number }
+    defaultMaxTokens?: number
   }>
 }
 
