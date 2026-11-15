@@ -282,12 +282,14 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
   }, [selected])
 
   /** Refresh the selected detail without clearing it or flashing a spinner. */
-  const refreshQuietDetail = useCallback(async (number: number): Promise<void> => {
+  const refreshQuietDetail = useCallback(async (number: number): Promise<boolean> => {
     try {
       const payload = await requestPull({ path: repoRoot, remote, number, state, fresh: true })
       setDetail(current => current?.number === number ? payload.pull : current)
+      return true
     } catch {
       // Best-effort: keep the current detail on a failed background refresh.
+      return false
     }
   }, [remote, repoRoot, state])
 
@@ -553,7 +555,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       await requestPullGiteeDecision({ path: repoRoot, remote, number, action })
       toast(action === 'review' ? t('pullGiteeReviewPassed') : t('pullGiteeTestPassed'))
       if (selectedRef.current === number) {
-        const refreshed = await selectPull(number, true)
+        const refreshed = await refreshQuietDetail(number)
         if (!refreshed) {
           const warning = t('pullDetailRefreshFailed')
           toast(warning)
@@ -574,7 +576,7 @@ export function usePulls({ active, repoRoot, remotes, upstream, branch, t, onChe
       giteeDecisionRef.current = null
       setGiteeDecision(null)
     }
-  }, [giteeDecision, promptAuth, remote, repoRoot, selectPull, t])
+  }, [giteeDecision, promptAuth, refreshQuietDetail, remote, repoRoot, t])
 
   const deletePull = useCallback(async (number: number): Promise<PullActionResult> => {
     if (repoRoot === '' || remote === '') {
